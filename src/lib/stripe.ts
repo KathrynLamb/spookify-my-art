@@ -1,2 +1,5 @@
 import Stripe from 'stripe'
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' })
+
+// Let the SDK’s bundled API version apply (no apiVersion pin).
+export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+export type { Stripe }; // handy for typings elsewhere

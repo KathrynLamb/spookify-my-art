@@ -3,7 +3,6 @@
 import { Suspense } from 'react'
 import SpookifyInner from './spookify-inner'
 
-// Make this page dynamic so Next doesn’t try to prerender it
 export const dynamic = 'force-dynamic'
 
 export default function SpookifyPage() {

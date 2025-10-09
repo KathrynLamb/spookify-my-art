@@ -1,3 +1,4 @@
+// src/lib/memStore.ts
 // Minimal in-memory store for dev/MVP
 
 export type StoredItem = {
@@ -9,21 +10,23 @@ export type StoredItem = {
   updated: number
 }
 
-declare global {
-  // eslint-disable-next-line no-var
-  var __MEM_STORE__: Map<string, StoredItem> | undefined
+// Type-safe augmentation of globalThis (no eslint disables, no `any`)
+type AugmentedGlobal = typeof globalThis & {
+  __MEM_STORE__?: Map<string, StoredItem>
 }
 
-const mem = (globalThis as { __MEM_STORE__?: Map<string, StoredItem> }).__MEM_STORE__
-if (!mem) {
-  ;(globalThis as { __MEM_STORE__: Map<string, StoredItem> }).__MEM_STORE__ =
-    new Map<string, StoredItem>()
+const g = globalThis as AugmentedGlobal
+
+if (!g.__MEM_STORE__) {
+  g.__MEM_STORE__ = new Map<string, StoredItem>()
 }
-const memStore = (globalThis as { __MEM_STORE__: Map<string, StoredItem> }).__MEM_STORE__
+
+const memStore = g.__MEM_STORE__!
 
 export function upsertItem(id: string, patch: Partial<StoredItem>): StoredItem {
   const now = Date.now()
   const prev = memStore.get(id)
+
   const next: StoredItem = {
     id,
     created: prev?.created ?? now,
@@ -33,6 +36,7 @@ export function upsertItem(id: string, patch: Partial<StoredItem>): StoredItem {
     finalizedPrompt: prev?.finalizedPrompt ?? null,
     ...patch,
   }
+
   memStore.set(id, next)
   return next
 }

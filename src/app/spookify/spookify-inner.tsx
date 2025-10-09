@@ -4,6 +4,12 @@ import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import { useRouter, useSearchParams } from 'next/navigation'
 
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message
+  if (typeof err === 'string') return err
+  try { return JSON.stringify(err) } catch { return 'Unknown error' }
+}
+
 export default function SpookifyInner() {
   const params = useSearchParams()
   const router = useRouter()
@@ -16,41 +22,32 @@ export default function SpookifyInner() {
   const [showSpooky, setShowSpooky] = useState(true)
 
   useEffect(() => {
-    ;(async () => {
+    (async () => {
       if (!id) { router.push('/upload'); return }
       try {
-        setLoading(true)
-        setError(null)
+        setLoading(true); setError(null)
 
-        // fetch original
         const origRes = await fetch(`/api/get-image?id=${encodeURIComponent(id)}`)
-        const origJson = (await origRes.json()) as { dataUrl?: string; error?: string }
+        const origJson: { dataUrl?: string; error?: string } = await origRes.json()
         if (!origRes.ok || !origJson?.dataUrl) throw new Error(origJson.error || 'Original not found')
         setOriginal(origJson.dataUrl)
 
-        // run spookify using stored plan/prompt
         const res = await fetch('/api/spookify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id }),
         })
-        const data = (await res.json()) as {
-          previewDataUrl?: string
-          spookyImage?: string
-          error?: string
-          demo?: boolean
-        }
+        const data: { previewDataUrl?: string; spookyImage?: string; demo?: boolean; error?: string } = await res.json()
 
         if (res.ok && (data.previewDataUrl || data.spookyImage)) {
           setSpookified(data.previewDataUrl ?? data.spookyImage ?? null)
         } else if (res.status === 503 && data.demo) {
-          // graceful fallback
           setSpookified(origJson.dataUrl)
         } else {
           throw new Error(data.error || 'Failed to spookify')
         }
-      } catch (e: unknown) {
-        setError(e instanceof Error ? e.message : String(e))
+      } catch (e) {
+        setError(getErrorMessage(e))
       } finally {
         setLoading(false)
       }
@@ -60,7 +57,6 @@ export default function SpookifyInner() {
   return (
     <main className="min-h-screen bg-black text-white py-16 px-4">
       <h1 className="text-4xl font-bold text-center mb-6">Your Spookified Art</h1>
-
       {loading && <p className="text-center mt-10">Summoning ghosts... 👻</p>}
       {error && <p className="text-red-400 text-center mt-6">{error}</p>}
 
@@ -72,9 +68,7 @@ export default function SpookifyInner() {
                 src={original}
                 alt="Original Art"
                 fill
-                className={`object-contain absolute top-0 left-0 transition-opacity duration-500 ${
-                  showSpooky ? 'opacity-0' : 'opacity-100'
-                }`}
+                className={`object-contain absolute top-0 left-0 transition-opacity duration-500 ${showSpooky ? 'opacity-0' : 'opacity-100'}`}
                 priority
               />
             )}
@@ -82,9 +76,7 @@ export default function SpookifyInner() {
               src={spookified}
               alt="Spookified Art"
               fill
-              className={`object-contain absolute top-0 left-0 transition-opacity duration-500 ${
-                showSpooky ? 'opacity-100' : 'opacity-0'
-              }`}
+              className={`object-contain absolute top-0 left-0 transition-opacity duration-500 ${showSpooky ? 'opacity-100' : 'opacity-0'}`}
               priority
             />
           </div>

@@ -27,11 +27,11 @@ export async function POST(req: NextRequest) {
 
     const { mime, buf } = dataUrlToParts(dataUrl)
     const blob = await put(filename, buf, {
-      access: 'public',
-      contentType: mime,
-      addRandomSuffix: true,
-      token,
-    })
+        access: 'public',
+        contentType: mime,
+        addRandomSuffix: true,
+        token: process.env.BLOB_READ_WRITE_TOKEN, // <-- required for local dev
+      })
     return NextResponse.json({ url: blob.url })
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)

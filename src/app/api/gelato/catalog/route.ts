@@ -16,12 +16,12 @@ type Catalog = {
   }>
 }
 
-type GelatoError = {
-  code?: string
-  message?: string
-  requestId?: string
-  details?: unknown[]
-}
+// type GelatoError = {
+//   code?: string
+//   message?: string
+//   requestId?: string
+//   details?: unknown[]
+// }
 
 /** Safely pull a message off an unknown JSON blob. */
 function extractMessage(u: unknown): string | undefined {

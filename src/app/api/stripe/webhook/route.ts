@@ -6,24 +6,19 @@ import type Stripe from 'stripe'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-type GelatoAddress = {
-  name: string
-  address1: string
-  address2?: string
-  city: string
-  zip: string
-  state?: string
-  country: string
-  phone?: string
-  email?: string
-}
-
 function envBaseUrl(): string {
   const envUrl = process.env.NEXT_PUBLIC_BASE_URL
   if (envUrl) return envUrl.replace(/\/+$/, '')
   const vercel = process.env.VERCEL_URL
   if (vercel) return vercel.startsWith('http') ? vercel : `https://${vercel}`
   return `http://localhost:${process.env.PORT || 3000}`
+}
+
+function splitName(full?: string): { firstName?: string; lastName?: string } {
+  if (!full) return {}
+  const parts = full.trim().split(/\s+/)
+  if (parts.length === 1) return { firstName: parts[0] }
+  return { firstName: parts.slice(0, -1).join(' '), lastName: parts.slice(-1).join(' ') }
 }
 
 export async function POST(req: NextRequest) {
@@ -56,27 +51,43 @@ export async function POST(req: NextRequest) {
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as Stripe.Checkout.Session
 
-      // metadata we set when creating the Checkout Session
+      // Metadata we set when creating the Checkout Session
       const meta = (session.metadata ?? {}) as Record<string, string>
       const fileUrl = meta.fileUrl
-      // we store the Gelato productUid in metadata.sku (or productUid)
+      // We store the Gelato productUid in metadata.sku (or productUid)
       const productUid = meta.sku ?? meta.productUid
       const imageId = meta.imageId
+      const orientationMeta = meta.orientation // optional, if you pass it
 
       // Map Stripe -> Gelato shipping address
       const cd = session.customer_details
       const addr = cd?.address
-      const gelatoAddress: GelatoAddress = {
-        name: cd?.name ?? 'Customer',
-        address1: addr?.line1 ?? '',
-        address2: addr?.line2 ?? undefined,
-        city: addr?.city ?? '',
-        zip: addr?.postal_code ?? '',
+
+      console.log('CD', cd)
+      console.log('addr', addr)
+
+      const { firstName, lastName } = splitName(cd?.name ?? undefined)
+      // Stripe sometimes returns "Town, District" in city; flatten commas
+      const city = (addr?.city ?? '').replace(/\s*,\s*/g, ' ').trim() || undefined
+
+      // Gelato expects these exact keys
+      const gelatoAddress = {
+        firstName,
+        lastName,
+        name: cd?.name ?? undefined,
+
+        addressLine1: addr?.line1 ?? undefined,
+        addressLine2: addr?.line2 ?? undefined,
+        city,
+        postCode: addr?.postal_code ?? undefined,
         state: addr?.state ?? undefined,
         country: addr?.country ?? 'GB',
-        phone: cd?.phone ?? undefined,
+
         email: cd?.email ?? session.customer_email ?? undefined,
+        phone: cd?.phone ?? undefined,
       }
+
+      console.log('gelatoAddress', gelatoAddress)
 
       if (!fileUrl || !productUid || !imageId) {
         console.error('[stripe] Missing fileUrl/productUid/imageId in metadata; skipping Gelato order.', {
@@ -89,12 +100,14 @@ export async function POST(req: NextRequest) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             productUid,                     // Gelato product UID
-            fileUrl,                        // http(s) or data: (server route can handle uploading)
+            fileUrl,                        // http(s) or data: (server route can upload)
             imageId,
             currency: (session.currency ?? 'gbp').toUpperCase(),
-            address: gelatoAddress,
+            shippingAddress: gelatoAddress, // << correct key + field names
             shipmentMethodUid: 'STANDARD',
-            attributes: { Orientation: 'ver' }, // optional (explicit portrait)
+            attributes: {
+              Orientation: orientationMeta ?? 'ver', // optional
+            },
             externalOrderId: session.id,
           }),
         })

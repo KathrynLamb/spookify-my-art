@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
 import Footer from "./components/footer";
+import SiteHeader from "./components/site-header";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -15,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Spookify",
-  description: "Spookif your art",
+  title: 'Spookify',
+  description: 'Turn your art spooky, then print.',
 };
 
 export default function RootLayout({
@@ -29,12 +30,16 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+      <SiteHeader />
         {children}
         <Footer />
       </body>
     </html>
   );
 }
+
+
+
 
 
 

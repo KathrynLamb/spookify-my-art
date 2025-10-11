@@ -1,77 +1,288 @@
-'use client'
 
-import Link from 'next/link'
+// src/app/(marketing)/page.tsx
+import Image from "next/image";
+import Link from "next/link";
 
-export default function Home() {
+export const metadata = {
+  title: "Spookify — Turn any photo into haunting wall art",
+  description:
+    "Upload your photo, pick a vibe, and get museum-grade prints delivered. Framed or matte poster — fast, simple, spooky.",
+};
+
+export default function LandingPage() {
   return (
-    <main className="min-h-screen bg-black text-white px-4 md:px-12 py-10 space-y-20">
+    <main className="relative min-h-screen bg-black text-white">
+      {/* --- Background grid glow --- */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 -z-10 [mask-image:radial-gradient(ellipse_at_center,black_40%,transparent_70%)]"
+      >
+        <div className="absolute inset-0 bg-[radial-gradient(1250px_600px_at_50%_-10%,rgba(255,82,0,.12),transparent_60%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(900px_500px_at_10%_10%,rgba(168,85,247,.12),transparent_60%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(#101015_1px,transparent_1px),linear-gradient(90deg,#101015_1px,transparent_1px)] bg-[size:48px_48px]" />
+      </div>
 
-      {/* Hero Section */}
-      <section className="text-center space-y-6">
-        <h1 className="text-4xl md:text-6xl font-extrabold leading-tight">
-          🎃 This Halloween, Replace Your Wall Art with a Haunted Version of Itself
-        </h1>
-        <p className="text-gray-300 text-lg md:text-xl max-w-2xl mx-auto">
-          Transform your actual home decor into spooky masterpieces. Upload any artwork or photo — we’ll send you a haunted version, printed and delivered.
-        </p>
-        <div className="flex justify-center gap-4 mt-6 flex-wrap">
-          <Link href="/upload" className="bg-orange-600 hover:bg-orange-500 text-white px-6 py-3 rounded-full text-lg font-semibold">
-            🧙‍♀️ Get Started – Upload Your Art
-          </Link>
-          <Link href="#examples" className="bg-gray-800 hover:bg-gray-700 text-white px-6 py-3 rounded-full text-lg font-semibold">
-            👻 See Examples
-          </Link>
+      {/* --- HERO --- */}
+      <section className="relative">
+        <div className="mx-auto max-w-7xl px-4 pt-20 pb-16 md:pt-28 md:pb-24">
+          <div className="grid items-center gap-10 md:grid-cols-2">
+            <div>
+              <p className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70 backdrop-blur">
+                New • Framed & Poster prints live
+              </p>
+              <h1 className="mt-4 text-4xl font-extrabold leading-tight md:text-6xl">
+                Turn your photo into <span className="text-orange-400">spooky</span> wall art
+              </h1>
+              <p className="mt-4 max-w-xl text-white/70">
+                Upload a photo, tell us the vibe, and we’ll conjure a print-ready artwork in minutes.
+                Museum-grade paper, premium wood frames, global delivery.
+              </p>
+
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Link
+                  href="/upload"
+                  className="rounded-full bg-orange-600 px-5 py-3 text-sm font-medium hover:bg-orange-500"
+                >
+                  Upload a photo
+                </Link>
+                <Link
+                  href="/products"
+                  className="rounded-full border border-white/15 bg-white/5 px-5 py-3 text-sm font-medium hover:bg-white/10"
+                >
+                  Browse products
+                </Link>
+              </div>
+
+              <div className="mt-6 flex items-center gap-4 text-xs text-white/60">
+                <Stars />
+                <span>Loved by creators & parents</span>
+                <span className="hidden md:inline">•</span>
+                <span className="hidden md:inline">Ships to 30+ countries</span>
+              </div>
+            </div>
+
+            <div className="relative h-[420px] w-full overflow-hidden rounded-2xl border border-white/10 bg-[#0e0e11] shadow-xl">
+              {/* Before/after stack */}
+              <Image
+                src="/samples/original-1.jpg"
+                alt="Original"
+                fill
+                className="object-cover opacity-0 md:opacity-100"
+                sizes="(min-width:1024px) 560px, 100vw"
+                priority
+              />
+              <Image
+                src="https://fpabsqys5cky7azh.public.blob.vercel-storage.com/spookified-1253911a-fdaa-46c8-8907-6c0de24f011c-M2VlkfGKR2oJKp63PrcVqhGOv3SiLs.png"
+                alt="Spookified result"
+                fill
+                className="object-cover"
+                sizes="(min-width:1024px) 560px, 100vw"
+                priority
+              />
+              {/* subtle frame overlay */}
+              <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-inset ring-white/10" />
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* How It Works */}
-      <section className="max-w-5xl mx-auto space-y-12">
-        <h2 className="text-3xl font-bold text-center">🖼️ How It Works</h2>
-        <div className="grid md:grid-cols-3 gap-8 text-center">
-          <div className="space-y-2">
-            <div className="text-5xl">📸</div>
-            <h3 className="font-semibold text-xl">Upload Your Art</h3>
-            <p className="text-gray-400">Snap a photo of your wall art or family photo and upload it in seconds.</p>
-          </div>
-          <div className="space-y-2">
-            <div className="text-5xl">🧠</div>
-            <h3 className="font-semibold text-xl">Describe the Vibe</h3>
-            <p className="text-gray-400">Tell us the spookiness level and the mood: gothic, cute, haunted, foggy, etc.</p>
-          </div>
-          <div className="space-y-2">
-            <div className="text-5xl">🖨️</div>
-            <h3 className="font-semibold text-xl">Receive a Haunted Print</h3>
-            <p className="text-gray-400">We’ll send your haunted version as a premium print, ready to hang.</p>
-          </div>
+      {/* --- SOCIAL PROOF STRIP --- */}
+      {/* <section className="border-y border-white/10 bg-white/5/10 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-6 px-4 py-6 text-white/60">
+          <LogoRow />
+        </div>
+      </section> */}
+
+      {/* --- HOW IT WORKS --- */}
+      <section className="mx-auto max-w-7xl px-4 py-16 md:py-20">
+        <h2 className="mb-8 text-center text-3xl font-bold md:text-4xl">How it works</h2>
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card title="1) Upload" desc="Drop a photo. We’ll guide style & spookiness." icon="📤" />
+          <Card title="2) Spookify" desc="Confirm the vibe; we generate a print-perfect file." icon="🪄" />
+          <Card title="3) Print" desc="Pick size & frame. Delivered fast, worldwide." icon="🖼️" />
         </div>
       </section>
 
-      {/* Why Spookify */}
-      <section className="bg-gray-900 py-12 px-6 rounded-xl max-w-6xl mx-auto">
-        <h2 className="text-3xl font-bold text-center mb-6">🧛‍♀️ Why Spookify?</h2>
-        <ul className="grid md:grid-cols-2 gap-4 text-lg text-gray-300 list-disc list-inside">
-          <li>Transforms Your Actual Home Decor</li>
-          <li>AI-Generated Just for You</li>
-          <li>Printed on Premium Paper</li>
-          <li>Makes a Great Gift or Party Feature</li>
-          <li>Free Digital Preview Included</li>
-          <li>Global Shipping Available</li>
-        </ul>
+      {/* --- PRODUCT HIGHLIGHT --- */}
+      <section className="mx-auto max-w-7xl px-4 pb-8 md:pb-12">
+        <div className="grid gap-6 md:grid-cols-2">
+          <ProductTeaser
+            headline="Premium Wooden Framed Poster"
+            copy="Semi-gloss 200 gsm behind plexiglass in hardwood frames. Ready-to-hang."
+            cta={{ href: "/products", label: "Choose frame" }}
+            image="/mockups/framed-teaser.png"
+            badge="Most popular"
+          />
+          <ProductTeaser
+            headline="Museum-Quality Matte Poster"
+            copy="Archival 200 gsm matte paper. Rich color, glare-free finish."
+            cta={{ href: "/products", label: "Pick a size" }}
+            image="/mockups/poster-teaser.png"
+          />
+        </div>
+      </section>
+      
+       {/* --- GALLERY / BEFORE-AFTER --- */}
+      <section className="mx-auto max-w-7xl px-4 py-16 md:py-20">
+        <h2 className="mb-8 text-center text-3xl font-bold md:text-4xl">Before → After</h2>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <GalleryItem before="/before_after_gallery/wedding.png" after="/before_after_gallery/wedding_spookified.png" />
+          <GalleryItem before="/samples/original-3.jpg" after="https://fpabsqys5cky7azh.public.blob.vercel-storage.com/spookified-1253911a-fdaa-46c8-8907-6c0de24f011c-M2VlkfGKR2oJKp63PrcVqhGOv3SiLs.png" />
+          <GalleryItem before="/before_after_gallery/pets.png" after="/samples/spookified-4.jpg" />
+          <GalleryItem before="/samples/original-5.jpg" after="/samples/spookified-5.jpg" />
+          <GalleryItem before="/samples/original-6.jpg" after="/samples/spookified-6.jpg" />
+          <GalleryItem before="/samples/original-7.jpg" after="/samples/spookified-7.jpg" />
+        </div>
       </section>
 
-      {/* Product Info */}
-      <section className="text-center space-y-4">
-        <h2 className="text-3xl font-bold">📦 Product Options</h2>
-        <p className="text-gray-300">Posters in A4, A3, A2, 50×70 cm</p>
-        <p className="text-gray-300">From £14.99 — UK, EU, US, Canada, Australia</p>
-        <p className="text-green-400 font-semibold">🎁 Free spooky preview before you commit to printing</p>
+      {/* --- FAQ (compact) --- */}
+      <section className="mx-auto max-w-5xl px-4 pb-16 md:pb-20">
+        <h2 className="mb-6 text-center text-2xl font-semibold md:text-3xl">FAQ</h2>
+        <div className="grid gap-3 md:grid-cols-2">
+          <Faq q="What sizes do you offer?" a="Common EU sizes from 13×18 up to 70×100 cm (28×40”). US sizes soon." />
+          <Faq q="Do you ship worldwide?" a="We fulfill locally in many regions for fast shipping and lower emissions." />
+          <Faq q="Can I choose a frame color?" a="Yes—Black, White, Natural Wood, and Dark Wood, depending on size/orientation." />
+          <Faq q="Is my image safe?" a="Your uploads are private; we only use them to generate and print your art." />
+        </div>
       </section>
 
-      {/* Deadline Banner */}
-      <section className="bg-orange-700 text-black text-center py-6 rounded-xl max-w-4xl mx-auto">
-        <p className="text-xl font-bold">👻 Order by <strong>October 25</strong> to get your haunted print in time for Halloween!</p>
+      {/* --- FINAL CTA --- */}
+      <section className="mx-auto max-w-7xl px-4 pb-24">
+        <div className="rounded-2xl border border-white/10 bg-gradient-to-r from-orange-600/20 to-purple-600/20 p-8 text-center backdrop-blur">
+          <h3 className="text-2xl font-bold md:text-3xl">Ready to Spookify your photo?</h3>
+          <p className="mx-auto mt-2 max-w-2xl text-white/70">
+            Create a haunting keepsake in minutes. Try it free—pay only when you’re ready to print.
+          </p>
+          <div className="mt-6 flex justify-center gap-3">
+            <Link
+              href="/upload"
+              className="rounded-full bg-orange-600 px-5 py-3 text-sm font-medium hover:bg-orange-500"
+            >
+              Start now
+            </Link>
+            <Link
+              href="/products"
+              className="rounded-full border border-white/15 bg-white/5 px-5 py-3 text-sm font-medium hover:bg-white/10"
+            >
+              See products
+            </Link>
+          </div>
+        </div>
       </section>
-
     </main>
-  )
+  );
 }
+
+/* ----------------- Small atoms below (kept local for a single-file MVP) ----------------- */
+
+function Stars() {
+  return (
+    <div className="inline-flex items-center gap-0.5">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <svg key={i} width="16" height="16" viewBox="0 0 20 20" className="fill-orange-400">
+          <path d="M10 1.5 12.9 7l6 .9-4.4 4.3 1 6-5.4-2.9L4.7 18l1-6L1.3 7.9l6-.9L10 1.5z" />
+        </svg>
+      ))}
+    </div>
+  );
+}
+
+function Card({ title, desc, icon }: { title: string; desc: string; icon: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur">
+      <div className="text-2xl">{icon}</div>
+      <div className="mt-2 font-semibold">{title}</div>
+      <p className="mt-1 text-sm text-white/70">{desc}</p>
+    </div>
+  );
+}
+
+function ProductTeaser({
+  headline,
+  copy,
+  cta,
+  image,
+  badge,
+}: {
+  headline: string;
+  copy: string;
+  image: string;
+  badge?: string;
+  cta: { href: string; label: string };
+}) {
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-[#0e0e11] p-5 md:p-6">
+      {badge && (
+        <span className="absolute right-4 top-4 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs text-white/70 backdrop-blur">
+          {badge}
+        </span>
+      )}
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="relative h-56 w-full overflow-hidden rounded-xl bg-black/40">
+          <Image
+            src={image}
+            alt={headline}
+            fill
+            className="object-cover"
+            sizes="(min-width:1024px) 420px, 100vw"
+          />
+          <div className="pointer-events-none absolute inset-0 ring-1 ring-inset ring-white/10 rounded-xl" />
+        </div>
+        <div className="flex flex-col">
+          <h3 className="text-lg font-semibold">{headline}</h3>
+          <p className="mt-2 flex-1 text-sm text-white/70">{copy}</p>
+          <div className="mt-4">
+            <Link
+              href={cta.href}
+              className="inline-flex rounded-full bg-orange-600 px-4 py-2 text-sm font-medium hover:bg-orange-500"
+            >
+              {cta.label}
+            </Link>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GalleryItem({ before, after }: { before: string; after: string }) {
+  return (
+    <div className="group relative overflow-hidden rounded-2xl border border-white/10 bg-[#0e0e11]">
+      <div className="relative h-64 w-full">
+        <Image src={before} alt="Before" fill className="object-cover opacity-0 md:opacity-100" />
+        <Image src={after} alt="After" fill className="object-cover" />
+      </div>
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+      <div className="absolute bottom-3 left-3 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs text-white/80 backdrop-blur">
+        Before → After
+      </div>
+    </div>
+  );
+}
+
+function Faq({ q, a }: { q: string; a: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur">
+      <div className="font-medium">{q}</div>
+      <p className="mt-1 text-sm text-white/70">{a}</p>
+    </div>
+  );
+}
+
+// function LogoRow() {
+//   const logos = [
+//     { src: "/logos/press-1.svg", alt: "Logo 1" },
+//     { src: "/logos/press-2.svg", alt: "Logo 2" },
+//     { src: "/logos/press-3.svg", alt: "Logo 3" },
+//     { src: "/logos/press-4.svg", alt: "Logo 4" },
+//   ];
+//   return (
+//     <div className="mx-auto grid w-full max-w-5xl grid-cols-2 items-center gap-6 opacity-70 sm:grid-cols-4">
+//       {logos.map((l) => (
+//         <div key={l.alt} className="relative h-8 w-full">
+//           <Image src={l.src} alt={l.alt} fill className="object-contain" />
+//         </div>
+//       ))}
+//     </div>
+//   );
+// }

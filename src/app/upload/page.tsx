@@ -34,15 +34,15 @@ export default function UploadWithChatPage() {
   
   // FAKING THE UPLOAD HAPPENED
   
-  // const [previewUrl, setPreviewUrl] = useState<string | null>('https://fpabsqys5cky7azh.public.blob.vercel-storage.com/spookified-1253911a-fdaa-46c8-8907-6c0de24f011c-M2VlkfGKR2oJKp63PrcVqhGOv3SiLs.png')
-  // const [spookified, setSpookified] = useState<string | null>('https://fpabsqys5cky7azh.public.blob.vercel-storage.com/spookified-1253911a-fdaa-46c8-8907-6c0de24f011c-M2VlkfGKR2oJKp63PrcVqhGOv3SiLs.png')
-  // const [originalDataUrl, setOriginalDataUrl] = useState<string | null>('https://fpabsqys5cky7azh.public.blob.vercel-storage.com/spookified-1253911a-fdaa-46c8-8907-6c0de24f011c-M2VlkfGKR2oJKp63PrcVqhGOv3SiLs.png')
+  const [previewUrl, setPreviewUrl] = useState<string | null>('https://fpabsqys5cky7azh.public.blob.vercel-storage.com/spookified-1253911a-fdaa-46c8-8907-6c0de24f011c-M2VlkfGKR2oJKp63PrcVqhGOv3SiLs.png')
+  const [spookified, setSpookified] = useState<string | null>('https://fpabsqys5cky7azh.public.blob.vercel-storage.com/spookified-1253911a-fdaa-46c8-8907-6c0de24f011c-M2VlkfGKR2oJKp63PrcVqhGOv3SiLs.png')
+  const [originalDataUrl, setOriginalDataUrl] = useState<string | null>('https://fpabsqys5cky7azh.public.blob.vercel-storage.com/spookified-1253911a-fdaa-46c8-8907-6c0de24f011c-M2VlkfGKR2oJKp63PrcVqhGOv3SiLs.png')
   
   
-  const [spookified, setSpookified] = useState<string | null>()
-  const [originalDataUrl, setOriginalDataUrl] = useState<string | null>(null)
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
-  const [imageId, setImageId] = useState<string | null>(null)
+  // const [spookified, setSpookified] = useState<string | null>()
+  // const [originalDataUrl, setOriginalDataUrl] = useState<string | null>(null)
+  // const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+   const [imageId, setImageId] = useState<string | null>(null)
 
   // chat
   const [messages, setMessages] = useState<Msg[]>([

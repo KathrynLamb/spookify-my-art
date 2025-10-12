@@ -9,7 +9,7 @@ import { useCurrency } from '@/contexts/CurrencyContext'
 
 type Orientation = 'Vertical' | 'Horizontal'
 type FrameColor = 'Black' | 'White' | 'Wood' | 'Dark wood'
-
+type Currency = 'GBP' | 'USD' | 'EUR'
 export type Variant = {
   sizeLabel: string
   frameColor?: FrameColor

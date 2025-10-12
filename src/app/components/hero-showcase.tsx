@@ -44,13 +44,13 @@ export default function HeroShowcase({
   const containerRef = useRef<HTMLDivElement>(null)
   const handleRef = useRef<HTMLButtonElement>(null)
   const [reveal, setReveal] = useState<number>(0.62) // 0..1 (portion of AFTER revealed)
-  const [mounted, setMounted] = useState(false)
+  // const [mounted, setMounted] = useState(false)
 
   // Respect reduced motion
   const prefersReducedMotion = usePrefersReducedMotion()
   const enableAutoplay = autoplay && !prefersReducedMotion
 
-  useEffect(() => setMounted(true), [])
+  // useEffect(() => setMounted(true), [])
 
   // Autoplay: gently oscillate reveal between 0.3 and 0.7
   useEffect(() => {
@@ -77,16 +77,18 @@ export default function HeroShowcase({
     if (!containerRef.current) return
     const el = containerRef.current
     el.setPointerCapture(e.pointerId)
-    enableAutoplay && e.preventDefault()
-
+  
+    // was: enableAutoplay && e.preventDefault()
+    if (enableAutoplay) e.preventDefault()
+  
     const rect = el.getBoundingClientRect()
     const update = (clientX: number) => {
       const x = Math.min(Math.max(clientX - rect.left, 0), rect.width)
       setReveal(x / rect.width)
     }
-
+  
     update(e.clientX)
-
+  
     const onMove = (ev: PointerEvent) => update(ev.clientX)
     const onUp = (ev: PointerEvent) => {
       el.releasePointerCapture(ev.pointerId)
@@ -96,6 +98,7 @@ export default function HeroShowcase({
     window.addEventListener('pointermove', onMove, { passive: true })
     window.addEventListener('pointerup', onUp, { passive: true })
   }, [enableAutoplay])
+  
 
   const onKeyDown = useCallback((e: React.KeyboardEvent) => {
     const STEP = e.shiftKey ? 0.1 : 0.03

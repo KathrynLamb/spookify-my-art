@@ -2,6 +2,9 @@
 // src/app/(marketing)/page.tsx
 import Image from "next/image";
 import Link from "next/link";
+import FogWipe from "./components/fogwipe";
+
+import LanternSlider from "./components/lantern-slider";
 
 export const metadata = {
   title: "Spookify — Turn any photo into haunting wall art",
@@ -61,10 +64,10 @@ export default function LandingPage() {
               </div>
             </div>
 
-            <div className="relative h-[420px] w-full overflow-hidden rounded-2xl border border-white/10 bg-[#0e0e11] shadow-xl">
-              {/* Before/after stack */}
+            {/* <div className="relative h-[420px] w-full overflow-hidden rounded-2xl border border-white/10 bg-[#0e0e11] shadow-xl">
+        
               <Image
-                src="/samples/original-1.jpg"
+                src="/before_after_gallery/smile.png"
                 alt="Original"
                 fill
                 className="object-cover opacity-0 md:opacity-100"
@@ -79,9 +82,12 @@ export default function LandingPage() {
                 sizes="(min-width:1024px) 560px, 100vw"
                 priority
               />
-              {/* subtle frame overlay */}
               <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-inset ring-white/10" />
-            </div>
+            </div> */}
+            <FogWipe
+                before="/before_after_gallery/smile.png"
+                after="https://fpabsqys5cky7azh.public.blob.vercel-storage.com/spookified-1253911a-fdaa-46c8-8907-6c0de24f011c-M2VlkfGKR2oJKp63PrcVqhGOv3SiLs.png"
+              />
           </div>
         </div>
       </section>
@@ -110,14 +116,14 @@ export default function LandingPage() {
             headline="Premium Wooden Framed Poster"
             copy="Semi-gloss 200 gsm behind plexiglass in hardwood frames. Ready-to-hang."
             cta={{ href: "/products", label: "Choose frame" }}
-            image="/mockups/framed-teaser.png"
+            image="/livingroom_frame_1.png"
             badge="Most popular"
           />
           <ProductTeaser
             headline="Museum-Quality Matte Poster"
             copy="Archival 200 gsm matte paper. Rich color, glare-free finish."
             cta={{ href: "/products", label: "Pick a size" }}
-            image="/mockups/poster-teaser.png"
+            image="/poster.png"
           />
         </div>
       </section>
@@ -126,12 +132,15 @@ export default function LandingPage() {
       <section className="mx-auto max-w-7xl px-4 py-16 md:py-20">
         <h2 className="mb-8 text-center text-3xl font-bold md:text-4xl">Before → After</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <GalleryItem before="/before_after_gallery/wedding.png" after="/before_after_gallery/wedding_spookified.png" />
-          <GalleryItem before="/samples/original-3.jpg" after="https://fpabsqys5cky7azh.public.blob.vercel-storage.com/spookified-1253911a-fdaa-46c8-8907-6c0de24f011c-M2VlkfGKR2oJKp63PrcVqhGOv3SiLs.png" />
-          <GalleryItem before="/before_after_gallery/pets.png" after="/samples/spookified-4.jpg" />
-          <GalleryItem before="/samples/original-5.jpg" after="/samples/spookified-5.jpg" />
-          <GalleryItem before="/samples/original-6.jpg" after="/samples/spookified-6.jpg" />
-          <GalleryItem before="/samples/original-7.jpg" after="/samples/spookified-7.jpg" />
+        <GalleryItem before="/before_after_gallery/famPicnic_spookified.png" after="/before_after_gallery/famPicnic.png" />
+
+          <GalleryItem before="https://fpabsqys5cky7azh.public.blob.vercel-storage.com/spookified-1253911a-fdaa-46c8-8907-6c0de24f011c-M2VlkfGKR2oJKp63PrcVqhGOv3SiLs.png" after="/before_after_gallery/smile.png" />
+          <GalleryItem before="/before_after_gallery/city_spookified.png" after="/before_after_gallery/city.png" />
+          <GalleryItem before="/before_after_gallery/landscape_spookified.png" after="/before_after_gallery/landscape.png" />
+
+          <GalleryItem before="/before_after_gallery/pets_spookified.png" after="/before_after_gallery/pets.png" />
+          <GalleryItem before="/before_after_gallery/wedding_WD_spookified.png" after="/before_after_gallery/wedding.png" />
+
         </div>
       </section>
 
@@ -248,17 +257,22 @@ function ProductTeaser({
 function GalleryItem({ before, after }: { before: string; after: string }) {
   return (
     <div className="group relative overflow-hidden rounded-2xl border border-white/10 bg-[#0e0e11]">
-      <div className="relative h-64 w-full">
-        <Image src={before} alt="Before" fill className="object-cover opacity-0 md:opacity-100" />
-        <Image src={after} alt="After" fill className="object-cover" />
-      </div>
+      <LanternSlider
+        before={before}
+        after={after}
+        alt="Before and after"
+        start={0.55}
+        className="h-64 w-full"
+      />
+      {/* glow + label */}
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
-      <div className="absolute bottom-3 left-3 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs text-white/80 backdrop-blur">
-        Before → After
+      <div className="absolute bottom-3 left-3 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] text-white/85 backdrop-blur">
+        Drag the lantern →
       </div>
     </div>
-  );
+  )
 }
+
 
 function Faq({ q, a }: { q: string; a: string }) {
   return (

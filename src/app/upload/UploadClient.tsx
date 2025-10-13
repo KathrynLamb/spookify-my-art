@@ -299,10 +299,10 @@ export default function UploadWithChatPage() {
                     onChange={(e) => setSize(e.target.value as 'A4' | 'A3' | 'A2' | '50x70')}
                     className="bg-gray-900 border border-white/10 rounded px-2 py-1 text-sm"
                   >
-                    <option value="A4">A4</option>
-                    <option value="A3">A3</option>
-                    <option value="A2">A2</option>
-                    <option value="50x70">50×70 cm</option>
+                    <option value="landscape">landscape</option>
+                    <option value="portrait">portrait</option>
+                    <option value="SQUARE">SQUARE</option>
+             
                   </select>
                 </div>
 
@@ -368,7 +368,7 @@ export default function UploadWithChatPage() {
 
           <div className="bg-gray-950 rounded-xl p-4 border border-white/10">
             <div className="flex items-center justify-between mb-2">
-              <strong>Current Plan</strong>
+              {/* <strong>Current Plan</strong> */}
               <button
                 onClick={generate}
                 disabled={generating || !imageId}
@@ -377,7 +377,7 @@ export default function UploadWithChatPage() {
                 Use this plan → Generate
               </button>
             </div>
-            {plan ? (
+            {/* {plan ? (
               <pre className="whitespace-pre-wrap text-gray-300 text-sm">
                 {JSON.stringify(plan, null, 2)}
               </pre>
@@ -385,7 +385,7 @@ export default function UploadWithChatPage() {
               <p className="text-gray-400 text-sm">
                 Upload your image — I’ll greet you, react to your photo, ask a couple of quick questions, and craft the perfect spooky plan.
               </p>
-            )}
+            )} */}
           </div>
         </div>
       </div>

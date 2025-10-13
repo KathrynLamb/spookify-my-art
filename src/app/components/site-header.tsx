@@ -1,27 +1,31 @@
-'use client'
+'use client';
 
-import Link from 'next/link'
-import Image from 'next/image'
-import { usePathname } from 'next/navigation'
-import { useState, useEffect } from 'react'
+import Link from 'next/link';
+import Image from 'next/image';
+import { usePathname } from 'next/navigation';
+import { useState, useEffect } from 'react';
 
 export default function SiteHeader() {
-  const pathname = usePathname()
-  const [scrolled, setScrolled] = useState(false)
+  const pathname = usePathname();
+  const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 12)
-    onScroll()
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [])
+    const onScroll = () => setScrolled(window.scrollY > 12);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   const isActive = (href: string) =>
-    pathname === href ? 'text-white' : 'text-white/70 hover:text-white'
+    pathname === href ? 'text-white' : 'text-white/70 hover:text-white';
 
   return (
     <header
-      className={`sticky top-0 z-40 backdrop-blur supports-[backdrop-filter]:bg-black/40 bg-black/70 transition-all ${scrolled ? 'shadow-[0_10px_30px_rgba(0,0,0,.35)] border-b border-white/10' : 'border-b border-transparent'}`}
+      className={`sticky top-0 z-40 transition-all ${
+        scrolled
+          ? 'backdrop-blur bg-black/70 supports-[backdrop-filter]:bg-black/40 shadow-[0_10px_30px_rgba(0,0,0,.35)] border-b border-white/10'
+          : 'bg-black border-b border-transparent'
+      }`}
     >
       {/* brand glow bar */}
       <div className="h-[3px] w-full bg-[linear-gradient(90deg,#8B73FF,transparent_18%,#FF6A2B_55%,transparent_82%)] opacity-60" />
@@ -63,5 +67,5 @@ export default function SiteHeader() {
         </div>
       </div>
     </header>
-  )
+  );
 }

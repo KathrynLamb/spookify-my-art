@@ -51,7 +51,7 @@ export const metadata = {
     
     <h2 className="text-xl font-semibold text-white">5. Deletion</h2>
     <p>
-    Contact us at <a href="mailto:katylamb@gmail.com" className="underline text-orange-300">katylamb@gmail.com</a> to request deletion of your data.
+    Contact us at <a href="mailto:katylamb2000@gmail.com" className="underline text-orange-300">katylamb2000@gmail.com</a> to request deletion of your data.
     </p>
     
     

@@ -1,9 +1,6 @@
-
-// src/app/(marketing)/page.tsx
 import Image from "next/image";
 import Link from "next/link";
 import FogWipe from "./components/fogwipe";
-
 import LanternSlider from "./components/lantern-slider";
 
 export const metadata = {
@@ -15,23 +12,23 @@ export const metadata = {
 export default function LandingPage() {
   return (
     <main className="relative min-h-screen bg-black text-white">
-      {/* --- Background grid glow --- */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 -z-10 [mask-image:radial-gradient(ellipse_at_center,black_40%,transparent_70%)]"
-      >
-        <div className="absolute inset-0 bg-[radial-gradient(1250px_600px_at_50%_-10%,rgba(255,82,0,.12),transparent_60%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(900px_500px_at_10%_10%,rgba(168,85,247,.12),transparent_60%)]" />
-        <div className="absolute inset-0 bg-[linear-gradient(#101015_1px,transparent_1px),linear-gradient(90deg,#101015_1px,transparent_1px)] bg-[size:48px_48px]" />
-      </div>
-
       {/* --- HERO --- */}
-      <section className="relative">
+      <section className="relative overflow-hidden">
+        {/* repositioned background grid glow (no separate top-level background) */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 -z-10 [mask-image:radial-gradient(ellipse_at_center,black_40%,transparent_70%)]"
+        >
+          <div className="absolute inset-0 bg-[radial-gradient(1250px_600px_at_50%_-10%,rgba(255,82,0,.12),transparent_60%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(900px_500px_at_10%_10%,rgba(168,85,247,.12),transparent_60%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(#101015_1px,transparent_1px),linear-gradient(90deg,#101015_1px,transparent_1px)] bg-[size:48px_48px]" />
+        </div>
+
         <div className="mx-auto max-w-7xl px-4 pt-20 pb-16 md:pt-28 md:pb-24">
           <div className="grid items-center gap-10 md:grid-cols-2">
             <div>
               <p className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70 backdrop-blur">
-                New • Framed & Poster prints live
+                New • Framed &amp; Poster prints live
               </p>
               <h1 className="mt-4 text-4xl font-extrabold leading-tight md:text-6xl">
                 Turn your photo into <span className="text-orange-400">spooky</span> wall art
@@ -58,48 +55,20 @@ export default function LandingPage() {
 
               <div className="mt-6 flex items-center gap-4 text-xs text-white/60">
                 <Stars />
-                <span>Loved by creators & parents</span>
+                <span>Loved by creators &amp; parents</span>
                 <span className="hidden md:inline">•</span>
                 <span className="hidden md:inline">Ships to 30+ countries</span>
               </div>
             </div>
 
-            {/* <div className="relative h-[420px] w-full overflow-hidden rounded-2xl border border-white/10 bg-[#0e0e11] shadow-xl">
-        
-              <Image
-                src="/before_after_gallery/smile.png"
-                alt="Original"
-                fill
-                className="object-cover opacity-0 md:opacity-100"
-                sizes="(min-width:1024px) 560px, 100vw"
-                priority
-              />
-              <Image
-                src="https://fpabsqys5cky7azh.public.blob.vercel-storage.com/spookified-1253911a-fdaa-46c8-8907-6c0de24f011c-M2VlkfGKR2oJKp63PrcVqhGOv3SiLs.png"
-                alt="Spookified result"
-                fill
-                className="object-cover"
-                sizes="(min-width:1024px) 560px, 100vw"
-                priority
-              />
-              <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-inset ring-white/10" />
-            </div> */}
             <FogWipe
-                before="/before_after_gallery/smile.png"
-                after="https://fpabsqys5cky7azh.public.blob.vercel-storage.com/spookified-1253911a-fdaa-46c8-8907-6c0de24f011c-M2VlkfGKR2oJKp63PrcVqhGOv3SiLs.png"
-                // after="/before_after_gallery/spookified_dad.png"
-
-              />
+              before="/before_after_gallery/smile.png"
+              after="https://fpabsqys5cky7azh.public.blob.vercel-storage.com/spookified-1253911a-fdaa-46c8-8907-6c0de24f011c-M2VlkfGKR2oJKp63PrcVqhGOv3SiLs.png"
+              // after="/before_after_gallery/spookified_dad.png"
+            />
           </div>
         </div>
       </section>
-
-      {/* --- SOCIAL PROOF STRIP --- */}
-      {/* <section className="border-y border-white/10 bg-white/5/10 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-6 px-4 py-6 text-white/60">
-          <LogoRow />
-        </div>
-      </section> */}
 
       {/* --- HOW IT WORKS --- */}
       <section className="mx-auto max-w-7xl px-4 py-16 md:py-20">
@@ -129,20 +98,17 @@ export default function LandingPage() {
           />
         </div>
       </section>
-      
-       {/* --- GALLERY / BEFORE-AFTER --- */}
+
+      {/* --- GALLERY / BEFORE-AFTER --- */}
       <section className="mx-auto max-w-7xl px-4 py-16 md:py-20">
         <h2 className="mb-8 text-center text-3xl font-bold md:text-4xl">Before → After</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <GalleryItem before="/before_after_gallery/famPicnic_spookified.png" after="/before_after_gallery/famPicnic.png" />
-
+          <GalleryItem before="/before_after_gallery/famPicnic_spookified.png" after="/before_after_gallery/famPicnic.png" />
           <GalleryItem before="https://fpabsqys5cky7azh.public.blob.vercel-storage.com/spookified-1253911a-fdaa-46c8-8907-6c0de24f011c-M2VlkfGKR2oJKp63PrcVqhGOv3SiLs.png" after="/before_after_gallery/smile.png" />
           <GalleryItem before="/before_after_gallery/city_spookified.png" after="/before_after_gallery/city.png" />
           <GalleryItem before="/before_after_gallery/landscape_spookified.png" after="/before_after_gallery/landscape.png" />
-
           <GalleryItem before="/before_after_gallery/pets_spookified.png" after="/before_after_gallery/pets.png" />
           <GalleryItem before="/before_after_gallery/wedding_WD_spookified.png" after="/before_after_gallery/wedding.png" />
-
         </div>
       </section>
 
@@ -260,11 +226,10 @@ function GalleryItem({ before, after }: { before: string; after: string }) {
   return (
     <div className="group relative overflow-hidden rounded-2xl border border-white/10 bg-[#0e0e11]">
       <LanternSlider
-        before={before}
-        after={after}
-        alt="Before and after"
-        start={0.55}
-        className="h-64 w-full"
+        beforeSrc={before}
+        afterSrc={after}
+        alt="Family photo comparison"
+        priority
       />
       {/* glow + label */}
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
@@ -272,9 +237,8 @@ function GalleryItem({ before, after }: { before: string; after: string }) {
         Drag the lantern →
       </div>
     </div>
-  )
+  );
 }
-
 
 function Faq({ q, a }: { q: string; a: string }) {
   return (
@@ -284,21 +248,3 @@ function Faq({ q, a }: { q: string; a: string }) {
     </div>
   );
 }
-
-// function LogoRow() {
-//   const logos = [
-//     { src: "/logos/press-1.svg", alt: "Logo 1" },
-//     { src: "/logos/press-2.svg", alt: "Logo 2" },
-//     { src: "/logos/press-3.svg", alt: "Logo 3" },
-//     { src: "/logos/press-4.svg", alt: "Logo 4" },
-//   ];
-//   return (
-//     <div className="mx-auto grid w-full max-w-5xl grid-cols-2 items-center gap-6 opacity-70 sm:grid-cols-4">
-//       {logos.map((l) => (
-//         <div key={l.alt} className="relative h-8 w-full">
-//           <Image src={l.src} alt={l.alt} fill className="object-contain" />
-//         </div>
-//       ))}
-//     </div>
-//   );
-// }

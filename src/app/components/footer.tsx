@@ -14,7 +14,7 @@ export default function Footer() {
         <div className="flex gap-4 flex-wrap justify-center md:justify-end">
           <Link href="/terms" className="hover:underline text-gray-300">Terms</Link>
           <Link href="/privacy" className="hover:underline text-gray-300">Privacy</Link>
-          <Link href="/support" className="hover:underline text-gray-300">Support</Link>
+          <Link href="/help" className="hover:underline text-gray-300">Help</Link>
           {/* <a href="mailto:katylamb@gmail.com" className="hover:underline text-gray-300">Support</a> */}
         </div>
       </div>

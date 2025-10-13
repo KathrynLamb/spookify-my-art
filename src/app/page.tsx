@@ -74,9 +74,9 @@ export default function LandingPage() {
       <section className="mx-auto max-w-7xl px-4 py-16 md:py-20">
         <h2 className="mb-8 text-center text-3xl font-bold md:text-4xl">How it works</h2>
         <div className="grid gap-4 md:grid-cols-3">
-          <Card title="1) Upload" desc="Drop a photo. We’ll guide style & spookiness." icon="📤" />
-          <Card title="2) Spookify" desc="Confirm the vibe; we generate a print-perfect file." icon="🪄" />
-          <Card title="3) Print" desc="Pick size & frame. Delivered fast, worldwide." icon="🖼️" />
+          <Card title="1) Upload" desc="Drop a photo. We’ll guide style & spookiness." iconSrc="/upload.png" />
+          <Card title="2) Spookify" desc="Confirm the vibe; we generate a print-perfect file." iconSrc="/spooky.png" />
+          <Card title="3) Print" desc="Pick size & frame. Delivered fast, worldwide." iconSrc="/print.png" />
         </div>
       </section>
 
@@ -94,7 +94,7 @@ export default function LandingPage() {
             headline="Museum-Quality Matte Poster"
             copy="Archival 200 gsm matte paper. Rich color, glare-free finish."
             cta={{ href: "/products", label: "Pick a size" }}
-            image="/poster.png"
+            image="/poster_costumes2.png"
           />
         </div>
       </section>
@@ -164,10 +164,12 @@ function Stars() {
   );
 }
 
-function Card({ title, desc, icon }: { title: string; desc: string; icon: string }) {
+function Card({ title, desc, iconSrc }: { title: string; desc: string; iconSrc: string }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur">
-      <div className="text-2xl">{icon}</div>
+       <div className="mb-2">
+        <Image src={iconSrc} alt={title} width={64} height={64} />
+      </div>
       <div className="mt-2 font-semibold">{title}</div>
       <p className="mt-1 text-sm text-white/70">{desc}</p>
     </div>

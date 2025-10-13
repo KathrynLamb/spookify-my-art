@@ -4,7 +4,9 @@ import Link from 'next/link'
 
 export default function Footer() {
   return (
-    <footer className="bg-black text-white border-t border-white/10 mt-12 py-8 px-4 md:px-8">
+    // <footer className="bg-black text-white border-t border-white/10 mt-12 py-8 px-4 md:px-8">
+          <footer className="bg-black text-white border-t border-white/10 py-6 text-center">
+
       <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4 text-sm">
         <div className="text-center md:text-left">
           <p className="font-bold text-lg">Spookify My Art 👻</p>

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import memStore from '@/lib/memStore';
-import OpenAI from 'openai';
+// import OpenAI from 'openai';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';

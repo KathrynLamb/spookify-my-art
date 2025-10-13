@@ -52,10 +52,10 @@ export default function SiteHeader() {
             href="/products"
             className="hidden sm:inline-flex items-center rounded-full border border-[#7B5CFF] px-3 py-1.5 text-sm text-white hover:bg-[#7B5CFF]/10"
           >
-            Start a print
+            View products
           </Link>
           <Link
-            href="/"
+            href="/upload"
             className="inline-flex items-center rounded-full bg-[#FF6A2B] hover:bg-[#FF814E] px-3 py-1.5 text-sm text-black font-medium shadow-[0_0_0_6px_rgba(255,106,43,.15)]"
           >
             New image

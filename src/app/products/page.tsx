@@ -78,6 +78,23 @@ function ProductsInner() {
     window.location.href = j.url
   }
 
+  function lemonSqueezyCheckout() {
+    // You can later make this dynamic per product
+    const lemonUrl = 'https://spookify-my-art.lemonsqueezy.com/buy/3c829174-dc02-4428-9123-7652026e6bbf'
+    
+    // Optionally save order info before redirect
+    localStorage.setItem('spookify:last-order', JSON.stringify({
+      product: 'Haunted Halloween Print',
+      thumbUrl: fileUrlQP,
+      etaMinDays: 3,
+      etaMaxDays: 7,
+    }))
+  
+    // Redirect
+    window.open(lemonUrl, '_blank')
+  }
+  
+
   // Map data → card variants
   const framedVariants: CardVariant[] = FRAMED_POSTER.variants.map(v => ({
     sizeLabel: v.sizeLabel,
@@ -114,8 +131,10 @@ function ProductsInner() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <ProductCard
             title={FRAMED_POSTER.title}
-            artSrc={fileUrlQP || '/mockups/halloween-frame-vertical.png'}
-            mockupSrc="/mockups/halloween-frame-vertical.png"
+            // artSrc={fileUrlQP || '/mockups/halloween-frame-vertical.png'}
+            artSrc={'/livingroom_frame_1.png'}
+            // mockupSrc="/mockups/halloween-frame-vertical.png"
+            mockupSrc="/framedPosterGelato.png"
             variants={framedVariants}
             onSelect={(v) =>
               checkout(FRAMED_POSTER.title, v,
@@ -123,15 +142,21 @@ function ProductsInner() {
               )
             }
             controls={{ showFrame: true }}
+
           />
 
           <ProductCard
             title={POSTER.title}
-            artSrc={fileUrlQP || '/mockups/halloween-frame-vertical.png'}
-            mockupSrc="/mockups/halloween-frame-vertical.png"
+            // artSrc={fileUrlQP || '/mockups/halloween-frame-vertical.png'}
+            artSrc={'/poster_costumes2.png'}
+            // mockupSrc="/mockups/halloween-frame-vertical.png"
+            mockupSrc="/posterFromGelato.png"
             variants={posterVariants}
             onSelect={(v) => checkout(POSTER.title, v, `${v.sizeLabel} – ${v.orientation}`)}
+            onSelectLemonSqueezy={lemonSqueezyCheckout}
             controls={{ showFrame: false }}
+
+
           />
         </div>
 

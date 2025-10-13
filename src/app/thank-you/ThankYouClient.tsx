@@ -1,3 +1,104 @@
+// // src/app/thank-you/ThankYouClient.tsx
+// 'use client'
+
+// import { useEffect, useMemo, useRef, useState } from 'react'
+
+// export default function ThankYouClient() {
+//   const [mounted, setMounted] = useState(false)
+//   useEffect(() => setMounted(true), [])
+
+//   return (
+//     <div className="relative mx-auto max-w-6xl px-6 py-12 md:py-16">
+//       {/* Always render the wrapper so SSR/CSR match */}
+//       <div
+//         className="pointer-events-none absolute inset-0 overflow-hidden"
+//         aria-hidden
+//         suppressHydrationWarning
+//       >
+//         {mounted && <GhostConfetti count={16} />}
+//       </div>
+
+//       {/* Your thank-you content goes here */}
+//       <h1 className="text-3xl font-bold text-white text-center">Thank you for your spooky order! 🎃</h1>
+//     </div>
+//   )
+// }
+
+// function GhostConfetti({ count = 12 }: { count?: number }) {
+//   const seedRef = useRef(Math.floor(Math.random() * 1e9))
+
+//   function rngFactory(seed: number) {
+//     return function rng() {
+//       let t = (seed += 0x6d2b79f5)
+//       t = Math.imul(t ^ (t >>> 15), t | 1)
+//       t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+//       return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+//     }
+//   }
+
+//   const rng = useMemo(() => rngFactory(seedRef.current), [])
+//   const ghosts = useMemo(
+//     () =>
+//       Array.from({ length: count }).map((_, i) => {
+//         const left = `${Math.round(rng() * 100)}%`
+//         const delay = (rng() * 2).toFixed(2)
+//         const duration = (5 + rng() * 5).toFixed(2)
+//         const size = 28 + Math.round(rng() * 22)
+//         const opacity = 0.5 + rng() * 0.3
+//         return { i, left, delay, duration, size, opacity }
+//       }),
+//     [count, rng]
+//   )
+
+//   return (
+//     <>
+//       {ghosts.map(g => (
+//         <Ghost
+//           key={g.i}
+//           style={{
+//             position: 'absolute',
+//             left: g.left,
+//             top: '-64px',
+//             width: g.size,
+//             height: g.size,
+//             opacity: g.opacity,
+//             animation: `floatDown ${g.duration}s linear ${g.delay}s infinite`,
+//             filter: 'drop-shadow(0 6px 20px rgba(0,0,0,.4))',
+//           }}
+//         />
+//       ))}
+//       <style jsx>{`
+//         @keyframes floatDown {
+//           0% {
+//             transform: translateY(-10%) translateX(0);
+//           }
+//           100% {
+//             transform: translateY(110vh) translateX(0);
+//           }
+//         }
+//       `}</style>
+//     </>
+//   )
+// }
+
+// function Ghost({ style }: { style?: React.CSSProperties }) {
+//   return (
+//     <svg viewBox="0 0 48 48" style={style}>
+//       <defs>
+//         <radialGradient id="g" cx="50%" cy="40%" r="60%">
+//           <stop offset="0%" stopColor="white" stopOpacity="0.9" />
+//           <stop offset="100%" stopColor="white" stopOpacity="0.05" />
+//         </radialGradient>
+//       </defs>
+//       <path
+//         d="M24 4c8 0 14 6 14 14v21c0 1-1 2-2 2-2 0-4-2-6-2s-4 2-6 2-4-2-6-2-4 2-6 2c-1 0-2-1-2-2V18C10 10 16 4 24 4z"
+//         fill="url(#g)"
+//       />
+//       <circle cx="18" cy="20" r="3.2" fill="#1a1a1a" />
+//       <circle cx="30" cy="20" r="3.2" fill="#1a1a1a" />
+//     </svg>
+//   )
+// }
 // src/app/thank-you/page.tsx
 'use client'
 

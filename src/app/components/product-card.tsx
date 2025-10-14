@@ -23,7 +23,6 @@ type Props = {
   artSrc: string;
   mockupSrc?: string; // (kept for compatibility, not used here)
   variants: Variant[];
-  onSelect: (v: Variant) => void;
   onSelectLemonSqueezy?: (v?: Variant) => void;
   controls?: { showFrame?: boolean };
   canProceed: boolean;
@@ -35,7 +34,6 @@ export default function ProductCard({
   title,
   artSrc,
   variants,
-  onSelect,
   onSelectLemonSqueezy,
   canProceed,
   controls = { showFrame: true },
@@ -52,8 +50,7 @@ export default function ProductCard({
     [variants]
   );
   const frameOptions = useMemo(
-    () =>
-      ([...new Set(variants.map((v) => v.frameColor).filter(Boolean))] as FrameColor[]) || [],
+    () => [...new Set(variants.map((v) => v.frameColor).filter(Boolean))] as FrameColor[],
     [variants]
   );
 

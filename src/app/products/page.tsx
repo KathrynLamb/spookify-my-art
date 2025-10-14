@@ -430,13 +430,13 @@ function ProductsInner() {
             artSrc="/livingroom_frame_1.png"
             mockupSrc="/framedPosterGelato.png"
             variants={framedVariants}
-            onSelect={(v) =>
-              onSelect(
-                FRAMED_POSTER.title,
-                v,
-                `${v.sizeLabel} – ${v.frameColor ?? ''} – ${v.orientation}`.replace(/\s–\s–/, ' –')
-              )
-            }
+            // onSelect={(v) =>
+            //   onSelect(
+            //     FRAMED_POSTER.title,
+            //     v,
+            //     `${v.sizeLabel} – ${v.frameColor ?? ''} – ${v.orientation}`.replace(/\s–\s–/, ' –')
+            //   )
+            // }
             controls={{ showFrame: true }}
             canProceed={canProceed}
           />
@@ -446,7 +446,7 @@ function ProductsInner() {
             artSrc="/poster_costumes2.png"
             mockupSrc="/posterFromGelato.png"
             variants={posterVariants}
-            onSelect={(v) => onSelect(POSTER.title, v, `${v.sizeLabel} – ${v.orientation}`)}
+            // onSelect={(v) => onSelect(POSTER.title, v, `${v.sizeLabel} – ${v.orientation}`)}
             onSelectLemonSqueezy={onSelectLemon}
             controls={{ showFrame: false }}
             canProceed={canProceed}

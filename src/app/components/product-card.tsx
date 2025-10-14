@@ -1,34 +1,35 @@
-'use client'
+'use client';
 
-import Image from 'next/image'
-import { useMemo, useState } from 'react'
-import PriceTag from './price-tag'
-import { ChipGroup } from '../components/ui/chips'
-import { useCurrency } from '@/contexts/CurrencyContext'
+import Image from 'next/image';
+import { useEffect, useMemo, useState, useCallback } from 'react';
+import PriceTag from './price-tag';
+import { ChipGroup } from '../components/ui/chips';
+import { useCurrency } from '@/contexts/CurrencyContext';
 
-type Orientation = 'Vertical' | 'Horizontal'
-type FrameColor = 'Black' | 'White' | 'Wood' | 'Dark wood'
-type Currency = 'GBP' | 'USD' | 'EUR'
+type Orientation = 'Vertical' | 'Horizontal';
+type FrameColor = 'Black' | 'White' | 'Wood' | 'Dark wood';
+type Currency = 'GBP' | 'USD' | 'EUR';
 
 export type Variant = {
-  sizeLabel: string
-  frameColor?: FrameColor
-  orientation: Orientation
-  productUid: string
-  prices: Partial<Record<Currency, number>>
-}
+  sizeLabel: string;
+  frameColor?: FrameColor;
+  orientation: Orientation;
+  productUid: string;
+  prices: Partial<Record<Currency, number>>;
+};
 
 type Props = {
-  title: string
-  artSrc: string
-  mockupSrc?: string
-  variants: Variant[]
-  onSelect: (v: Variant) => void
-  onSelectLemonSqueezy?: (v: Variant) => void
-  controls?: { showFrame?: boolean }
-}
+  title: string;
+  artSrc: string;
+  mockupSrc?: string; // (kept for compatibility, not used here)
+  variants: Variant[];
+  onSelect: (v: Variant) => void;
+  onSelectLemonSqueezy?: (v?: Variant) => void;
+  controls?: { showFrame?: boolean };
+  canProceed: boolean;
+};
 
-const isDataOrBlob = (s: string) => /^(data:|blob:)/i.test(s)
+const isDataOrBlob = (s: string) => /^(data:|blob:)/i.test(s);
 
 export default function ProductCard({
   title,
@@ -36,58 +37,133 @@ export default function ProductCard({
   variants,
   onSelect,
   onSelectLemonSqueezy,
+  canProceed,
   controls = { showFrame: true },
 }: Props) {
-  const { currency } = useCurrency()
+  const { currency } = useCurrency();
 
-  const sizeOptions = useMemo(() => [...new Set(variants.map(v => v.sizeLabel))], [variants])
-  const orientationOptions = useMemo(() => [...new Set(variants.map(v => v.orientation))], [variants])
-  const frameOptions = useMemo(() => [...new Set(variants.map(v => v.frameColor).filter(Boolean))] as FrameColor[], [variants])
+  // Distinct option lists
+  const sizeOptions = useMemo(
+    () => [...new Set(variants.map((v) => v.sizeLabel))],
+    [variants]
+  );
+  const orientationOptions = useMemo(
+    () => [...new Set(variants.map((v) => v.orientation))],
+    [variants]
+  );
+  const frameOptions = useMemo(
+    () =>
+      ([...new Set(variants.map((v) => v.frameColor).filter(Boolean))] as FrameColor[]) || [],
+    [variants]
+  );
 
-  const [size, setSize] = useState<string>(sizeOptions[0])
-  const [orientation, setOrientation] = useState<Orientation>(orientationOptions[0]!)
-  const [frame, setFrame] = useState<FrameColor | undefined>(controls.showFrame ? frameOptions[0] : undefined)
+  // Selections
+  const [size, setSize] = useState<string>(sizeOptions[0]);
+  const [orientation, setOrientation] = useState<Orientation>(orientationOptions[0]!);
+  const [frame, setFrame] = useState<FrameColor | undefined>(
+    controls.showFrame ? frameOptions[0] : undefined
+  );
 
-  const isVariantAvailable = (s: string, o: Orientation, f?: FrameColor) =>
-    variants.some(v =>
-      v.sizeLabel === s &&
-      v.orientation === o &&
-      (controls.showFrame ? v.frameColor === f : true)
-    )
+  // Availability helpers
+  const isVariantAvailable = useCallback(
+    (s: string, o: Orientation, f?: FrameColor) =>
+      variants.some(
+        (v) => v.sizeLabel === s && v.orientation === o && (controls.showFrame ? v.frameColor === f : true)
+      ),
+    [variants, controls.showFrame]
+  );
 
-  const isFrameDisabled = (f: FrameColor) => !isVariantAvailable(size, orientation, f)
-  const isSizeDisabled = (s: string) => !isVariantAvailable(s, orientation, frame)
-  const isOrientationDisabled = (o: Orientation) => !isVariantAvailable(size, o, frame)
+  const isFrameDisabled = useCallback(
+    (f: FrameColor) => !isVariantAvailable(size, orientation, f),
+    [isVariantAvailable, size, orientation]
+  );
+  const isSizeDisabled = useCallback(
+    (s: string) => !isVariantAvailable(s, orientation, frame),
+    [isVariantAvailable, orientation, frame]
+  );
+  const isOrientationDisabled = useCallback(
+    (o: Orientation) => !isVariantAvailable(size, o, frame),
+    [isVariantAvailable, size, frame]
+  );
 
-  const active = useMemo(() => {
-    return variants.find(v =>
-      v.sizeLabel === size &&
-      v.orientation === orientation &&
-      (controls.showFrame ? v.frameColor === frame : true)
-    )
-  }, [variants, size, orientation, frame, controls.showFrame])
+  // Active variant
+  const active = useMemo(
+    () =>
+      variants.find(
+        (v) =>
+          v.sizeLabel === size &&
+          v.orientation === orientation &&
+          (controls.showFrame ? v.frameColor === frame : true)
+      ),
+    [variants, size, orientation, frame, controls.showFrame]
+  );
 
-  const activePrice = active?.prices[currency] ?? active?.prices.GBP
+  const activePrice = active?.prices[currency] ?? active?.prices.GBP;
 
-  // Auto-fix illegal selections
-  if (controls.showFrame && frame && isFrameDisabled(frame)) {
-    const next = frameOptions.find(f => !isFrameDisabled(f))
-    if (next && next !== frame) setFrame(next)
-  }
-  if (isSizeDisabled(size)) {
-    const next = sizeOptions.find(s => !isSizeDisabled(s))
-    if (next && next !== size) setSize(next)
-  }
-  if (isOrientationDisabled(orientation)) {
-    const next = orientationOptions.find(o => !isOrientationDisabled(o))
-    if (next && next !== orientation) setOrientation(next)
-  }
+  // --- Auto-fix illegal selections (without setting state during render) ---
+  // Fix frame if needed
+  useEffect(() => {
+    if (!controls.showFrame) return;
+    if (frame && isFrameDisabled(frame)) {
+      const next = frameOptions.find((f) => !isFrameDisabled(f));
+      if (next && next !== frame) setFrame(next);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [size, orientation, frameOptions.join('|')]); // deliberate deps
 
-  const handleBuy = () => {
-    if (!active) return
-    ;(onSelectLemonSqueezy ?? onSelect)(active)
-  }
+  // Fix size if needed
+  useEffect(() => {
+    if (isSizeDisabled(size)) {
+      const next = sizeOptions.find((s) => !isSizeDisabled(s));
+      if (next && next !== size) setSize(next);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orientation, frame, sizeOptions.join('|')]); // deliberate deps
+
+  // Fix orientation if needed
+  useEffect(() => {
+    if (isOrientationDisabled(orientation)) {
+      const next = orientationOptions.find((o) => !isOrientationDisabled(o));
+      if (next && next !== orientation) setOrientation(next);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [size, frame, orientationOptions.join('|')]); // deliberate deps
+
+  // CTA handlers
+  const handlePrimary = async () => {
+    if (!active) return;
   
+    const selection = {
+      productTitle: title,
+      variant: {
+        sizeLabel: active.sizeLabel,
+        orientation: active.orientation,
+        productUid: active.productUid,
+        prices: active.prices,
+        frameColor: active.frameColor,
+      },
+      titleSuffix: `${active.sizeLabel}${active.frameColor ? ` – ${active.frameColor}` : ''} – ${active.orientation}`,
+      currency,
+      imageId: '', // will be filled later during upload
+      fileUrl: '', // will be replaced once the user uploads
+    };
+  
+    localStorage.setItem('spookify:pending-product', JSON.stringify(selection));
+  
+    // Go to the upload page
+    window.location.href = '/upload';
+  };
+  
+
+  const handleLemon = () => {
+    if (onSelectLemonSqueezy) onSelectLemonSqueezy(active);
+  };
+
+  const primaryCtaLabel = canProceed
+    ? active
+      ? 'Select'
+      : 'Not available'
+    : 'Select, then Spookify';
 
   return (
     <div className="relative flex flex-col rounded-xl overflow-hidden bg-[#0f0f11] border border-white/10 shadow-sm hover:shadow-lg transition">
@@ -115,6 +191,7 @@ export default function ProductCard({
 
         {/* Options */}
         <div className="flex flex-col gap-3">
+          {/* Size */}
           <div>
             <div className="text-xs text-white/60 uppercase mb-1">Size</div>
             <ChipGroup
@@ -125,7 +202,8 @@ export default function ProductCard({
             />
           </div>
 
-          {controls.showFrame && (
+          {/* Frame (optional) */}
+          {controls.showFrame && frameOptions.length > 0 && (
             <div>
               <div className="text-xs text-white/60 uppercase mb-1">Frame</div>
               <ChipGroup
@@ -137,6 +215,7 @@ export default function ProductCard({
             </div>
           )}
 
+          {/* Orientation */}
           <div>
             <div className="text-xs text-white/60 uppercase mb-1">Orientation</div>
             <ChipGroup
@@ -150,28 +229,33 @@ export default function ProductCard({
       </div>
 
       {/* Fixed bottom CTA */}
-      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#0f0f11] via-[#0f0f11]/90 to-transparent backdrop-blur-sm p-4 flex items-center justify-between">
+      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#0f0f11] via-[#0f0f11]/90 to-transparent backdrop-blur-sm p-4 flex items-center justify-between gap-2">
         <span className="text-white/90 font-medium">
           <PriceTag amount={activePrice} currency={currency} />
         </span>
-        {/* <button
-  disabled={!active}
-  onClick={() => active && onSelect(active)}
-  className="flex items-center justify-center rounded-full bg-orange-600 hover:bg-orange-500 px-5 h-10 text-sm font-medium text-white disabled:opacity-50 disabled:cursor-not-allowed transition"
->
-  {active ? 'Select' : 'Not available'}
-</button> */}
 
+        <div className="flex items-center gap-2">
+          {/* Optional Lemon button (only shown if provided) */}
+          {onSelectLemonSqueezy && (
+            <button
+              type="button"
+              onClick={handleLemon}
+              className="rounded-full border border-white/15 bg-white/5 hover:bg-white/10 px-4 h-10 text-sm font-medium text-white"
+            >
+              Lemon
+            </button>
+          )}
 
-<button
-disabled={!active}
-onClick={handleBuy}
-className="flex items-center justify-center rounded-full bg-orange-600 hover:bg-orange-500 px-5 h-10 text-sm font-medium text-white disabled:opacity-50 disabled:cursor-not-allowed transition"
->
-{active ? 'Buy Now' : 'Not available'}
-</button>
-
+          <button
+            type="button"
+            disabled={!active}
+            onClick={handlePrimary}
+            className="flex items-center justify-center rounded-full bg-orange-600 hover:bg-orange-500 px-5 h-10 text-sm font-medium text-white disabled:opacity-50 disabled:cursor-not-allowed transition"
+          >
+            {primaryCtaLabel}
+          </button>
+        </div>
       </div>
     </div>
-  )
+  );
 }

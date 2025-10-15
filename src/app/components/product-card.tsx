@@ -23,6 +23,7 @@ type Props = {
   artSrc: string;
   mockupSrc?: string; // (kept for compatibility, not used here)
   variants: Variant[];
+  onSelect?: (v: Variant, titleSuffix: string) => void;  // <— add
   onSelectLemonSqueezy?: (v?: Variant) => void;
   controls?: { showFrame?: boolean };
   canProceed: boolean;
@@ -37,6 +38,7 @@ export default function ProductCard({
   onSelectLemonSqueezy,
   canProceed,
   controls = { showFrame: true },
+  onSelect,
 }: Props) {
   const { currency } = useCurrency();
 
@@ -129,6 +131,16 @@ export default function ProductCard({
   // CTA handlers
   const handlePrimary = async () => {
     if (!active) return;
+
+  // If we came from the upload-first flow (we have fileUrl & imageId on /products)
+  // and the parent provided onSelect, hand off to checkout instead of redirecting.
+ if (canProceed && onSelect) {
+     const titleSuffix = `${active.sizeLabel}${
+      active.frameColor ? ` – ${active.frameColor}` : ''
+   } – ${active.orientation}`;
+   onSelect(active, titleSuffix);
+   return;
+ }
   
     const selection = {
       productTitle: title,

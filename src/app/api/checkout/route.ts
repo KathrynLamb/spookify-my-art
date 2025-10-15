@@ -7,23 +7,19 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 type Currency = 'GBP' | 'USD' | 'EUR'
-
-type CheckoutBody = {
+type Body = {
   fileUrl?: string
   imageId?: string
-  sku?: string                 // Gelato productUid; stored as metadata.sku
-  title?: string               // optional nice name for line item
-  price?: number               // minor units preferred; or major if priceIsMajor=true
-  priceIsMajor?: boolean       // if true, treat price as major units and convert
-  currency?: Currency          // client-selected currency (defaults to GBP)
+  sku?: string
+  title?: string
+  price?: number
+  priceIsMajor?: boolean
+  currency?: Currency
 }
 
-// Allowed countries to collect shipping for
-const ALLOWED: Stripe.Checkout.SessionCreateParams.ShippingAddressCollection.AllowedCountry[] = [
-  'GB','IE','FR','DE','ES','IT','NL','SE','NO','DK','US','CA','AU','NZ'
-]
+const ALLOWED: Stripe.Checkout.SessionCreateParams.ShippingAddressCollection.AllowedCountry[] =
+  ['GB','IE','FR','DE','ES','IT','NL','SE','NO','DK','US','CA','AU','NZ']
 
-// Per-currency shipping rates (minor units)
 const SHIPPING: Record<Currency, { standard: number; express: number }> = {
   GBP: { standard: 449, express: 999 },
   USD: { standard: 599, express: 1499 },
@@ -36,59 +32,31 @@ function baseUrl() {
   return `http://localhost:${process.env.PORT || 3000}`
 }
 
-function toMinor(n: number) {
-  // Round to nearest cent/penny — protects against 19.999999 issues.
-  return Math.round(n * 100)
-}
-
-// Map our uppercase Currency to Stripe’s lowercase currency union
-
-function toStripeCurrency(c: Currency): string {
-  return c.toLowerCase()
-}
-
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json()) as CheckoutBody
-    const { fileUrl, imageId, sku, title, price, priceIsMajor, currency: reqCurrency } = body
+    const { fileUrl, imageId, sku, title, price, priceIsMajor, currency: reqCur } =
+      (await req.json()) as Body
 
-    // Validate required fields
-    if (!fileUrl || !imageId || !sku) {
+    if (!fileUrl || !imageId || !sku)
       return NextResponse.json({ error: 'Missing fileUrl, imageId, or sku' }, { status: 400 })
-    }
-    if (typeof price !== 'number' || !Number.isFinite(price)) {
+    if (typeof price !== 'number' || !Number.isFinite(price))
       return NextResponse.json({ error: 'Missing or invalid price' }, { status: 400 })
-    }
 
-    // Currency (default GBP)
-    const currency = (reqCurrency || 'GBP') as Currency
-    if (!['GBP', 'USD', 'EUR'].includes(currency)) {
-      return NextResponse.json({ error: `Unsupported currency: ${reqCurrency}` }, { status: 400 })
-    }
-    const stripeCurrency = toStripeCurrency(currency)
+    const currency = (reqCur || 'GBP') as Currency
+    if (!['GBP','USD','EUR'].includes(currency))
+      return NextResponse.json({ error: `Unsupported currency: ${reqCur}` }, { status: 400 })
 
-    // Normalize price → minor units
-    const unitAmount = priceIsMajor ? toMinor(price) : Math.round(price)
-
-    // Shipping table
+    const stripeCurrency = currency.toLowerCase()
+    const unitAmount = priceIsMajor ? Math.round(price * 100) : Math.round(price)
     const ship = SHIPPING[currency]
-
     const lineName = title ?? `Spookified Wall Art – ${sku}`
 
-    const session: Stripe.Checkout.Session = await stripe.checkout.sessions.create({
+    const session = await stripe.checkout.sessions.create({
       mode: 'payment',
-      customer_creation: 'if_required',
       allow_promotion_codes: true,
-
-      // Currency for the session & line items
+      customer_creation: 'if_required',
       currency: stripeCurrency,
-
-      // Collect a full shipping address
-      shipping_address_collection: {
-        allowed_countries: ALLOWED,
-      },
-
-      // Inlined shipping options in the same currency
+      shipping_address_collection: { allowed_countries: ALLOWED },
       shipping_options: [
         {
           shipping_rate_data: {
@@ -113,7 +81,6 @@ export async function POST(req: NextRequest) {
           },
         },
       ],
-
       line_items: [
         {
           quantity: 1,
@@ -123,28 +90,24 @@ export async function POST(req: NextRequest) {
             product_data: {
               name: lineName,
               images: [fileUrl],
-              metadata: { imageId, sku, fileUrl }, // optional copy
+              metadata: { imageId, sku, fileUrl },
             },
           },
         },
       ],
-
-      // Your webhook reads these to place the Gelato order
-      metadata: {
-        fileUrl,
-        imageId,
-        sku,
-        currency, // keep original uppercase for your webhook if you prefer
-      },
-
+      metadata: { fileUrl, imageId, sku, currency },
       success_url: `${baseUrl()}/thank-you?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${baseUrl()}/upload?cancelled=1`,
     })
 
     return NextResponse.json({ url: session.url })
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err)
-    console.error('[checkout] error', msg)
-    return NextResponse.json({ error: msg || 'Checkout failed' }, { status: 500 })
+    const message =
+      err instanceof Error
+        ? err.message
+        : typeof err === 'string'
+          ? err
+          : 'Checkout failed'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

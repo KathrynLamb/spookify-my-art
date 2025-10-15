@@ -1,9 +1,10 @@
+// src/app/products/page.tsx
 'use client';
 
 import { Suspense, useMemo, useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { CurrencyProvider, useCurrency } from '@/contexts/CurrencyContext';
-import { type Currency, toMinor } from '@/lib/currency';
+import { type Currency } from '@/lib/currency';
 
 // Data
 import { FRAMED_POSTER } from '@/lib/products/framed-poster';
@@ -26,6 +27,18 @@ type ManualOrderPayload = {
   frameColor?: string | null;
   currency: Currency;
 };
+
+type CheckoutPayload = {
+  fileUrl: string;
+  imageId: string;
+  sku: string;              // Gelato productUid
+  title: string;
+  price: number;            // minor units unless priceIsMajor = true
+  priceIsMajor?: boolean;
+  currency: Currency;       // 'GBP' | 'USD' | 'EUR'
+};
+
+type CheckoutResponse = { url?: string; error?: string };
 
 /* ---------- Manual order modal ---------- */
 function ManualOrderModal({
@@ -100,7 +113,7 @@ function ManualOrderModal({
             </div>
           </div>
 
-          {draft.frameColor ? (
+          {!!draft.frameColor && (
             <div>
               <label className="block text-xs text-white/60 mb-1">Frame color</label>
               <input
@@ -109,7 +122,7 @@ function ManualOrderModal({
                 className="w-full rounded bg-white/5 border border-white/10 px-3 py-2 outline-none"
               />
             </div>
-          ) : null}
+          )}
 
           <div>
             <label className="block text-xs text-white/60 mb-1">Artwork URL</label>
@@ -170,6 +183,48 @@ function ManualOrderModal({
   );
 }
 
+/* ---------- Helpers ---------- */
+
+// Ensure fileUrl is public if user arrived with a data: URL
+async function ensurePublicUrl(current: string, givenImageId: string): Promise<string> {
+  if (isHttpUrl(current)) return current;
+  const upRes = await fetch('/api/upload-spooky', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ dataUrl: current, filename: `spookified-${givenImageId}.png` }),
+  });
+  const upJson = (await upRes.json()) as { url?: string; error?: string };
+  if (!upRes.ok || !upJson?.url) throw new Error(upJson?.error || 'Upload failed');
+  return upJson.url;
+}
+
+// Tolerant to non-JSON error bodies
+async function goCheckout(payload: CheckoutPayload): Promise<void> {
+  const r = await fetch('/api/checkout', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  const text = await r.text();
+  let json: CheckoutResponse | null = null;
+  try {
+    json = JSON.parse(text) as CheckoutResponse;
+  } catch {
+    /* non-JSON error */
+  }
+
+  if (!r.ok) {
+    alert((json && json.error) || text || 'Checkout failed');
+    return;
+  }
+  if (!json?.url) {
+    alert((json && json.error) || 'Checkout failed: no URL returned.');
+    return;
+  }
+  window.location.href = json.url;
+}
+
 /* ---------- Page ---------- */
 function ProductsInner() {
   const router = useRouter();
@@ -182,7 +237,7 @@ function ProductsInner() {
   const { currency, setCurrency, options } = useCurrency();
 
   // Design-first toggle (from query ?start=product or manual switch)
-  const startParam = sp.get('start'); // if 'product', we route to upload after picking variant
+  const startParam = sp.get('start'); // if 'product', route to /upload after picking variant
   const [designFirst, setDesignFirst] = useState(startParam === 'product');
 
   useEffect(() => {
@@ -206,67 +261,8 @@ function ProductsInner() {
   });
 
   useEffect(() => {
-    // Keep modal currency in sync
     setDraft((d) => ({ ...d, currency }));
   }, [currency]);
-
-  // Ensure fileUrl is public if user arrived with data: URL
-  async function ensurePublicUrl(current: string, givenImageId: string): Promise<string> {
-    if (isHttpUrl(current)) return current;
-    const upRes = await fetch('/api/upload-spooky', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dataUrl: current, filename: `spookified-${givenImageId}.png` }),
-    });
-    const upJson: { url?: string; error?: string } = await upRes.json();
-    if (!upRes.ok || !upJson?.url) throw new Error(upJson?.error || 'Upload failed');
-    return upJson.url;
-  }
-
-  // Stripe checkout (kept; gated by env)
-  async function stripeCheckout(
-    productTitle: string,
-    variant: CardVariant,
-    titleSuffix: string,
-    publicUrl: string
-  ) {
-    localStorage.setItem(
-      'spookify:last-order',
-      JSON.stringify({
-        product: productTitle,
-        size: titleSuffix,
-        orientation: titleSuffix.includes('Horizontal') ? 'Horizontal' : 'Vertical',
-        thumbUrl: publicUrl,
-        shipCountry: currency === 'USD' ? 'US' : currency === 'EUR' ? 'EU' : 'GB',
-        email: undefined,
-        etaMinDays: 3,
-        etaMaxDays: 7,
-      })
-    );
-
-    const priceMajor = variant.prices[currency] ?? variant.prices.GBP ?? 0;
-
-    const r = await fetch('/api/checkout', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        fileUrl: publicUrl,
-        imageId,
-        sku: variant.productUid,
-        title: `${productTitle} – ${titleSuffix}`,
-        price: toMinor(priceMajor),
-        priceIsMajor: false,
-        currency,
-      }),
-    });
-
-    const j: { url?: string; error?: string } = await r.json();
-    if (!r.ok || !j?.url) {
-      alert(j?.error || 'Checkout failed');
-      return;
-    }
-    window.location.href = j.url;
-  }
 
   // LemonSqueezy checkout (kept; gated by env)
   function lemonSqueezyCheckout(publicUrlForDisplay?: string) {
@@ -288,9 +284,8 @@ function ProductsInner() {
   async function onSelect(productTitle: string, variant: CardVariant, titleSuffix: string) {
     try {
       if (!canProceed) {
-        // alert('Missing fileUrl or imageId.');
-        // return;
-        router.push('/upload')
+        router.push('/upload');
+        return;
       }
 
       const publicUrl = await ensurePublicUrl(fileUrlQP, imageId);
@@ -305,28 +300,39 @@ function ProductsInner() {
           fileUrl: publicUrl,
         };
         localStorage.setItem('spookify:pending-product', JSON.stringify(pending));
-        router.push('/upload'); // go design now; upload page will read pending and show “Print” right away
+        router.push('/upload'); // design now; upload page will read pending
         return;
       }
 
       if (PAYMENTS_ENABLED) {
-        await stripeCheckout(productTitle, variant, titleSuffix, publicUrl);
-      } else {
-        // Manual order path
-        setDraft({
-          email: '',
-          product: productTitle,
-          sizeLabel: variant.sizeLabel,
-          orientation: variant.orientation,
-          frameColor: (variant as { frameColor?: string }).frameColor ?? null,
+        const priceMajor = variant.prices[currency] ?? variant.prices.GBP ?? 0;
+
+        await goCheckout({
           fileUrl: publicUrl,
           imageId,
-          currency,
+          sku: variant.productUid, // Gelato productUid
+          title: `${productTitle} – ${titleSuffix}`,
+          price: Math.round(priceMajor * 100), // send minor units
+          priceIsMajor: false,
+          currency, // 'GBP' | 'USD' | 'EUR'
         });
-        setSuccessMsg(null);
-        setErrorMsg(null);
-        setManualOpen(true);
+        return;
       }
+
+      // Manual order path
+      setDraft({
+        email: '',
+        product: productTitle,
+        sizeLabel: variant.sizeLabel,
+        orientation: variant.orientation,
+        frameColor: (variant as { frameColor?: string }).frameColor ?? null,
+        fileUrl: publicUrl,
+        imageId,
+        currency,
+      });
+      setSuccessMsg(null);
+      setErrorMsg(null);
+      setManualOpen(true);
     } catch (e) {
       alert(e instanceof Error ? e.message : String(e));
     }
@@ -358,7 +364,6 @@ function ProductsInner() {
     if (PAYMENTS_ENABLED) {
       lemonSqueezyCheckout(publicUrl);
     } else {
-      // Manual path with Lemon button → just open manual modal too
       setDraft((d) => ({ ...d, fileUrl: publicUrl }));
       setSuccessMsg(null);
       setErrorMsg(null);
@@ -430,13 +435,13 @@ function ProductsInner() {
             artSrc="/livingroom_frame_1.png"
             mockupSrc="/framedPosterGelato.png"
             variants={framedVariants}
-            // onSelect={(v) =>
-            //   onSelect(
-            //     FRAMED_POSTER.title,
-            //     v,
-            //     `${v.sizeLabel} – ${v.frameColor ?? ''} – ${v.orientation}`.replace(/\s–\s–/, ' –')
-            //   )
-            // }
+            onSelect={(v, titleSuffix) =>
+              onSelect(
+                FRAMED_POSTER.title,
+                v,
+                titleSuffix || `${v.sizeLabel} – ${v.frameColor ?? ''} – ${v.orientation}`.replace(/\s–\s–/, ' –')
+              )
+            }
             controls={{ showFrame: true }}
             canProceed={canProceed}
           />
@@ -446,18 +451,12 @@ function ProductsInner() {
             artSrc="/poster_costumes2.png"
             mockupSrc="/posterFromGelato.png"
             variants={posterVariants}
-            // onSelect={(v) => onSelect(POSTER.title, v, `${v.sizeLabel} – ${v.orientation}`)}
+            onSelect={(v, titleSuffix) => onSelect(POSTER.title, v, titleSuffix || `${v.sizeLabel} – ${v.orientation}`)}
             onSelectLemonSqueezy={onSelectLemon}
             controls={{ showFrame: false }}
             canProceed={canProceed}
           />
         </div>
-
-        {/* {!canProceed && (
-          <p className="mt-6 text-xs text-yellow-400">
-            Missing <code>fileUrl</code> or <code>imageId</code>.
-          </p>
-        )} */}
 
         <p className="mt-6 text-xs text-white/50">
           Prices shown are your retail ex-VAT. Shipping/taxes are calculated at checkout.
@@ -487,7 +486,7 @@ function ProductsInner() {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(draft),
             });
-            const j: { ok?: boolean; error?: string } = await res.json();
+            const j = (await res.json()) as { ok?: boolean; error?: string };
 
             if (!res.ok || j?.error) {
               setErrorMsg(j?.error || 'Failed to send your order. Please try again.');

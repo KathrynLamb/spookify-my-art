@@ -26,9 +26,16 @@ function Inner() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ session_id: sessionId }),
         })
-        const j = await res.json()
-        if (!res.ok || !j?.ok) throw new Error(j?.error || 'Failed to place Gelato order')
-
+  
+        // Be robust to empty or non-JSON responses
+        const text = await res.text()
+        let j: { ok?: boolean; gelatoOrderId?: string; error?: string } = {}
+        try { j = text ? JSON.parse(text) : {} } catch { /* keep j as {} */ }
+  
+        if (!res.ok || !j.ok) {
+          throw new Error(j.error || `HTTP ${res.status} — ${text || 'No response body'}`)
+        }
+  
         if (!cancelled) {
           const qp = new URLSearchParams({ session_id: sessionId })
           if (j.gelatoOrderId) qp.set('gelato', j.gelatoOrderId)
@@ -44,6 +51,7 @@ function Inner() {
     run()
     return () => { cancelled = true }
   }, [sessionId, router])
+  
 
   if (status === 'error') {
     return (

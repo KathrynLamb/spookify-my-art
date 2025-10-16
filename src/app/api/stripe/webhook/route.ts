@@ -2,7 +2,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type Stripe from 'stripe'
 import { stripe } from '@/lib/stripe'
-import { splitName, normalizeCity, type GelatoAddress } from '@/lib/gelato'
+import {
+  splitName,
+  normalizeCity,
+  type GelatoAddress,
+  GELATO_ORDER_BASE,
+  gelatoHeaders,
+} from '@/lib/gelato'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -11,19 +17,22 @@ export async function POST(req: NextRequest) {
   const sig = req.headers.get('stripe-signature') ?? ''
   const secret = process.env.STRIPE_WEBHOOK_SECRET ?? ''
 
-  console.log("STRIPE WEBHOOK SECRET", secret)
+  // If the secret is missing, fail loudly so you notice in logs.
+  if (!secret) {
+    return NextResponse.json({ error: 'Missing STRIPE_WEBHOOK_SECRET' }, { status: 500 })
+  }
+  if (!sig) {
+    return NextResponse.json({ error: 'Missing stripe-signature' }, { status: 400 })
+  }
 
-  // Skip quietly if this isn't a real Stripe webhook
-  if (!sig || !secret) return NextResponse.json({ ok: true, skipped: 'no-signature' })
-
-  const rawText = await req.text()
-  const rawBody = Buffer.from(rawText, 'utf8')
+  const rawBody = await req.text()
 
   let event: Stripe.Event
   try {
+    // constructEvent accepts string or Buffer
     event = stripe.webhooks.constructEvent(rawBody, sig, secret)
-  } catch {
-    return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
+  } catch (err) {
+    return NextResponse.json({ error: `Invalid signature: ${(err as Error).message}` }, { status: 400 })
   }
 
   if (event.type === 'checkout.session.completed') {
@@ -48,41 +57,69 @@ export async function POST(req: NextRequest) {
       phone: cd?.phone ?? undefined,
     }
 
+    // Guard – if any required bit is missing, let Stripe retry by returning 500.
+    if (!fileUrl || !productUid || !imageId) {
+      return NextResponse.json({ error: 'Missing fileUrl/productUid/imageId' }, { status: 500 })
+    }
+
     try {
-      console.log('NOT GOT all the props ==>>', fileUrl, productUid, imageId)
-      if (fileUrl && productUid && imageId) {
-        console.log('all the props ==>>', fileUrl, productUid, imageId)
-        const base = process.env.NEXT_PUBLIC_BASE_URL?.replace(/\/+$/,'')
-          || `http://localhost:${process.env.PORT || 3000}`
-        const gelatoOrder = await fetch(`${base}/api/gelato/place-order`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            orderReferenceId: session.id,
-            orderType: 'order',
-            currency: (session.currency ?? 'gbp').toUpperCase(),
-            channel: 'api',
-            shippingAddress: addr,
-            items: [
-              { itemReferenceId: 'line-1', productUid, quantity: 1, fileUrl, attributes: { Orientation: 'ver' } },
-            ],
-            shipments: [
-              { shipmentReferenceId: 'ship-1', shipmentMethodUid: 'STANDARD', items: [{ itemReferenceId: 'line-1' }] },
-            ],
+      // Call Gelato directly
+      const res = await fetch(`${GELATO_ORDER_BASE}/orders`, {
+        method: 'POST',
+        headers: gelatoHeaders(),
+        body: JSON.stringify({
+          orderReferenceId: session.id,
+          orderType: 'order',
+          channel: 'api',
+          currency: (session.currency ?? 'gbp').toUpperCase(),
+          shippingAddress: {
+            firstName: addr.firstName,
+            lastName: addr.lastName,
+            addressLine1: addr.addressLine1,
+            addressLine2: addr.addressLine2,
+            city: addr.city,
+            postCode: addr.postCode,
+            state: addr.state,
+            country: addr.country,
+            email: addr.email,
+            phone: addr.phone,
+          },
+          items: [
+            {
+              itemReferenceId: 'line-1',
+              productUid: productUid,
+              quantity: 1,
+              fileUrl,
+              // TODO: map your real attributes (e.g., Orientation) if required by your product
+              attributes: { Orientation: 'ver' },
+            },
+          ],
+          shipments: [
+            {
+              shipmentReferenceId: 'ship-1',
+              shipmentMethodUid: process.env.GELATO_SHIPMENT_METHOD_UID || 'STANDARD',
+              items: [{ itemReferenceId: 'line-1' }],
+            },
+          ],
+        }),
+      })
 
-          }
-        
-          ),
-
-        })
-        console.log("Gelate order", gelatoOrder)
-        // .catch(() => {
-        //   console.log('got caught')
-        // })
+      if (!res.ok) {
+        const errorText = await res.text()
+        console.error('[gelato] create failed:', res.status, errorText)
+        // Return 500 to let Stripe retry webhook automatically
+        return NextResponse.json({ error: 'Gelato order failed' }, { status: 500 })
       }
-    } catch (e) {
-      console.error('[webhook] Gelato order failed', e)
-      // optional: return 500 to let Stripe retry
+
+      const json = await res.json()
+      console.log('[gelato] order created', json?.id)
+
+      // If you have KV, persist json.id as gelatoOrderId here.
+      // await markGelatoCreated(imageId, { gelatoOrderId: json.id, gelatoStatus: json.status })
+
+    } catch (err) {
+      console.error('[webhook] Gelato order error', err)
+      return NextResponse.json({ error: 'Gelato exception' }, { status: 500 })
     }
   }
 

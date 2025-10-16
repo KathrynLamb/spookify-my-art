@@ -11,6 +11,8 @@ export async function POST(req: NextRequest) {
   const sig = req.headers.get('stripe-signature') ?? ''
   const secret = process.env.STRIPE_WEBHOOK_SECRET ?? ''
 
+  console.log("STRIPE WEBHOOK SECRET", secret)
+
   // Skip quietly if this isn't a real Stripe webhook
   if (!sig || !secret) return NextResponse.json({ ok: true, skipped: 'no-signature' })
 

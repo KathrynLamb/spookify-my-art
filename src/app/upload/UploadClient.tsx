@@ -385,7 +385,9 @@ export default function UploadWithChatPage() {
       }
 
       const useId: string = pending.imageId || imageId || `img-${Date.now()}`;
+      console.log("USEID", useId)
       const publicUrl = await ensurePublicUrl(spookified, useId);
+      console.log("publicUrl", publicUrl)
       if (!publicUrl) {
         alert('Failed to upload or resolve your spookified image.');
         return;
@@ -394,22 +396,22 @@ export default function UploadWithChatPage() {
         alert('Missing SKU — please reselect your product.');
         return;
       }
-
-      if (pending.lemon) {
-        localStorage.setItem(
-          'spookify:last-order',
-          JSON.stringify({
-            product: pending.productTitle || 'Haunted Halloween Print',
-            thumbUrl: publicUrl,
-          })
-        );
-        localStorage.removeItem('spookify:pending-product');
-        window.open(
-          'https://spookify-my-art.lemonsqueezy.com/buy/3c829174-dc02-4428-9123-7652026e6bbf',
-          '_blank'
-        );
-        return;
-      }
+      console.log("pending.variant?.productUid", pending.variant?.productUid)
+      // if (pending.lemon) {
+      //   localStorage.setItem(
+      //     'spookify:last-order',
+      //     JSON.stringify({
+      //       product: pending.productTitle || 'Haunted Halloween Print',
+      //       thumbUrl: publicUrl,
+      //     })
+      //   );
+      //   localStorage.removeItem('spookify:pending-product');
+      //   window.open(
+      //     'https://spookify-my-art.lemonsqueezy.com/buy/3c829174-dc02-4428-9123-7652026e6bbf',
+      //     '_blank'
+      //   );
+      //   return;
+      // }
 
       if (PAYMENTS_ENABLED) {
         const titleSuffix =
@@ -422,7 +424,7 @@ export default function UploadWithChatPage() {
           pending.variant.prices[pending.currency] ??
           pending.variant.prices.GBP ??
           0;
-
+          console.log("fileUrl ===>>", publicUrl, imageId, pending.variant.productUid, pending, priceMajor,  )
         const r = await fetch('/api/checkout', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -436,6 +438,8 @@ export default function UploadWithChatPage() {
             currency: pending.currency,
           }),
         });
+
+        console.log("R ===>>", r)
 
         const j = (await r.json()) as { url?: string; error?: string };
         if (!r.ok || !j?.url) {

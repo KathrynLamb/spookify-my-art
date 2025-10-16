@@ -30,6 +30,7 @@ function baseUrl() {
   const envUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.SITE_URL
   if (envUrl) return envUrl.replace(/\/+$/, '')
   return `http://localhost:${process.env.PORT || 3000}`
+  
 }
 
 export async function POST(req: NextRequest) {

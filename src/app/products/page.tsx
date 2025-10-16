@@ -184,7 +184,6 @@ function ManualOrderModal({
 }
 
 /* ---------- Helpers ---------- */
-
 // Ensure fileUrl is public if user arrived with a data: URL
 async function ensurePublicUrl(current: string, givenImageId: string): Promise<string> {
   if (isHttpUrl(current)) return current;
@@ -206,12 +205,17 @@ async function goCheckout(payload: CheckoutPayload): Promise<void> {
     body: JSON.stringify(payload),
   });
 
+  console.log("R", r)
+  console.timeLog("PAYLOAD", payload)
+
   const text = await r.text();
   let json: CheckoutResponse | null = null;
   try {
     json = JSON.parse(text) as CheckoutResponse;
+    console.log("JSON", json)
   } catch {
     /* non-JSON error */
+    console.log("NON JSON error")
   }
 
   if (!r.ok) {

@@ -30,7 +30,6 @@ function baseUrl() {
   const envUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.SITE_URL
   if (envUrl) return envUrl.replace(/\/+$/, '')
   return `http://localhost:${process.env.PORT || 3000}`
-  
 }
 
 export async function POST(req: NextRequest) {
@@ -97,18 +96,14 @@ export async function POST(req: NextRequest) {
         },
       ],
       metadata: { fileUrl, imageId, sku, currency },
-      success_url: `${baseUrl()}/thank-you?session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${baseUrl()}/post-checkout?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${baseUrl()}/upload?cancelled=1`,
     })
 
     return NextResponse.json({ url: session.url })
   } catch (err: unknown) {
     const message =
-      err instanceof Error
-        ? err.message
-        : typeof err === 'string'
-          ? err
-          : 'Checkout failed'
+      err instanceof Error ? err.message : typeof err === 'string' ? err : 'Checkout failed'
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }

@@ -1,7 +1,6 @@
 // src/app/api/upload-original/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { put } from '@vercel/blob'
-import { kv } from '@vercel/kv'
 import crypto from 'node:crypto'
 
 export const runtime = 'nodejs'
@@ -16,26 +15,38 @@ export async function POST(req: NextRequest) {
 
     const id = crypto.randomUUID()
     const ext = file.type === 'image/png' ? 'png' : 'jpg'
-    const path = `spookify/${id}/original.${ext}`
+    const base = `spookify/${id}`
+    const imgPath = `${base}/original.${ext}`
+    const metaPath = `${base}/meta.json`
 
-    // Store original in Blob (public so OpenAI/Gelato can fetch)
-    const putRes = await put(path, file.stream(), {
+    // Save the original (public so OpenAI/Gelato can fetch it)
+    const img = await put(imgPath, file.stream(), {
       access: 'public',
       contentType: file.type || 'image/jpeg',
       addRandomSuffix: false,
     })
 
-    // Note: putRes has url, pathname, contentType — not size.
-    await kv.hset(`image:${id}`, {
-      fileUrl: putRes.url,
-      bytes: file.size,                // ← use File.size
-      mime: file.type || 'image/jpeg', // ← use File.type
+    // Save a sidecar metadata file next to it
+    const meta = {
+      fileUrl: img.url,
+      bytes: file.size,
+      mime: file.type || 'image/jpeg',
       finalizedPrompt,
       createdAt: Date.now(),
       version: 1,
+    }
+    await put(metaPath, JSON.stringify(meta), {
+      access: 'public',
+      contentType: 'application/json',
+      addRandomSuffix: false,
     })
 
-    return NextResponse.json({ imageId: id, fileUrl: putRes.url })
+    // Return both ids + canonical URLs
+    return NextResponse.json({
+      imageId: id,
+      fileUrl: img.url,
+      metaUrl: img.url.replace(/original\.\w+$/, 'meta.json'),
+    })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     return NextResponse.json({ error: msg }, { status: 500 })

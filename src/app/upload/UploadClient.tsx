@@ -300,11 +300,13 @@ const setFromFile = async (file: File) => {
 
     // ⬇️ Upload the ORIGINAL to Blob; server returns canonical imageId + fileUrl
     const fd = new FormData()
-    fd.append('file', f)
-    // optionally pass any early prompt text:
+    fd.append('file', file)
+    const res = await fetch('/api/upload-original', { method: 'POST', body: fd })
+    const { imageId, fileUrl, metaUrl, error } = await res.json()
+    console.log(imageId, fileUrl, metaUrl, error)
     // fd.append('finalizedPrompt', '')
 
-    const res = await fetch('/api/upload-original', { method: 'POST', body: fd })
+
     const j = await res.json() as { imageId?: string; fileUrl?: string; error?: string }
     if (!res.ok || !j.imageId) { setError(j.error || 'Upload failed'); return }
 

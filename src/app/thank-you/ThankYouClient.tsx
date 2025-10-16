@@ -46,6 +46,9 @@ function formatMoney(value: number | string | undefined, currency: string | unde
   }
 }
 
+export const softWrapId = (s: string, every = 4) =>
+  s.replace(new RegExp(`(.{${every}})`, 'g'), '$1\u200B');
+
 function fmtDate(ts?: number) {
   if (!ts) return '—';
   return new Date(ts * 1000).toLocaleString();
@@ -174,8 +177,11 @@ export default function ThankYouPage() {
                 <KV label="Date" value={fmtDate(info?.created)} />
                 <KV label="Customer" value={info?.customer_name || '—'} />
                 <KV label="Email" value={info?.email || '—'} />
-                <KV label="Gelato Order" value={info?.gelatoOrderId ? `#${info.gelatoOrderId}` : 'pending…'} />
-              </div>
+                <KV
+                    label="Gelato Order"
+                    value={info?.gelatoOrderId ? `#${softWrapId(info.gelatoOrderId, 4)}` : 'pending…'}
+                  />           
+                  </div>
 
               {!!info?.shipping?.address && (
                 <div className="mt-6">

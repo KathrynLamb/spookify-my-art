@@ -222,56 +222,108 @@ export default function UploadWithChatPage() {
   }, [input]);
 
   // --- Upload flow -> triggers FIRST chat message with image ---
-  const setFromFile = async (file: File) => {
-    try {
-      let f = file;
+  // const setFromFile = async (file: File) => {
+  //   try {
+  //     let f = file;
 
-      if (f.name.toLowerCase().endsWith('.heic') || f.type === 'image/heic') {
-        const { convertHEICtoJPG } = await import('@/lib/convertHEICtoJPG');
-        f = await convertHEICtoJPG(f);
-      }
+  //     if (f.name.toLowerCase().endsWith('.heic') || f.type === 'image/heic') {
+  //       const { convertHEICtoJPG } = await import('@/lib/convertHEICtoJPG');
+  //       f = await convertHEICtoJPG(f);
+  //     }
 
-      if (!f.type.startsWith('image/')) return;
-      setError(null);
-      setSpookified(null);
-      setPlan(null);
-      setMessages([]);
+  //     if (!f.type.startsWith('image/')) return;
+  //     setError(null);
+  //     setSpookified(null);
+  //     setPlan(null);
+  //     setMessages([]);
 
-      const blobUrl = URL.createObjectURL(f);
-      setPreviewUrl(blobUrl);
+  //     const blobUrl = URL.createObjectURL(f);
+  //     setPreviewUrl(blobUrl);
 
-      const dataUrl = await fileToResizedDataUrl(f, 1280, 0.9);
-      setOriginalDataUrl(dataUrl);
+  //     const dataUrl = await fileToResizedDataUrl(f, 1280, 0.9);
+  //     setOriginalDataUrl(dataUrl);
 
-      const res = await fetch('/api/store-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dataUrl }),
-      });
-      const j = (await res.json()) as { id: string; error?: string };
-      if (!res.ok) {
-        setError(j.error || 'Upload failed');
-        return;
-      }
-      const newId = j.id;
-      setImageId(newId);
+  //     const res = await fetch('/api/store-image', {
+  //       method: 'POST',
+  //       headers: { 'Content-Type': 'application/json' },
+  //       body: JSON.stringify({ dataUrl }),
+  //     });
+  //     const j = (await res.json()) as { id: string; error?: string };
+  //     if (!res.ok) {
+  //       setError(j.error || 'Upload failed');
+  //       return;
+  //     }
+  //     const newId = j.id;
+  //     setImageId(newId);
 
-      // ✅ Friendly assistant nudge only
-      setMessages([
-        {
-          role: 'assistant',
-          content:
-            'Great pic! How do you want to spookify it? (e.g., cozy-cute, spookiness 3, fog + tiny ghost, moonlit blues, no blood)',
-        },
-      ]);
+  //     // ✅ Friendly assistant nudge only
+  //     setMessages([
+  //       {
+  //         role: 'assistant',
+  //         content:
+  //           'Great pic! How do you want to spookify it? (e.g., cozy-cute, spookiness 3, fog + tiny ghost, moonlit blues, no blood)',
+  //       },
+  //     ]);
 
-      await refreshPlanFromServer(newId);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setChatBusy(false);
+  //     await refreshPlanFromServer(newId);
+  //   } catch (e) {
+  //     setError(e instanceof Error ? e.message : String(e));
+  //   } finally {
+  //     setChatBusy(false);
+  //   }
+  // };
+
+  // in UploadClient.tsx
+
+// REMOVE this dev auto-id; the server should be the source of truth
+// useEffect(() => { if (!imageId) setImageId(`dev-${Date.now()}`); }, [imageId]);
+
+const setFromFile = async (file: File) => {
+  try {
+    let f = file
+    if (f.name.toLowerCase().endsWith('.heic') || f.type === 'image/heic') {
+      const { convertHEICtoJPG } = await import('@/lib/convertHEICtoJPG')
+      f = await convertHEICtoJPG(f)
     }
-  };
+    if (!f.type.startsWith('image/')) return
+
+    setError(null)
+    setSpookified(null)
+    setPlan(null)
+    setMessages([])
+
+    // fast local preview
+    const blobUrl = URL.createObjectURL(f)
+    setPreviewUrl(blobUrl)
+    const dataUrl = await fileToResizedDataUrl(f, 1280, 0.9) // UI only
+    setOriginalDataUrl(dataUrl)
+
+    // ⬇️ Upload the ORIGINAL to Blob; server returns canonical imageId + fileUrl
+    const fd = new FormData()
+    fd.append('file', f)
+    // optionally pass any early prompt text:
+    // fd.append('finalizedPrompt', '')
+
+    const res = await fetch('/api/upload', { method: 'POST', body: fd })
+    const j = await res.json() as { imageId?: string; fileUrl?: string; error?: string }
+    if (!res.ok || !j.imageId) { setError(j.error || 'Upload failed'); return }
+
+    setImageId(j.imageId)
+
+    // Friendly first assistant nudge
+    setMessages([
+      { role: 'assistant',
+        content: 'Great pic! How do you want to spookify it? (e.g., cozy-cute, spookiness 3, fog + tiny ghost, moonlit blues, no blood)' }
+    ])
+
+    await refreshPlanFromServer(j.imageId)
+  } catch (e) {
+    setError(e instanceof Error ? e.message : String(e))
+  } finally {
+    setChatBusy(false)
+  }
+}
+
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];

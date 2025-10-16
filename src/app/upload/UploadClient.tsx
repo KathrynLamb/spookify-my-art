@@ -304,7 +304,7 @@ const setFromFile = async (file: File) => {
     // optionally pass any early prompt text:
     // fd.append('finalizedPrompt', '')
 
-    const res = await fetch('/api/upload', { method: 'POST', body: fd })
+    const res = await fetch('/api/upload-original', { method: 'POST', body: fd })
     const j = await res.json() as { imageId?: string; fileUrl?: string; error?: string }
     if (!res.ok || !j.imageId) { setError(j.error || 'Upload failed'); return }
 

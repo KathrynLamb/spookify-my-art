@@ -914,6 +914,33 @@ async function fileToResizedDataUrl(file: File, maxDim = 1280, quality = 0.9): P
   return canvas.toDataURL('image/jpeg', quality);
 }
 
+async function fileToResizedBlob(
+  file: File,
+  maxDim = 1600,          // good for prints + keeps size small
+  quality = 0.85,
+  mime: 'image/jpeg' | 'image/png' = 'image/jpeg'
+): Promise<Blob> {
+  const bmp = await createImageBitmap(file);
+  const scale = Math.min(maxDim / bmp.width, maxDim / bmp.height, 1);
+  const w = Math.round(bmp.width * scale);
+  const h = Math.round(bmp.height * scale);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d')!;
+  ctx.drawImage(bmp, 0, 0, w, h);
+
+  return await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (b) => (b ? resolve(b) : reject(new Error('toBlob failed'))),
+      mime,
+      quality
+    );
+  });
+}
+
+
 const isHttpUrl = (s: string) => /^https?:\/\//i.test(s);
 
 async function ensurePublicUrl(current: string, givenImageId: string) {
@@ -1022,48 +1049,101 @@ export default function UploadWithChatPage() {
   }, [input]);
 
   const setFromFile = async (file: File) => {
+    // helper: make a resized JPEG Blob
+    const fileToResizedBlob = async (
+      src: File,
+      maxDim = 2000,
+      quality = 0.86
+    ): Promise<Blob> => {
+      const bmp = await createImageBitmap(src);
+      const scale = Math.min(maxDim / bmp.width, maxDim / bmp.height, 1);
+      const w = Math.round(bmp.width * scale);
+      const h = Math.round(bmp.height * scale);
+  
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('Canvas 2D unavailable');
+      ctx.drawImage(bmp, 0, 0, w, h);
+  
+      return await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob(
+          (b) => (b ? resolve(b) : reject(new Error('toBlob failed'))),
+          'image/jpeg',
+          quality
+        );
+      });
+    };
+  
     try {
-      let f = file;
-      if (f.name.toLowerCase().endsWith('.heic') || f.type === 'image/heic') {
+      // 1) Normalize file (HEIC -> JPG)
+      let f: File = file;
+      const isHeic = f.name.toLowerCase().endsWith('.heic') || f.type === 'image/heic';
+      if (isHeic) {
         const { convertHEICtoJPG } = await import('@/lib/convertHEICtoJPG');
         f = await convertHEICtoJPG(f);
       }
       if (!f.type.startsWith('image/')) return;
-
+  
+      // 2) Reset UI & show fast local preview
       setError(null);
       setSpookified(null);
       setPlan(null);
       setMessages([]);
-
-      // fast local preview for the UI
-      const blobUrl = URL.createObjectURL(f);
-      setPreviewUrl(blobUrl);
-      const dataUrl = await fileToResizedDataUrl(f, 1280, 0.9);
-      setOriginalDataUrl(dataUrl);
-
-      // upload ORIGINAL to Blob-backed route
+  
+      const previewObjUrl = URL.createObjectURL(f);
+      setPreviewUrl(previewObjUrl);
+  
+      // small dataURL for chat and “original” reference (not full-res)
+      const chatDataUrl = await fileToResizedDataUrl(f, 1280, 0.9);
+      setOriginalDataUrl(chatDataUrl);
+  
+      // 3) Build a resized upload blob to stay under function limits
+      const resizedBlob = await fileToResizedBlob(f, 2000, 0.86);
+      const uploadFile = new File(
+        [resizedBlob],
+        f.name.replace(/\.[^.]+$/, '') + '-web.jpg',
+        { type: 'image/jpeg' }
+      );
+  
+      // 4) Try multipart upload first
       const fd = new FormData();
-      fd.append('file', f);
-
-      const res = await fetch('/api/upload-original', { method: 'POST', body: fd });
-      const text = await res.text(); // read once
-      const json = parseJSON<UploadOriginalOk | UploadOriginalErr>(text);
-
+      fd.append('file', uploadFile);
+  
+      let res = await fetch('/api/upload-original', { method: 'POST', body: fd });
+      let text = await res.text(); // read once
+      let json = parseJSON<UploadOriginalOk | UploadOriginalErr>(text);
+  
+      // 5) If payload was still too big, retry with JSON dataUrl (smaller)
+      if (res.status === 413 || /too[_\s-]?large|payload/i.test(text)) {
+        const tinyDataUrl = await fileToResizedDataUrl(f, 1400, 0.84);
+        res = await fetch('/api/upload-original', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dataUrl: tinyDataUrl }),
+        });
+        text = await res.text();
+        json = parseJSON<UploadOriginalOk | UploadOriginalErr>(text);
+      }
+  
       if (!res.ok || !json || !hasImageId(json)) {
         const errMsg = (json as UploadOriginalErr | null)?.error || text || 'Upload failed';
         throw new Error(errMsg);
       }
-
+  
+      // 6) Success — stash id and nudge the chat
       const newId = json.imageId;
       setImageId(newId);
-
-      // Friendly first assistant nudge
-      setMessages([{
-        role: 'assistant',
-        content:
-          'Great pic! How do you want to spookify it? (e.g., cozy-cute, spookiness 3, fog + tiny ghost, moonlit blues, no blood)',
-      }]);
-
+  
+      setMessages([
+        {
+          role: 'assistant',
+          content:
+            'Great pic! How do you want to spookify it? (e.g., cozy-cute, spookiness 3, fog + tiny ghost, moonlit blues, no blood)',
+        },
+      ]);
+  
       await refreshPlanFromServer(newId);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -1071,6 +1151,7 @@ export default function UploadWithChatPage() {
       setChatBusy(false);
     }
   };
+  
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];

@@ -16,9 +16,6 @@ type PayPalButtonsOptions = {
 };
 type PayPalSDK = { Buttons: (opts: PayPalButtonsOptions) => PayPalButtonsRender };
 
-const IMG_VH = 62;
-const RAIL_W = 380;
-
 const fmt = (n: number, c: string) => {
   try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: c }).format(n); }
   catch { return `${n.toFixed(2)} ${c}`; }
@@ -45,15 +42,13 @@ export default function CheckoutClient() {
   const btnRef = useRef<HTMLDivElement>(null);
   const missing = !fileUrl || !imageId || !amount || !currency;
 
+  // Load PayPal SDK
   useEffect(() => {
     if (missing) return;
-
     const anyWin = window as unknown as { paypal?: PayPalSDK };
     if (anyWin.paypal) { setSdkReady(true); return; }
-
     const id = 'paypal-sdk';
     if (document.getElementById(id)) return;
-
     const s = document.createElement('script');
     s.id = id;
     s.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(CLIENT_ID)}&currency=${encodeURIComponent(currency)}&components=buttons`;
@@ -63,6 +58,7 @@ export default function CheckoutClient() {
     document.head.appendChild(s);
   }, [currency, missing]);
 
+  // Render buttons
   useEffect(() => {
     if (!sdkReady || sdkErr || missing || !btnRef.current) return;
     const anyWin = window as unknown as { paypal?: PayPalSDK };
@@ -90,7 +86,6 @@ export default function CheckoutClient() {
           });
           const j: { error?: string } = await r.json();
           if (!r.ok) throw new Error(j?.error || 'Capture failed');
-
           const qp = new URLSearchParams({ orderId: data.orderID, imageId, fileUrl, amount: String(amount), currency, title });
           router.replace(`/thank-you?${qp.toString()}`);
         } catch (e) {
@@ -107,31 +102,14 @@ export default function CheckoutClient() {
   }, [sdkReady, sdkErr, missing, amount, currency, title, imageId, fileUrl, size, orientation, frameColor, router]);
 
   return (
-    <div className="mx-auto w-full px-4 py-6 md:py-8" style={{ maxWidth: 980 }}>
-      <div className="grid gap-6 md:gap-8" style={{ gridTemplateColumns: `minmax(320px,1fr) ${RAIL_W}px` }}>
-        <section className="flex flex-col">
-          <div className="relative w-full overflow-hidden rounded-xl border border-white/10 bg-white/5" style={{ height: `min(${IMG_VH}vh, 720px)` }}>
-            {fileUrl ? (
-              <Image src={fileUrl} alt="Your artwork" fill sizes="(max-width: 1024px) 100vw, 50vw" className="object-contain" priority />
-            ) : (
-              <div className="absolute inset-0 grid place-items-center text-white/60">No image</div>
-            )}
-          </div>
-
-          <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.04] p-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="truncate text-base font-semibold">{title}</div>
-                <div className="mt-0.5 text-sm text-white/70 truncate">
-                  {size || '—'}{orientation ? ` • ${orientation}` : ''}{frameColor ? ` • ${frameColor} Frame` : ''}
-                </div>
-              </div>
-              <div className="shrink-0 text-base font-semibold">{fmt(amount, currency)}</div>
-            </div>
-          </div>
-        </section>
-
-        <aside className="md:sticky md:top-4 h-max">
+    <div className="mx-auto w-full px-3 sm:px-4 py-4 md:py-8" style={{ maxWidth: 980 }}>
+      {/* Mobile: 1 column, Payment FIRST.  Desktop: 2 columns. */}
+      <div className="
+          grid gap-4 sm:gap-6 md:gap-8
+          grid-cols-1 md:[grid-template-columns:minmax(320px,1fr)_380px]
+        ">
+        {/* RIGHT rail becomes FIRST on mobile */}
+        <aside className="order-1 md:order-2 md:sticky md:top-4 h-max">
           <div className="rounded-xl border border-white/10 bg-white/[0.05] p-4">
             <div className="mb-2 text-sm font-semibold">Complete payment</div>
 
@@ -146,6 +124,7 @@ export default function CheckoutClient() {
                     Loading PayPal… If this never loads, disable ad-blockers or allow third-party scripts.
                   </div>
                 ) : null}
+                {/* keep some height to avoid layout jump */}
                 <div ref={btnRef} className={`min-h-[52px] ${busy ? 'opacity-60 pointer-events-none' : ''}`} />
               </>
             ) : (
@@ -166,6 +145,42 @@ export default function CheckoutClient() {
             )}
           </div>
         </aside>
+
+        {/* LEFT content becomes SECOND on mobile */}
+        <section className="order-2 md:order-1 flex flex-col">
+          <div
+            className="
+              relative w-full overflow-hidden rounded-xl border border-white/10 bg-white/5
+              h-[42vh] sm:h-[52vh] md:[height:min(62vh,720px)]
+            "
+            style={{ height: undefined }} // allow Tailwind heights above to control
+          >
+            {fileUrl ? (
+              <Image
+                src={fileUrl}
+                alt="Your artwork"
+                fill
+                sizes="(max-width: 768px) 100vw, (max-width: 1024px) 60vw, 50vw"
+                className="object-contain"
+                priority
+              />
+            ) : (
+              <div className="absolute inset-0 grid place-items-center text-white/60">No image</div>
+            )}
+          </div>
+
+          <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.04] p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="truncate text-base font-semibold">{title}</div>
+                <div className="mt-0.5 text-sm text-white/70 truncate">
+                  {size || '—'}{orientation ? ` • ${orientation}` : ''}{frameColor ? ` • ${frameColor} Frame` : ''}
+                </div>
+              </div>
+              <div className="shrink-0 text-base font-semibold">{fmt(amount, currency)}</div>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   );

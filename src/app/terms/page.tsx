@@ -6,19 +6,19 @@ export const metadata = {
 
 export default function TermsPage() {
   return (
-    <main className="mx-auto max-w-3xl p-6 opacity-100 bg-white text-gray-800 dark:bg-zinc-900 dark:text-zinc-100">
+    <main className="mx-auto max-w-3xl p-6 bg-zinc-900 text-zinc-200">
       <header className="mb-8">
-        <h1 className="text-3xl font-extrabold tracking-tight text-orange-600 dark:text-orange-400">
+        <h1 className="text-3xl font-extrabold tracking-tight text-orange-400">
           Terms & Conditions
         </h1>
-        <p className="mt-1 text-sm text-gray-600 dark:text-zinc-400">Last updated: 17 October 2025</p>
+        <p className="mt-1 text-sm text-zinc-400">Last updated: 17 October 2025</p>
       </header>
 
-      <article className="[&>h2]:text-xl [&>h2]:font-semibold [&>h2]:text-gray-900 [&>h2]:dark:text-white [&>h2]:mt-8 [&>h2]:mb-3 [&>p]:mb-4 [&_ul]:mb-4 [&_ul_li]:mb-1">
+      <article className="space-y-4 [&>h2]:text-xl [&>h2]:font-semibold [&>h2]:text-zinc-100 [&>h2]:mt-8 [&>h2]:mb-3">
         <p>
           Welcome to <strong>Spookify My Art</strong> (the “Service”), operated on the{' '}
-          <strong>aigifts.org</strong> website (the “Site”). By using our Site and Services, you agree to the
-          terms below. If you do not agree, please do not use the Service.
+          <strong>aigifts.org</strong> website (the “Site”). By using our Site and Services, you agree to
+          the terms below. If you do not agree, please do not use the Service.
         </p>
 
         <h2>Definitions / Who we are</h2>
@@ -33,7 +33,10 @@ export default function TermsPage() {
           Trading name: <strong>Spookify My Art</strong><br />
           Owner: <strong>Kathryn Lamb</strong><br />
           Registered/Trading address: Manor House, Eaglescliffe, TS16 0QT, United Kingdom<br />
-          Primary contact: <a href="mailto:support@aigifts.org" className="underline text-orange-700 dark:text-orange-300">support@aigifts.org</a>
+          Primary contact:{" "}
+          <a href="mailto:support@aigifts.org" className="underline text-orange-300 hover:text-orange-200">
+            support@aigifts.org
+          </a>
         </p>
 
         <h2>2) What We Do</h2>
@@ -44,7 +47,7 @@ export default function TermsPage() {
         </p>
 
         <h2>3) Eligibility & Your Content</h2>
-        <ul className="list-disc list-inside">
+        <ul className="list-disc list-inside space-y-1">
           <li>You confirm you own the rights to any images you upload, or have permission to use them.</li>
           <li>You won’t upload unlawful, explicit, infringing or hateful content.</li>
           <li>
@@ -62,7 +65,7 @@ export default function TermsPage() {
         </p>
 
         <h2>5) Production, Shipping & Delivery</h2>
-        <ul className="list-disc list-inside">
+        <ul className="list-disc list-inside space-y-1">
           <li>Digital items are delivered by email/download once processing is complete.</li>
           <li>
             Printed items are produced on demand by Gelato and shipped from the closest production partner
@@ -75,13 +78,19 @@ export default function TermsPage() {
 
         <h2>6) Cancellations, Returns & Refunds</h2>
         <p className="mb-2"><strong>Digital services/files</strong></p>
-        <ul className="list-disc list-inside">
-          <li>Cancellation is only possible <em>before</em> we start work. Email <a className="underline text-orange-700 dark:text-orange-300" href="mailto:support@aigifts.org">support@aigifts.org</a> immediately.</li>
+        <ul className="list-disc list-inside space-y-1">
+          <li>
+            Cancellation is only possible <em>before</em> we start work. Email{" "}
+            <a href="mailto:support@aigifts.org" className="underline text-orange-300 hover:text-orange-200">
+              support@aigifts.org
+            </a>{" "}
+            immediately.
+          </li>
           <li>Delivered digital files are non-refundable unless there is a technical defect we cannot reasonably resolve.</li>
         </ul>
 
         <p className="mt-4 mb-2"><strong>Printed (made-to-order) items — Gelato</strong></p>
-        <ul className="list-disc list-inside">
+        <ul className="list-disc list-inside space-y-1">
           <li>
             Because items are personalised and produced on demand, <strong>change-of-mind returns</strong> are not
             accepted once production starts (customised goods exemption under UK law).
@@ -101,8 +110,10 @@ export default function TermsPage() {
         </ul>
 
         <p className="mt-4">
-          To request a cancellation (if work hasn’t started) or to report a defect, email{' '}
-          <a href="mailto:support@aigifts.org" className="underline text-orange-700 dark:text-orange-300">support@aigifts.org</a>.
+          To request a cancellation (if work hasn’t started) or to report a defect, email{" "}
+          <a href="mailto:support@aigifts.org" className="underline text-orange-300 hover:text-orange-200">
+            support@aigifts.org
+          </a>.
         </p>
 
         <h2>7) Intellectual Property</h2>
@@ -126,9 +137,11 @@ export default function TermsPage() {
 
         <h2>10) Privacy</h2>
         <p>
-          We collect only what’s needed to fulfil your order and support you. Payments are handled by Stripe;
-          we don’t store full card details. See our{' '}
-          <a href="/privacy" className="underline text-orange-700 dark:text-orange-300">Privacy Policy</a>.
+          We collect only what’s needed to fulfil your order and support you. Payments are handled by Stripe; we don’t
+          store full card details. See our{" "}
+          <a href="/privacy" className="underline text-orange-300 hover:text-orange-200">
+            Privacy Policy
+          </a>.
         </p>
 
         <h2>11) Governing Law</h2>
@@ -136,7 +149,10 @@ export default function TermsPage() {
 
         <h2>12) Contact</h2>
         <p>
-          Questions or complaints? Email <a href="mailto:support@aigifts.org" className="underline text-orange-700 dark:text-orange-300">support@aigifts.org</a>.
+          Questions or complaints? Email{" "}
+          <a href="mailto:support@aigifts.org" className="underline text-orange-300 hover:text-orange-200">
+            support@aigifts.org
+          </a>.
         </p>
       </article>
     </main>

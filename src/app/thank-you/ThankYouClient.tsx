@@ -60,25 +60,47 @@ export default function ThankYouPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const id = new URLSearchParams(window.location.search).get('session_id');
-    if (!id) {
+    const qs = new URLSearchParams(window.location.search);
+    const sessionId = qs.get('session_id');
+    const gelatoFromQS = qs.get('gelato');
+  
+    if (!sessionId) {
       setErr('Missing session id.');
       setLoading(false);
       return;
     }
+  
+    let cancelled = false;
+  
     (async () => {
       try {
-        const res = await fetch(`/api/session?id=${encodeURIComponent(id)}`);
+        const res = await fetch(`/api/session?id=${encodeURIComponent(sessionId)}`, {
+          cache: 'no-store',
+        });
         const j = (await res.json()) as SessionInfo & { error?: string };
+  
         if (!res.ok) throw new Error(j?.error || 'Unable to load session.');
-        setInfo(j);
-      } catch (e: unknown) {
-        setErr(e instanceof Error ? e.message : 'Unable to load session.');
+  
+        const merged: SessionInfo = {
+          ...j,
+          gelatoOrderId: j.gelatoOrderId || gelatoFromQS || undefined,
+        };
+  
+        if (!cancelled) setInfo(merged);
+      } catch (e) {
+        if (!cancelled) {
+          setErr(e instanceof Error ? e.message : 'Unable to load session.');
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
+  
+    return () => {
+      cancelled = true;
+    };
   }, []);
+  
 
   const amountDisplay = useMemo(
     () => formatMoney(info?.amount_total, info?.currency),
@@ -159,13 +181,18 @@ export default function ThankYouPage() {
             {/* Left: artwork */}
             <div className="md:col-span-2 p-6 border-b md:border-b-0 md:border-r border-white/10">
               <div className="relative aspect-[4/5] w-full overflow-hidden rounded-xl bg-black/40 border border-white/10">
-                <Image
-                  src={info?.fileUrl || '/mockups/halloween-frame-vertical.png'}
-                  alt="Your spooky art"
-                  fill
-                  className="object-cover"
-                  sizes="(max-width: 768px) 100vw, 40vw"
-                />
+              <Image
+                    src={info?.fileUrl || '/mockups/halloween-frame-vertical.png'}
+                    alt="Your spooky art"
+                    onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+                      const target = e.currentTarget as HTMLImageElement
+                      target.src = '/mockups/halloween-frame-vertical.png'
+                    }}
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 768px) 100vw, 40vw"
+/>
+
               </div>
               <div className="mt-3 text-xs text-white/60">Artwork preview • For reference only</div>
             </div>

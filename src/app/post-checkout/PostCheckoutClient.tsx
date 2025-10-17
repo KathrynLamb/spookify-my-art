@@ -1,7 +1,7 @@
-// src/app/post-checkout/PostCheckoutClient.tsx
 'use client'
 
-import { Suspense, useEffect, useMemo, useState } from 'react'
+
+import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 type ApiOk = { ok: true; gelatoOrderId?: string }
@@ -28,7 +28,6 @@ function Inner() {
   const [status, setStatus] = useState<'working' | 'error'>('working')
   const [message, setMessage] = useState('Placing your order with Gelato…')
 
-  // Debug panel data
   const [httpStatus, setHttpStatus] = useState<number | null>(null)
   const [httpOk, setHttpOk] = useState<boolean | null>(null)
   const [headers, setHeaders] = useState<Array<[string, string]>>([])
@@ -56,9 +55,6 @@ function Inner() {
 
       try {
         setPhase('fetching')
-        console.groupCollapsed('[post-checkout] placing Gelato order')
-        console.log('sessionId:', sessionId)
-
         const res = await fetch('/api/gelato/place-from-session', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -69,35 +65,29 @@ function Inner() {
         setHttpStatus(res.status)
         setHttpOk(res.ok)
         setHeaders(Array.from(res.headers.entries()))
-        console.log('HTTP status:', res.status, 'ok:', res.ok)
-        console.log('Response headers:', Object.fromEntries(res.headers.entries()))
 
-        setPhase('read-body')
         const text = await res.text()
         setRawBody(text)
 
-        setPhase('parsing')
         let j: ApiAny | null = null
+        let localParseError: string | null = null
         try {
           j = text ? (JSON.parse(text) as ApiAny) : {}
           setJsonBody(j)
-          setParseError(null)
         } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err)
-          setParseError(msg)
+          localParseError = err instanceof Error ? err.message : String(err)
+          setParseError(localParseError)
           j = null
         }
 
-        setPhase('validating')
         if (!res.ok) {
-          // Prefer structured error if present
           const errMsg =
             (j as ApiErr | null)?.error ||
             `HTTP ${res.status}${text ? ` — ${text}` : ''}`
           throw new Error(errMsg)
         }
 
-        if (!j || (typeof j !== 'object')) {
+        if (!j || typeof j !== 'object') {
           throw new Error('Server returned no JSON object')
         }
 
@@ -105,17 +95,14 @@ function Inner() {
         if (!ok) {
           const errMsg =
             (j as ApiErr).error ||
-            (parseError ? `JSON parse error: ${parseError}` : 'Unknown server error')
+            (localParseError ? `JSON parse error: ${localParseError}` : 'Unknown server error')
           throw new Error(errMsg)
         }
 
-        setPhase('routing')
         if (!cancelled) {
           const qp = new URLSearchParams({ session_id: sessionId })
           const id = (j as ApiOk).gelatoOrderId
           if (id) qp.set('gelato', String(id))
-          console.log('Routing to /thank-you with:', qp.toString())
-          console.groupEnd()
           router.replace(`/thank-you?${qp.toString()}`)
         }
       } catch (e) {
@@ -124,8 +111,6 @@ function Inner() {
         setStatus('error')
         setMessage(msg)
         setPhase('error')
-        console.error('[post-checkout] failed:', msg)
-        console.groupEnd()
       } finally {
         setTiming((t) => {
           const ended = performance.now()
@@ -134,9 +119,7 @@ function Inner() {
       }
     }
 
-    // fire once when client has the query string
     run()
-
     return () => {
       cancelled = true
     }

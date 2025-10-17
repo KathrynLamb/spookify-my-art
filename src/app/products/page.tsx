@@ -14,7 +14,6 @@ import { POSTER } from '@/lib/products/poster';
 import ProductCard, { type Variant as CardVariant } from '../components/product-card';
 
 const isHttpUrl = (s: string) => /^https?:\/\//i.test(s);
-const PAYMENTS_ENABLED = process.env.NEXT_PUBLIC_PAYMENTS_ENABLED === 'true';
 
 /* ---------- Types ---------- */
 type ManualOrderPayload = {
@@ -28,19 +27,7 @@ type ManualOrderPayload = {
   currency: Currency;
 };
 
-type CheckoutPayload = {
-  fileUrl: string;
-  imageId: string;
-  sku: string;              // Gelato productUid
-  title: string;
-  price: number;            // minor units unless priceIsMajor = true
-  priceIsMajor?: boolean;
-  currency: Currency;       // 'GBP' | 'USD' | 'EUR'
-};
-
-type CheckoutResponse = { url?: string; error?: string };
-
-/* ---------- Manual order modal ---------- */
+/* ---------- Manual order modal (optional fallback) ---------- */
 function ManualOrderModal({
   open,
   onClose,
@@ -176,7 +163,7 @@ function ManualOrderModal({
         </div>
 
         <p className="mt-3 text-xs text-white/60">
-          Heads-up: online checkout is in sandbox. We’ll invoice you and get your print moving. 💌
+          Heads-up: if you can’t complete online, we’ll invoice you and get your print moving. 💌
         </p>
       </div>
     </div>
@@ -184,7 +171,6 @@ function ManualOrderModal({
 }
 
 /* ---------- Helpers ---------- */
-// Ensure fileUrl is public if user arrived with a data: URL
 async function ensurePublicUrl(current: string, givenImageId: string): Promise<string> {
   if (isHttpUrl(current)) return current;
   const upRes = await fetch('/api/upload-spooky', {
@@ -195,38 +181,6 @@ async function ensurePublicUrl(current: string, givenImageId: string): Promise<s
   const upJson = (await upRes.json()) as { url?: string; error?: string };
   if (!upRes.ok || !upJson?.url) throw new Error(upJson?.error || 'Upload failed');
   return upJson.url;
-}
-
-// Tolerant to non-JSON error bodies
-async function goCheckout(payload: CheckoutPayload): Promise<void> {
-  const r = await fetch('/api/checkout', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-
-  console.log("R", r)
-  console.timeLog("PAYLOAD", payload)
-
-  const text = await r.text();
-  let json: CheckoutResponse | null = null;
-  try {
-    json = JSON.parse(text) as CheckoutResponse;
-    console.log("JSON", json)
-  } catch {
-    /* non-JSON error */
-    console.log("NON JSON error")
-  }
-
-  if (!r.ok) {
-    alert((json && json.error) || text || 'Checkout failed');
-    return;
-  }
-  if (!json?.url) {
-    alert((json && json.error) || 'Checkout failed: no URL returned.');
-    return;
-  }
-  window.location.href = json.url;
 }
 
 /* ---------- Page ---------- */
@@ -248,7 +202,7 @@ function ProductsInner() {
     if (startParam === 'product') setDesignFirst(true);
   }, [startParam]);
 
-  // Manual order state (payments disabled path)
+  // Manual order state (fallback)
   const [manualOpen, setManualOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -268,22 +222,6 @@ function ProductsInner() {
     setDraft((d) => ({ ...d, currency }));
   }, [currency]);
 
-  // LemonSqueezy checkout (kept; gated by env)
-  function lemonSqueezyCheckout(publicUrlForDisplay?: string) {
-    const lemonUrl =
-      'https://spookify-my-art.lemonsqueezy.com/buy/3c829174-dc02-4428-9123-7652026e6bbf';
-    localStorage.setItem(
-      'spookify:last-order',
-      JSON.stringify({
-        product: 'Haunted Halloween Print',
-        thumbUrl: publicUrlForDisplay || fileUrlQP,
-        etaMinDays: 3,
-        etaMaxDays: 7,
-      })
-    );
-    window.open(lemonUrl, '_blank');
-  }
-
   // When designFirst is ON, "Select" stores variant + image info, then routes to /upload
   async function onSelect(productTitle: string, variant: CardVariant, titleSuffix: string) {
     try {
@@ -292,8 +230,10 @@ function ProductsInner() {
         return;
       }
 
+      // 1) Ensure the file URL is public for PayPal thumbnail / your checkout preview
       const publicUrl = await ensurePublicUrl(fileUrlQP, imageId);
 
+      // 2) Design-first? Store selection and head to /upload
       if (designFirst) {
         const pending = {
           productTitle,
@@ -308,70 +248,31 @@ function ProductsInner() {
         return;
       }
 
-      if (PAYMENTS_ENABLED) {
-        const priceMajor = variant.prices[currency] ?? variant.prices.GBP ?? 0;
+      // 3) Compute price (major units) for currency
+      const priceMajor =
+        variant.prices[currency] ?? variant.prices.GBP ?? 0;
 
-        await goCheckout({
-          fileUrl: publicUrl,
-          imageId,
-          sku: variant.productUid, // Gelato productUid
-          title: `${productTitle} – ${titleSuffix}`,
-          price: Math.round(priceMajor * 100), // send minor units
-          priceIsMajor: false,
-          currency, // 'GBP' | 'USD' | 'EUR'
-        });
-        return;
-      }
+      // Build a nice title for checkout
+      const niceTitle =
+        titleSuffix ||
+        `${variant.sizeLabel}${variant.frameColor ? ` – ${variant.frameColor}` : ''} – ${variant.orientation}`;
 
-      // Manual order path
-      setDraft({
-        email: '',
-        product: productTitle,
-        sizeLabel: variant.sizeLabel,
-        orientation: variant.orientation,
-        frameColor: (variant as { frameColor?: string }).frameColor ?? null,
+      // 4) Route to your custom PayPal checkout page with all context
+      const qp = new URLSearchParams({
         fileUrl: publicUrl,
         imageId,
+        title: `${productTitle} – ${niceTitle}`,
+        amount: String(priceMajor),
         currency,
+        size: variant.sizeLabel,
+        orientation: variant.orientation,
       });
-      setSuccessMsg(null);
-      setErrorMsg(null);
-      setManualOpen(true);
+
+      if (variant.frameColor) qp.set('frameColor', variant.frameColor);
+
+      router.push(`/checkout?${qp.toString()}`);
     } catch (e) {
       alert(e instanceof Error ? e.message : String(e));
-    }
-  }
-
-  // Optional explicit Lemon button from the card
-  async function onSelectLemon() {
-    if (!canProceed) {
-      alert('Missing fileUrl or imageId.');
-      return;
-    }
-    const publicUrl = await ensurePublicUrl(fileUrlQP, imageId);
-
-    if (designFirst) {
-      const pending = {
-        productTitle: 'Haunted Halloween Print',
-        variant: null as unknown as CardVariant, // stored but unused on upload
-        titleSuffix: '',
-        currency,
-        imageId,
-        fileUrl: publicUrl,
-        lemon: true,
-      };
-      localStorage.setItem('spookify:pending-product', JSON.stringify(pending));
-      router.push('/upload');
-      return;
-    }
-
-    if (PAYMENTS_ENABLED) {
-      lemonSqueezyCheckout(publicUrl);
-    } else {
-      setDraft((d) => ({ ...d, fileUrl: publicUrl }));
-      setSuccessMsg(null);
-      setErrorMsg(null);
-      setManualOpen(true);
     }
   }
 
@@ -426,12 +327,9 @@ function ProductsInner() {
           </div>
         </header>
 
-        {!PAYMENTS_ENABLED && !designFirst && (
-          <div className="mb-6 rounded-xl border border-yellow-500/20 bg-yellow-500/10 px-4 py-3 text-yellow-200">
-            Heads-up: online checkout is in sandbox. Hit “Select” to send us your details — we’ll
-            invoice you and start printing. 💌
-          </div>
-        )}
+        <div className="mb-6 rounded-xl border border-sky-500/20 bg-sky-500/10 px-4 py-3 text-sky-200">
+          Checkout uses PayPal. Your generated image is shown on the next page; complete payment there.
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <ProductCard
@@ -455,19 +353,20 @@ function ProductsInner() {
             artSrc="/poster_costumes2.png"
             mockupSrc="/posterFromGelato.png"
             variants={posterVariants}
-            onSelect={(v, titleSuffix) => onSelect(POSTER.title, v, titleSuffix || `${v.sizeLabel} – ${v.orientation}`)}
-            onSelectLemonSqueezy={onSelectLemon}
+            onSelect={(v, titleSuffix) =>
+              onSelect(POSTER.title, v, titleSuffix || `${v.sizeLabel} – ${v.orientation}`)
+            }
             controls={{ showFrame: false }}
             canProceed={canProceed}
           />
         </div>
 
         <p className="mt-6 text-xs text-white/50">
-          Prices shown are your retail ex-VAT. Shipping/taxes are calculated at checkout.
+          Prices are retail ex-VAT. Shipping/taxes are calculated as part of fulfillment.
         </p>
       </div>
 
-      {/* Manual order modal (only used when payments are disabled) */}
+      {/* Manual order modal (only if you want to keep this fallback) */}
       <ManualOrderModal
         open={manualOpen}
         onClose={() => setManualOpen(false)}
@@ -498,9 +397,7 @@ function ProductsInner() {
               return;
             }
 
-            setSuccessMsg(
-              'Thanks! We’ve received your details and will be in touch shortly to complete your order.'
-            );
+            setSuccessMsg('Thanks! We’ll be in touch shortly to complete your order.');
           } catch (e) {
             setErrorMsg(e instanceof Error ? e.message : String(e));
           } finally {

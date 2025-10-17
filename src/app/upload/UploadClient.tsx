@@ -1129,28 +1129,58 @@ export default function UploadWithChatPage() {
   };
 
   // --- Generation ---
-  const generate = async () => {
-    if (!imageId) {
-      setError('Please upload an image first');
-      return;
-    }
-    setGenerating(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/spookify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: imageId, promptOverride: finalizedPrompt || undefined }),
-      });
-      const data = (await res.json()) as { previewDataUrl?: string; spookyImage?: string; error?: string };
-      if (!res.ok) throw new Error(data.error || 'Failed to spookify');
-      setSpookified(data.previewDataUrl ?? data.spookyImage ?? null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setGenerating(false);
-    }
-  };
+// inside UploadWithChatPage
+const generate = async () => {
+  if (!imageId) { setError('Please upload an image first'); return; }
+  setGenerating(true);
+  setError(null);
+
+  try {
+    const start = await fetch('/api/spookify/begin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: imageId, promptOverride: finalizedPrompt || undefined }),
+    });
+    const s = await start.json();
+    if (!start.ok || !s?.jobId) throw new Error(s?.error || 'Failed to start');
+
+    const jobId = s.jobId as string;
+
+    let stopped = false;
+
+    const poll = async () => {
+      if (stopped) return;
+      const r = await fetch(`/api/spookify/status?id=${encodeURIComponent(jobId)}`);
+      const j = await r.json();
+      if (j.status === 'done' && j.resultUrl) {
+        setSpookified(j.resultUrl as string);
+        setGenerating(false);
+        stopped = true;
+        return;
+      }
+      if (j.status === 'error') {
+        setError(j.error || 'Spookify failed');
+        setGenerating(false);
+        stopped = true;
+        return;
+      }
+      setTimeout(poll, 2000);
+    };
+    poll();
+
+    const onVis = () => {
+      if (!stopped && typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        void poll();
+      }
+    };
+    document.addEventListener('visibilitychange', onVis, { passive: true });
+  } catch (e: unknown) {
+    setError(e instanceof Error ? e.message : String(e));
+    setGenerating(false);
+  }
+};
+
+
 
   // --- Legacy Print handoff (no design-first) -> go choose product ---
   const goChooseProduct = async () => {

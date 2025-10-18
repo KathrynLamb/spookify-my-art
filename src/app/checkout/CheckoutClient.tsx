@@ -66,35 +66,88 @@ export default function CheckoutClient() {
 
     const buttons = anyWin.paypal.Buttons({
       style: { layout: 'vertical', color: 'gold', shape: 'rect', label: 'paypal' },
-      createOrder: () =>
-        fetch('/api/paypal/create', {
+
+      createOrder: async () => {
+        const res = await fetch('/api/paypal/create', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ amount, currency, title, imageId, fileUrl, size, orientation, frameColor }),
-        }).then(async (r) => {
-          const j: { orderID?: string; error?: string } = await r.json();
-          if (!r.ok || !j?.orderID) throw new Error(j?.error || 'Unable to create PayPal order');
-          return j.orderID!;
-        }),
-      onApprove: async (data: { orderID: string }) => {
-        setBusy(true);
+        });
+        const j = await res.json();
+        if (!res.ok || !j?.orderID) throw new Error(j?.error || 'Unable to create PayPal order');
+        return j.orderID;
+      },
+
+      onApprove: async (data) => {
         try {
-          const r = await fetch('/api/paypal/capture', {
+          setBusy(true);
+
+          const captureRes = await fetch('/api/paypal/capture', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ orderID: data.orderID, imageId, fileUrl }),
+            body: JSON.stringify({
+              orderID: data.orderID,
+              gelatoOrder: {
+                orderReferenceId: data.orderID,
+                currency,
+                shippingAddress: {
+                  name: 'Kate Lamb',
+                  addressLine1: 'Manor House',
+                  city: 'Eaglescliffe',
+                  postCode: 'TS16 0QT',
+                  country: 'GB',
+                  email: 'katylamb@gmail.com',
+                },
+                items: [
+                  {
+                    itemReferenceId: 'poster1',
+                    productUid: 'framed_poster_13x18',
+                    quantity: 1,
+                    fileUrl,
+                  },
+                ],
+                shipments: [
+                  {
+                    shipmentReferenceId: 'main',
+                    shipmentMethodUid: 'STANDARD',
+                    items: [{ itemReferenceId: 'poster1' }],
+                  },
+                ],
+              },
+            }),
           });
-          const j: { error?: string } = await r.json();
-          if (!r.ok) throw new Error(j?.error || 'Capture failed');
-          const qp = new URLSearchParams({ orderId: data.orderID, imageId, fileUrl, amount: String(amount), currency, title });
-          router.replace(`/thank-you?${qp.toString()}`);
-        } catch (e) {
-          setSdkErr(e instanceof Error ? e.message : String(e));
+
+          const result = await captureRes.json();
+          console.log('[DEBUG] PayPal capture response:', result);
+
+          if (!captureRes.ok || !result.ok) {
+            throw new Error(result?.error || 'Payment capture failed');
+          }
+
+          if (!result.gelato?.ok) {
+            console.error('❌ Gelato order creation failed', result.gelato);
+            alert('Your payment succeeded, but the print order could not be placed automatically. We’ll process it manually.');
+            setBusy(false);
+            return; // STOP redirect if Gelato fails
+          }
+
+          // ✅ Success → proceed to thank-you
+          const orderId = result.paypal?.id || data.orderID;
+          router.push(
+            `/thank-you?orderId=${orderId}&imageId=${imageId}&fileUrl=${encodeURIComponent(fileUrl)}`
+          );
+        } catch (err) {
+          console.error('Checkout failed:', err);
+          alert('Something went wrong — please try again.');
         } finally {
           setBusy(false);
         }
       },
-      onError: (err: unknown) => setSdkErr(err instanceof Error ? err.message : 'PayPal error'),
+
+      onError: (err: unknown) => {
+        console.error('[PayPal SDK Error]', err);
+        setSdkErr(err instanceof Error ? err.message : 'PayPal error');
+      },
     });
 
     buttons.render(btnRef.current);
@@ -103,12 +156,7 @@ export default function CheckoutClient() {
 
   return (
     <div className="mx-auto w-full px-3 sm:px-4 py-4 md:py-8" style={{ maxWidth: 980 }}>
-      {/* Mobile: 1 column, Payment FIRST.  Desktop: 2 columns. */}
-      <div className="
-          grid gap-4 sm:gap-6 md:gap-8
-          grid-cols-1 md:[grid-template-columns:minmax(320px,1fr)_380px]
-        ">
-        {/* RIGHT rail becomes FIRST on mobile */}
+      <div className="grid gap-4 sm:gap-6 md:gap-8 grid-cols-1 md:[grid-template-columns:minmax(320px,1fr)_380px]">
         <aside className="order-1 md:order-2 md:sticky md:top-4 h-max">
           <div className="rounded-xl border border-white/10 bg-white/[0.05] p-4">
             <div className="mb-2 text-sm font-semibold">Complete payment</div>
@@ -119,19 +167,20 @@ export default function CheckoutClient() {
               </div>
             ) : !sdkErr ? (
               <>
-                {!sdkReady ? (
+                {!sdkReady && (
                   <div className="mb-3 rounded border border-white/10 bg-white/5 p-3 text-white/80 text-sm">
                     Loading PayPal… If this never loads, disable ad-blockers or allow third-party scripts.
                   </div>
-                ) : null}
-                {/* keep some height to avoid layout jump */}
+                )}
                 <div ref={btnRef} className={`min-h-[52px] ${busy ? 'opacity-60 pointer-events-none' : ''}`} />
               </>
             ) : (
               <div className="space-y-3">
                 <div className="rounded border border-red-500/30 bg-red-500/10 p-3 text-red-200 text-sm">
                   {sdkErr}
-                  <div className="mt-1 text-[11px]">Tip: DevTools → Network → check <code>paypal.com/sdk/js</code>.</div>
+                  <div className="mt-1 text-[11px]">
+                    Tip: DevTools → Network → check <code>paypal.com/sdk/js</code>.
+                  </div>
                 </div>
                 <a
                   href={PAYPAL_FALLBACK_LINK}
@@ -146,15 +195,8 @@ export default function CheckoutClient() {
           </div>
         </aside>
 
-        {/* LEFT content becomes SECOND on mobile */}
         <section className="order-2 md:order-1 flex flex-col">
-          <div
-            className="
-              relative w-full overflow-hidden rounded-xl border border-white/10 bg-white/5
-              h-[42vh] sm:h-[52vh] md:[height:min(62vh,720px)]
-            "
-            style={{ height: undefined }} // allow Tailwind heights above to control
-          >
+          <div className="relative w-full overflow-hidden rounded-xl border border-white/10 bg-white/5 h-[42vh] sm:h-[52vh] md:[height:min(62vh,720px)]">
             {fileUrl ? (
               <Image
                 src={fileUrl}
@@ -174,7 +216,9 @@ export default function CheckoutClient() {
               <div className="min-w-0">
                 <div className="truncate text-base font-semibold">{title}</div>
                 <div className="mt-0.5 text-sm text-white/70 truncate">
-                  {size || '—'}{orientation ? ` • ${orientation}` : ''}{frameColor ? ` • ${frameColor} Frame` : ''}
+                  {size || '—'}
+                  {orientation ? ` • ${orientation}` : ''}
+                  {frameColor ? ` • ${frameColor} Frame` : ''}
                 </div>
               </div>
               <div className="shrink-0 text-base font-semibold">{fmt(amount, currency)}</div>

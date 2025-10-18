@@ -103,7 +103,7 @@ export default function CheckoutClient() {
                 items: [
                   {
                     itemReferenceId: 'poster1',
-                    productUid: 'framed_poster_13x18',
+                    productUid: 'framed_poster_130x180mm',
                     quantity: 1,
                     fileUrl,
                   },

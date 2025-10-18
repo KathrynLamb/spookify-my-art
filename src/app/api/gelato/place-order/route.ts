@@ -16,9 +16,9 @@ type Item = {
 type OrderPayload = {
   orderReferenceId: string
   orderType?: 'order'
-  currency: 'GBP'|'USD'|'EUR'
+  currency: 'GBP' | 'USD' | 'EUR'
   channel?: 'api'
-  shippingAddress: GelatoAddress
+  shippingAddress: Partial<GelatoAddress> & Record<string, unknown>
   items: Item[]
   shipments: Array<{
     shipmentReferenceId: string
@@ -28,7 +28,7 @@ type OrderPayload = {
 }
 
 const STAGING = 'https://order-staging.gelatoapis.com/v3/orders'
-const PROD    = 'https://order.gelatoapis.com/v3/orders'
+const PROD = 'https://order.gelatoapis.com/v3/orders'
 
 function authHeaders() {
   const key = process.env.GELATO_API_KEY
@@ -37,40 +37,81 @@ function authHeaders() {
 }
 
 async function tryPost(url: string, body: unknown) {
-  const r = await fetch(url, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) });
-  const text = await r.text();
-  console.log('[Gelato raw response]', text.slice(0, 200)); // first 200 chars
-  let json: unknown;
-  try { json = JSON.parse(text); } catch { json = { raw: text }; }
-  return { ok: r.ok, status: r.status, json };
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(body),
+  })
+  const text = await res.text()
+  console.log('[Gelato raw response]', text.slice(0, 300))
+  let json: unknown
+  try {
+    json = JSON.parse(text)
+  } catch {
+    json = { raw: text }
+  }
+  return { ok: res.ok, status: res.status, json }
+}
+
+// Always return a string; no `any`, no unions.
+function getStr(src: Record<string, unknown>, keys: string[], fallback: string): string {
+  for (const k of keys) {
+    const v = src[k]
+    if (typeof v === 'string' && v.trim().length > 0) return v
+  }
+  return fallback
 }
 
 export async function POST(req: NextRequest) {
   try {
     const payload = (await req.json()) as OrderPayload
+    const src: Record<string, unknown> = payload?.shippingAddress ?? {}
 
-    // Minimal validation to catch silent nulls
-    if (!payload?.shippingAddress?.addressLine1 || !payload?.shippingAddress?.city || !payload?.shippingAddress?.postCode || !payload?.shippingAddress?.country) {
-      console.warn('[Gelato] Missing address fields', payload?.shippingAddress)
+    // 1) Normalize to GelatoAddress (all strings)
+    const shipping: GelatoAddress = {
+      firstName: getStr(src, ['firstName', 'first_name'], 'Customer'),
+      lastName: getStr(src, ['lastName', 'last_name'], ''),
+      addressLine1: getStr(src, ['addressLine1', 'address_line_1', 'address1'], 'Unknown address'),
+      addressLine2: getStr(src, ['addressLine2', 'address_line_2'], ''),
+      city: getStr(src, ['city', 'admin_area_2'], 'Unknown city'),
+      postCode: getStr(src, ['postCode', 'postal_code', 'zip'], ''),
+      country: getStr(src, ['country', 'country_code'], 'GB'),
+      email: getStr(src, ['email'], 'orders@aigifts.org'),
+      phone: getStr(src, ['phone'], ''),
+      name: undefined, // not used when first/last present
     }
 
-    console.log('[Gelato] POST', STAGING)
-    let res = await tryPost(STAGING, payload)
+    // 2) Validate core fields (log but don’t hard fail)
+    const missing = (['addressLine1', 'city', 'postCode', 'country'] as const)
+      .filter((f) => !shipping[f] || !shipping[f].toString().trim())
+    if (missing.length) console.warn('[Gelato] Missing address fields:', missing, shipping)
+
+    const orderBody = {
+      ...payload,
+      shippingAddress: shipping,
+      orderType: 'order',
+      channel: 'api',
+    }
+
+    // 3) Attempt STAGING then PROD
+    console.log('[Gelato] Sending order → STAGING')
+    let res = await tryPost(STAGING, orderBody)
     if (!res.ok) {
-      console.warn('[Gelato] staging failed; retrying prod', res.status, res.json)
-      res = await tryPost(PROD, payload)
+      console.warn('[Gelato] Staging failed; retrying PROD', res.status, res.json)
+      res = await tryPost(PROD, orderBody)
     }
 
     if (!res.ok) {
       return NextResponse.json(
-        { error: 'Gelato order failed', raw: res.json },
-        { status: res.status || 500 },
+        { ok: false, error: 'Gelato order failed', raw: res.json },
+        { status: res.status || 500 }
       )
     }
+
     return NextResponse.json({ ok: true, gelato: res.json })
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e)
-    console.error('[Gelato] place-order error', msg)
-    return NextResponse.json({ error: msg }, { status: 500 })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('[Gelato] place-order fatal error', msg)
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 })
   }
 }

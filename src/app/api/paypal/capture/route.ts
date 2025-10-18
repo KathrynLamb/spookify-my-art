@@ -8,7 +8,9 @@ const BASE =
     : 'https://api-m.sandbox.paypal.com'
 
 const CLIENT_ID =
-  process.env.PAYPAL_CLIENT_ID || process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || ''
+  process.env.PAYPAL_CLIENT_ID ||
+  process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID ||
+  ''
 const CLIENT_SECRET =
   process.env.PAYPAL_CLIENT_SECRET || process.env.PAYPAL_SECRET || ''
 
@@ -35,13 +37,16 @@ export async function POST(req: Request) {
 
     // === 1️⃣ Capture the PayPal payment ===
     const token = await getAccessToken()
-    const captureRes = await fetch(`${BASE}/v2/checkout/orders/${orderID}/capture`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    })
+    const captureRes = await fetch(
+      `${BASE}/v2/checkout/orders/${orderID}/capture`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    )
     const paypal = await captureRes.json()
     if (!captureRes.ok) {
       return NextResponse.json(
@@ -50,10 +55,27 @@ export async function POST(req: Request) {
       )
     }
 
-    // === 2️⃣ Prepare and validate Gelato order ===
+    // === 2️⃣ Extract buyer shipping address from PayPal ===
+    const shipping = paypal?.purchase_units?.[0]?.shipping
+    const address = shipping?.address || {}
+    const name = shipping?.name?.full_name?.split(' ') || []
+    const [first_name, ...lastParts] = name
+    const last_name = lastParts.join(' ')
+
+    const gelatoAddress = {
+      first_name: first_name || 'Unknown',
+      last_name: last_name || '',
+      address_line_1: address.address_line_1 || address.line1 || '',
+      city: address.admin_area_2 || '',
+      postal_code: address.postal_code || '',
+      country_code: address.country_code || '',
+      email: paypal?.payer?.email_address || '',
+    }
+
+    // === 3️⃣ Prepare Gelato order ===
     let gelato = null
     if (gelatoOrder) {
-      const { currency, shippingAddress, size, orientation, frameColor, fileUrl } = gelatoOrder
+      const { currency, size, orientation, frameColor, fileUrl } = gelatoOrder
 
       if (!fileUrl || !size || !orientation || !frameColor) {
         return NextResponse.json(
@@ -62,7 +84,6 @@ export async function POST(req: Request) {
         )
       }
 
-      // 🔍 Find the correct product variant in your catalog
       const variant = FRAMED_POSTER.variants.find(
         (v) =>
           v.sizeLabel === size &&
@@ -71,7 +92,11 @@ export async function POST(req: Request) {
       )
 
       if (!variant) {
-        console.error('[Gelato] No variant match for:', { size, orientation, frameColor })
+        console.error('[Gelato] No variant match for:', {
+          size,
+          orientation,
+          frameColor,
+        })
         return NextResponse.json(
           {
             ok: false,
@@ -83,11 +108,10 @@ export async function POST(req: Request) {
 
       const productUid = variant.productUid
 
-      // 🧾 Build Gelato-compliant payload
-      const body = {
+      const gelatoBody = {
         orderReferenceId: orderID,
         currency,
-        shippingAddress,
+        shippingAddress: gelatoAddress,
         items: [
           {
             itemReferenceId: 'poster1',
@@ -105,14 +129,14 @@ export async function POST(req: Request) {
         ],
       }
 
-      // === 3️⃣ Place the Gelato order ===
+      // === 4️⃣ Place the Gelato order ===
       try {
         const gelatoRes = await fetch(
           `${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/gelato/place-order`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
+            body: JSON.stringify(gelatoBody),
           }
         )
         gelato = await gelatoRes.json()
@@ -122,7 +146,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // === 4️⃣ Return combined result ===
+    // === 5️⃣ Return combined result ===
     return NextResponse.json({ ok: true, paypal, gelato })
   } catch (err) {
     console.error('[PayPal Capture] Fatal error', err)

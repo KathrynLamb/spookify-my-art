@@ -7,20 +7,23 @@ import { useSearchParams, useRouter } from 'next/navigation';
 const CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID ?? 'test';
 const PAYPAL_FALLBACK_LINK = 'https://www.paypal.com/ncp/payment/2GLZRSAPB83GY';
 
+type PayPalOrderData = { orderID: string };
+type PayPalActions = { order?: { capture?: () => Promise<void> } };
 type PayPalButtonsRender = { render: (sel: string | HTMLElement) => void; close?: () => void };
 type PayPalButtonsOptions = {
   style?: Record<string, unknown>;
   createOrder?: () => Promise<string> | string;
-  onApprove?: (
-    data: { orderID: string },
-    actions: { order?: { capture?: () => Promise<void> } }
-  ) => void | Promise<void>;  onError?: (err: unknown) => void;
+  onApprove?: (data: PayPalOrderData, actions: PayPalActions) => void | Promise<void>;
+  onError?: (err: unknown) => void;
 };
 type PayPalSDK = { Buttons: (opts: PayPalButtonsOptions) => PayPalButtonsRender };
 
 const fmt = (n: number, c: string) => {
-  try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: c }).format(n); }
-  catch { return `${n.toFixed(2)} ${c}`; }
+  try {
+    return new Intl.NumberFormat(undefined, { style: 'currency', currency: c }).format(n);
+  } catch {
+    return `${n.toFixed(2)} ${c}`;
+  }
 };
 
 export default function CheckoutClient() {
@@ -42,25 +45,33 @@ export default function CheckoutClient() {
   const [sdkErr, setSdkErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const btnRef = useRef<HTMLDivElement>(null);
-  const missing = !fileUrl || !imageId || !amount || !currency;
+  const missing = !fileUrl || !imageId || !amount || !currency || !size || !orientation || !frameColor;
 
-  // Load PayPal SDK
+  // === Load PayPal SDK ===
   useEffect(() => {
     if (missing) return;
     const anyWin = window as unknown as { paypal?: PayPalSDK };
-    if (anyWin.paypal) { setSdkReady(true); return; }
+    if (anyWin.paypal) {
+      setSdkReady(true);
+      return;
+    }
     const id = 'paypal-sdk';
     if (document.getElementById(id)) return;
     const s = document.createElement('script');
     s.id = id;
-    s.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(CLIENT_ID)}&currency=${encodeURIComponent(currency)}&components=buttons`;
+    s.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(
+      CLIENT_ID
+    )}&currency=${encodeURIComponent(currency)}&components=buttons`;
     s.async = true;
     s.onload = () => setSdkReady(true);
-    s.onerror = () => { setSdkErr('Failed to load PayPal SDK (network/adblock/CSP).'); setSdkReady(false); };
+    s.onerror = () => {
+      setSdkErr('Failed to load PayPal SDK (network/adblock/CSP).');
+      setSdkReady(false);
+    };
     document.head.appendChild(s);
   }, [currency, missing]);
 
-  // Render buttons
+  // === Render PayPal buttons ===
   useEffect(() => {
     if (!sdkReady || sdkErr || missing || !btnRef.current) return;
     const anyWin = window as unknown as { paypal?: PayPalSDK };
@@ -92,6 +103,10 @@ export default function CheckoutClient() {
               gelatoOrder: {
                 orderReferenceId: data.orderID,
                 currency,
+                size,
+                orientation,
+                frameColor,
+                fileUrl,
                 shippingAddress: {
                   name: 'Kate Lamb',
                   addressLine1: 'Manor House',
@@ -100,21 +115,6 @@ export default function CheckoutClient() {
                   country: 'GB',
                   email: 'katylamb@gmail.com',
                 },
-                items: [
-                  {
-                    itemReferenceId: 'poster1',
-                    productUid: 'framed_poster_130x180mm',
-                    quantity: 1,
-                    fileUrl,
-                  },
-                ],
-                shipments: [
-                  {
-                    shipmentReferenceId: 'main',
-                    shipmentMethodUid: 'STANDARD',
-                    items: [{ itemReferenceId: 'poster1' }],
-                  },
-                ],
               },
             }),
           });
@@ -128,12 +128,14 @@ export default function CheckoutClient() {
 
           if (!result.gelato?.ok) {
             console.error('❌ Gelato order creation failed', result.gelato);
-            alert('Your payment succeeded, but the print order could not be placed automatically. We’ll process it manually.');
+            alert(
+              'Your payment succeeded, but the print order could not be placed automatically. We’ll process it manually.'
+            );
             setBusy(false);
-            return; // STOP redirect if Gelato fails
+            return; // ❌ stop redirect if Gelato failed
           }
 
-          // ✅ Success → proceed to thank-you
+          // ✅ Success → proceed to thank-you page
           const orderId = result.paypal?.id || data.orderID;
           router.push(
             `/thank-you?orderId=${orderId}&imageId=${imageId}&fileUrl=${encodeURIComponent(fileUrl)}`
@@ -145,22 +147,25 @@ export default function CheckoutClient() {
           setBusy(false);
         }
 
-                // 👇 Add these two lines here
-                await actions?.order?.capture?.(); // tell PayPal UI to finalize
-                return; // ensure handler resolves cleanly
+        await actions?.order?.capture?.();
+        return;
       },
 
       onError: (err: unknown) => {
         console.error('[PayPal SDK Error]', err);
         setSdkErr(err instanceof Error ? err.message : 'PayPal error');
-        
       },
     });
 
     buttons.render(btnRef.current);
-    return () => { try { buttons?.close?.(); } catch {} };
+    return () => {
+      try {
+        buttons?.close?.();
+      } catch {}
+    };
   }, [sdkReady, sdkErr, missing, amount, currency, title, imageId, fileUrl, size, orientation, frameColor, router]);
 
+  // === UI ===
   return (
     <div className="mx-auto w-full px-3 sm:px-4 py-4 md:py-8" style={{ maxWidth: 980 }}>
       <div className="grid gap-4 sm:gap-6 md:gap-8 grid-cols-1 md:[grid-template-columns:minmax(320px,1fr)_380px]">
@@ -179,7 +184,10 @@ export default function CheckoutClient() {
                     Loading PayPal… If this never loads, disable ad-blockers or allow third-party scripts.
                   </div>
                 )}
-                <div ref={btnRef} className={`min-h-[52px] ${busy ? 'opacity-60 pointer-events-none' : ''}`} />
+                <div
+                  ref={btnRef}
+                  className={`min-h-[52px] ${busy ? 'opacity-60 pointer-events-none' : ''}`}
+                />
               </>
             ) : (
               <div className="space-y-3">
@@ -214,7 +222,9 @@ export default function CheckoutClient() {
                 priority
               />
             ) : (
-              <div className="absolute inset-0 grid place-items-center text-white/60">No image</div>
+              <div className="absolute inset-0 grid place-items-center text-white/60">
+                No image
+              </div>
             )}
           </div>
 

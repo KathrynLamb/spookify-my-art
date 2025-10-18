@@ -11,8 +11,10 @@ type PayPalButtonsRender = { render: (sel: string | HTMLElement) => void; close?
 type PayPalButtonsOptions = {
   style?: Record<string, unknown>;
   createOrder?: () => Promise<string> | string;
-  onApprove?: (data: { orderID: string }) => void | Promise<void>;
-  onError?: (err: unknown) => void;
+  onApprove?: (
+    data: { orderID: string },
+    actions: { order?: { capture?: () => Promise<void> } }
+  ) => void | Promise<void>;  onError?: (err: unknown) => void;
 };
 type PayPalSDK = { Buttons: (opts: PayPalButtonsOptions) => PayPalButtonsRender };
 
@@ -78,7 +80,7 @@ export default function CheckoutClient() {
         return j.orderID;
       },
 
-      onApprove: async (data) => {
+      onApprove: async (data, actions) => {
         try {
           setBusy(true);
 
@@ -142,11 +144,16 @@ export default function CheckoutClient() {
         } finally {
           setBusy(false);
         }
+
+                // 👇 Add these two lines here
+                await actions?.order?.capture?.(); // tell PayPal UI to finalize
+                return; // ensure handler resolves cleanly
       },
 
       onError: (err: unknown) => {
         console.error('[PayPal SDK Error]', err);
         setSdkErr(err instanceof Error ? err.message : 'PayPal error');
+        
       },
     });
 

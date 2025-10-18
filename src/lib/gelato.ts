@@ -1,18 +1,20 @@
 // src/lib/gelato.ts
 
-// --- Environment & endpoints -----------------------------------------------
-const IS_STAGING = (process.env.GELATO_ENV || '').toLowerCase() === 'staging'
+
+  // --- Environment & endpoints -----------------------------------------------
+const IS_STAGING = (process.env.GELATO_ENV || '').toLowerCase() === 'staging';
 
 export const GELATO_ORDER_BASE = IS_STAGING
-  ? 'https://order-staging.gelatoapis.com/v3'
-  : 'https://order.gelatoapis.com/v3'
+  ? 'https://order-staging.gelatoapis.com/v3/orders'
+  : 'https://order.gelatoapis.com/v3/orders';
 
 export const GELATO_PRODUCT_BASE = IS_STAGING
   ? 'https://product-staging.gelatoapis.com/v3'
-  : 'https://product.gelatoapis.com/v3'
+  : 'https://product.gelatoapis.com/v3';
 
 export const defaultShipmentMethodUid =
-  process.env.GELATO_SHIPMENT_METHOD_UID || 'STANDARD'
+  process.env.GELATO_SHIPMENT_METHOD_UID || 'STANDARD';
+
 
 // --- Auth headers -----------------------------------------------------------
 export function gelatoHeaders() {

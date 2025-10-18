@@ -37,11 +37,12 @@ function authHeaders() {
 }
 
 async function tryPost(url: string, body: unknown) {
-  const r = await fetch(url, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) })
-  const text = await r.text()
-  let json: unknown
-  try { json = JSON.parse(text) } catch { json = { raw: text } }
-  return { ok: r.ok, status: r.status, json }
+  const r = await fetch(url, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) });
+  const text = await r.text();
+  console.log('[Gelato raw response]', text.slice(0, 200)); // first 200 chars
+  let json: unknown;
+  try { json = JSON.parse(text); } catch { json = { raw: text }; }
+  return { ok: r.ok, status: r.status, json };
 }
 
 export async function POST(req: NextRequest) {

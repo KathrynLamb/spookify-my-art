@@ -68,7 +68,7 @@ export default function FogAutoplay({
         fill
         priority
         sizes="(min-width:1024px) 560px, 100vw"
-        className={`object-cover transition-opacity duration-[${crossfade}ms] ${beforeOpacity}`}
+        className={`object-cover transition-opacity duration-[${crossfade}ms] ${beforeOpacity} mt-100`}
       />
       {/* AFTER */}
       <Image
@@ -77,7 +77,7 @@ export default function FogAutoplay({
         fill
         priority
         sizes="(min-width:1024px) 560px, 100vw"
-        className={`object-cover transition-opacity duration-[${crossfade}ms] ${afterOpacity}`}
+        className={`object-cover transition-opacity duration-[${crossfade}ms] ${afterOpacity} mt-50`}
       />
 
       {/* FOG (3 parallax layers that drift) */}

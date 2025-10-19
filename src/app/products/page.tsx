@@ -7,11 +7,12 @@ import { CurrencyProvider, useCurrency } from '@/contexts/CurrencyContext';
 import { type Currency } from '@/lib/currency';
 
 // Data
-import { FRAMED_POSTER } from '@/lib/products/framed-poster';
+// import { FRAMED_POSTER } from '@/lib/products/framed-poster';
 import { POSTER } from '@/lib/products/poster';
 
 // UI
 import ProductCard, { type Variant as CardVariant } from '../components/product-card';
+import { FRAMED_POSTER } from '@/lib/products/index';
 
 const isHttpUrl = (s: string) => /^https?:\/\//i.test(s);
 

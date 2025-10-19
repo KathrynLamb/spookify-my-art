@@ -103,7 +103,7 @@ export default function LandingPage() {
       <section className="mx-auto max-w-7xl px-4 py-16 md:py-20">
         <h2 className="mb-8 text-center text-3xl font-bold md:text-4xl">Before → After</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <GalleryItem before="/before_after_gallery/famPicnic_spookified.png" after="/before_after_gallery/famPicnic.png" />
+          <GalleryItem before="/before_after_gallery/fam_picnic_spookified.png" after="/before_after_gallery/fam_picnic.png"/>
           <GalleryItem before="https://fpabsqys5cky7azh.public.blob.vercel-storage.com/spookified-1253911a-fdaa-46c8-8907-6c0de24f011c-M2VlkfGKR2oJKp63PrcVqhGOv3SiLs.png" after="/before_after_gallery/smile.png" />
           <GalleryItem before="/before_after_gallery/city_spookified.png" after="/before_after_gallery/city.png" />
           <GalleryItem before="/before_after_gallery/landscape_spookified.png" after="/before_after_gallery/landscape.png" />

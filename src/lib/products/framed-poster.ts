@@ -14,6 +14,13 @@ export type FramedPosterVariant = {
   prices: PriceTable;         // <-- <FILL> e.g. { GBP: 58.97, USD: 69.90 }
 };
 
+export const PRICE_BY_SIZE: Record<string, PriceTable> = {
+  '15×20 cm / 6×8″': { GBP: 29.99, USD: 34.99, EUR: 32.99 },
+  '30×40 cm':        { GBP: 47.99, USD: 57.99, EUR: 53.99 },
+  '50×70 cm':        { GBP: 69.99, USD: 84.99, EUR: 79.99 },
+  '70×100 cm / 28×40″': { GBP: 104.99, USD: 124.99, EUR: 114.99 },
+};
+
 export type FramedPosterProduct = {
   slug: 'framed-poster';
   title: string;
@@ -27,7 +34,9 @@ export type FramedPosterProduct = {
   variants: FramedPosterVariant[]; // each concrete, orderable combo
 };
 
-export const FRAMED_POSTER: FramedPosterProduct = {
+// export const FRAMED_POSTER: FramedPosterProduct = {
+  export const FRAMED_POSTER: FramedPosterProduct = {
+
   slug: 'framed-poster',
   title: 'Premium Wooden Framed Poster',
   description:
@@ -56,7 +65,7 @@ export const FRAMED_POSTER: FramedPosterProduct = {
       orientation: 'Vertical',
       frameColor: 'White',
       productUid: 'framed_poster_mounted_150x200-mm-6x8-inch_white_wood_w12xt22-mm_plexiglass_150x200-mm-6x8-inch_170-gsm-65lb-coated-silk_4-0_ver',
-      prices: { GBP: 24.95, USD: 29.95, EUR: 27.95 }, // <FILL/ADJUST>
+      prices: PRICE_BY_SIZE['15×20 cm / 6×8″'],
     },
     {
       sizeLabel: '15×20 cm / 6×8″',
@@ -64,7 +73,8 @@ export const FRAMED_POSTER: FramedPosterProduct = {
       orientation: 'Vertical',
       frameColor: 'Black',
       productUid: 'framed_poster_mounted_150x200-mm-6x8-inch_black_wood_w12xt22-mm_plexiglass_150x200-mm-6x8-inch_170-gsm-65lb-coated-silk_4-0_ver',
-      prices: { GBP: 24.95, USD: 29.95, EUR: 27.95 }, // <FILL/ADJUST>
+      prices: PRICE_BY_SIZE['15×20 cm / 6×8″'],
+
     },
     {
         sizeLabel: '15×20 cm / 6×8″',
@@ -72,7 +82,8 @@ export const FRAMED_POSTER: FramedPosterProduct = {
         orientation: 'Vertical',
         frameColor: 'Wood',
         productUid: 'framed_poster_mounted_150x200-mm-6x8-inch_natural-wood_wood_w12xt22-mm_plexiglass_150x200-mm-6x8-inch_170-gsm-65lb-coated-silk_4-0_ver',
-        prices: { GBP: 24.95, USD: 29.95, EUR: 27.95 }, // <FILL/ADJUST>
+        prices: PRICE_BY_SIZE['15×20 cm / 6×8″'],
+
       },
       {
         sizeLabel: '15×20 cm / 6×8″',
@@ -80,7 +91,8 @@ export const FRAMED_POSTER: FramedPosterProduct = {
         orientation: 'Vertical',
         frameColor: 'Dark wood',
         productUid: 'framed_poster_mounted_150x200-mm-6x8-inch_dark-wood_wood_w12xt22-mm_plexiglass_150x200-mm-6x8-inch_170-gsm-65lb-coated-silk_4-0_ver',
-        prices: { GBP: 24.95, USD: 29.95, EUR: 27.95 }, // <FILL/ADJUST>
+        prices: PRICE_BY_SIZE['15×20 cm / 6×8″'],
+
       },
 
     // 30×40 cm
@@ -98,8 +110,7 @@ export const FRAMED_POSTER: FramedPosterProduct = {
       orientation: 'Vertical',
       frameColor: 'Black',
       productUid: 'framed_poster_mounted_300x400-mm-12x16-inch_black_wood_w12xt22-mm_plexiglass_300x400-mm-12x16-inch_170-gsm-65lb-coated-silk_4-0_ver',
-      prices: { GBP: 38.95, USD: 46.95, EUR: 43.95 }, // <FILL/ADJUST>
-
+      prices: PRICE_BY_SIZE['30×40 cm'],
     },
     {
         sizeLabel: '30×40 cm',
@@ -107,7 +118,7 @@ export const FRAMED_POSTER: FramedPosterProduct = {
         orientation: 'Vertical',
         frameColor: 'Wood',
         productUid: 'framed_poster_mounted_300x400-mm-12x16-inch_natural-wood_wood_w12xt22-mm_plexiglass_300x400-mm-12x16-inch_170-gsm-65lb-coated-silk_4-0_ver',
-        prices: { GBP: 38.95, USD: 46.95, EUR: 43.95 }, // <FILL/ADJUST>
+        prices: PRICE_BY_SIZE['30×40 cm'],     
       },
       {
         sizeLabel: '30×40 cm',
@@ -115,7 +126,7 @@ export const FRAMED_POSTER: FramedPosterProduct = {
         orientation: 'Vertical',
         frameColor: 'Dark wood',
         productUid: 'framed_poster_mounted_300x400-mm-12x16-inch_dark-wood_wood_w12xt22-mm_plexiglass_300x400-mm-12x16-inch_170-gsm-65lb-coated-silk_4-0_ver',
-        prices: { GBP: 38.95, USD: 46.95, EUR: 43.95 }, // <FILL/ADJUST>
+        prices: PRICE_BY_SIZE['30×40 cm'],      
       },
 
 
@@ -126,7 +137,7 @@ export const FRAMED_POSTER: FramedPosterProduct = {
       orientation: 'Vertical',
       frameColor: 'Dark wood',
       productUid: 'framed_poster_mounted_500x700-mm-20x28-inch_dark-wood_wood_w12xt22-mm_plexiglass_500x700-mm-20x28-inch_170-gsm-65lb-coated-silk_4-0_ver',
-      prices: { GBP: 52.95, USD: 64.95, EUR: 59.95 }, // <FILL/ADJUST>
+      prices: PRICE_BY_SIZE['50×70 cm'],
     },
     {
       sizeLabel: '50×70 cm',
@@ -134,7 +145,7 @@ export const FRAMED_POSTER: FramedPosterProduct = {
       orientation: 'Vertical',
       frameColor: 'Wood',
       productUid: 'framed_poster_mounted_500x700-mm-20x28-inch_natural-wood_wood_w12xt22-mm_plexiglass_500x700-mm-20x28-inch_170-gsm-65lb-coated-silk_4-0_ver',
-      prices: { GBP: 52.95, USD: 64.95, EUR: 59.95 }, // <FILL/ADJUST>
+      prices: PRICE_BY_SIZE['50×70 cm'],
     },
     {
         sizeLabel: '50×70 cm',
@@ -142,7 +153,7 @@ export const FRAMED_POSTER: FramedPosterProduct = {
         orientation: 'Vertical',
         frameColor: 'Black',
         productUid: 'framed_poster_mounted_500x700-mm-20x28-inch_black_wood_w12xt22-mm_plexiglass_500x700-mm-20x28-inch_170-gsm-65lb-coated-silk_4-0_ver',
-        prices: { GBP: 52.95, USD: 64.95, EUR: 59.95 }, // <FILL/ADJUST>
+        prices: PRICE_BY_SIZE['50×70 cm'],
       },
       {
         sizeLabel: '50×70 cm',
@@ -150,7 +161,7 @@ export const FRAMED_POSTER: FramedPosterProduct = {
         orientation: 'Vertical',
         frameColor: 'White',
         productUid: 'framed_poster_mounted_500x700-mm-20x28-inch_white_wood_w12xt22-mm_plexiglass_500x700-mm-20x28-inch_170-gsm-65lb-coated-silk_4-0_ver',
-        prices: { GBP: 52.95, USD: 64.95, EUR: 59.95 }, // <FILL/ADJUST>
+        prices: PRICE_BY_SIZE['50×70 cm'],
       },
 
     // 70×100 cm / 28×40″
@@ -160,14 +171,16 @@ export const FRAMED_POSTER: FramedPosterProduct = {
       orientation: 'Vertical',
       frameColor: 'Black',
       productUid: 'framed_poster_mounted_700x1000-mm-28x40-inch_black_wood_w12xt22-mm_plexiglass_700x1000-mm-28x40-inch_170-gsm-65lb-coated-silk_4-0_ver',
-      prices: { GBP: 89.99, USD: 112.99, EUR: 103.99 },     },
+      prices: PRICE_BY_SIZE['70×100 cm / 28×40″'],
+    },
     {
         sizeLabel: '70×100 cm / 28×40″',
         sizeToken: '700x1000',
         orientation: 'Vertical',
         frameColor: 'White',
         productUid: 'framed_poster_mounted_700x1000-mm-28x40-inch_white_wood_w12xt22-mm_plexiglass_700x1000-mm-28x40-inch_170-gsm-65lb-coated-silk_4-0_ver',
-        prices: { GBP: 89.99, USD: 112.99, EUR: 103.99 },       },
+        prices: PRICE_BY_SIZE['70×100 cm / 28×40″'],   
+       },
     {
       sizeLabel: '70×100 cm / 28×40″',
       sizeToken: '700x1000',
@@ -175,7 +188,8 @@ export const FRAMED_POSTER: FramedPosterProduct = {
       frameColor: 'Dark wood',
       productUid:
         'framed_poster_mounted_700x1000-mm-28x40-inch_dark-wood_wood_w12xt22-mm_plexiglass_700x1000-mm-28x40-inch_170-gsm-65lb-coated-silk_4-0_ver',
-        prices: { GBP: 89.99, USD: 112.99, EUR: 103.99 },     },
+        prices: PRICE_BY_SIZE['70×100 cm / 28×40″'],  
+      },
     {
         sizeLabel: '70×100 cm / 28×40″',
         sizeToken: '700x1000',
@@ -183,7 +197,8 @@ export const FRAMED_POSTER: FramedPosterProduct = {
         frameColor: 'Wood',
         productUid:
           'framed_poster_mounted_700x1000-mm-28x40-inch_natural-wood_wood_w12xt22-mm_plexiglass_700x1000-mm-28x40-inch_170-gsm-65lb-coated-silk_4-0_ver70 * 100',
-          prices: { GBP: 89.99, USD: 112.99, EUR: 103.99 },       },
+          prices: PRICE_BY_SIZE['70×100 cm / 28×40″'],   
+        },
     // (Optional) horizontal examples
    // ⬇️ Append these to FRAMED_POSTER.variants (after your vertical ones)
 
@@ -204,7 +219,7 @@ export const FRAMED_POSTER: FramedPosterProduct = {
     frameColor: 'Black',
     productUid:
       'framed_poster_mounted_150x200-mm-6x8-inch_black_wood_w12xt22-mm_plexiglass_150x200-mm-6x8-inch_170-gsm-65lb-coated-silk_4-0_hor',
-    prices: { GBP: 24.95, USD: 29.95, EUR: 27.95 },
+      prices: PRICE_BY_SIZE['15×20 cm / 6×8″'],
   },
   {
     sizeLabel: '15×20 cm / 6×8″',
@@ -213,7 +228,7 @@ export const FRAMED_POSTER: FramedPosterProduct = {
     frameColor: 'Wood',
     productUid:
       'framed_poster_mounted_150x200-mm-6x8-inch_natural-wood_wood_w12xt22-mm_plexiglass_150x200-mm-6x8-inch_170-gsm-65lb-coated-silk_4-0_hor',
-    prices: { GBP: 24.95, USD: 29.95, EUR: 27.95 },
+      prices: PRICE_BY_SIZE['15×20 cm / 6×8″'],
   },
   {
     sizeLabel: '15×20 cm / 6×8″',
@@ -222,7 +237,7 @@ export const FRAMED_POSTER: FramedPosterProduct = {
     frameColor: 'Dark wood',
     productUid:
       'framed_poster_mounted_150x200-mm-6x8-inch_dark-wood_wood_w12xt22-mm_plexiglass_150x200-mm-6x8-inch_170-gsm-65lb-coated-silk_4-0_hor',
-    prices: { GBP: 24.95, USD: 29.95, EUR: 27.95 },
+      prices: PRICE_BY_SIZE['15×20 cm / 6×8″'],
   },
   
   // 30×40 cm — Horizontal
@@ -233,7 +248,7 @@ export const FRAMED_POSTER: FramedPosterProduct = {
     frameColor: 'White',
     productUid:
       'framed_poster_mounted_300x400-mm-12x16-inch_white_wood_w12xt22-mm_plexiglass_300x400-mm-12x16-inch_170-gsm-65lb-coated-silk_4-0_hor',
-    prices: { GBP: 38.95, USD: 46.95, EUR: 43.95 },
+      prices: PRICE_BY_SIZE['30×40 cm'],
   },
   {
     sizeLabel: '30×40 cm',
@@ -242,7 +257,7 @@ export const FRAMED_POSTER: FramedPosterProduct = {
     frameColor: 'Black',
     productUid:
       'framed_poster_mounted_300x400-mm-12x16-inch_black_wood_w12xt22-mm_plexiglass_300x400-mm-12x16-inch_170-gsm-65lb-coated-silk_4-0_hor',
-    prices: { GBP: 38.95, USD: 46.95, EUR: 43.95 },
+      prices: PRICE_BY_SIZE['30×40 cm'],
   },
   {
     sizeLabel: '30×40 cm',
@@ -251,7 +266,7 @@ export const FRAMED_POSTER: FramedPosterProduct = {
     frameColor: 'Wood',
     productUid:
       'framed_poster_mounted_300x400-mm-12x16-inch_natural-wood_wood_w12xt22-mm_plexiglass_300x400-mm-12x16-inch_170-gsm-65lb-coated-silk_4-0_hor',
-    prices: { GBP: 38.95, USD: 46.95, EUR: 43.95 },
+      prices: PRICE_BY_SIZE['30×40 cm'],
   },
   {
     sizeLabel: '30×40 cm',
@@ -260,7 +275,7 @@ export const FRAMED_POSTER: FramedPosterProduct = {
     frameColor: 'Dark wood',
     productUid:
       'framed_poster_mounted_300x400-mm-12x16-inch_dark-wood_wood_w12xt22-mm_plexiglass_300x400-mm-12x16-inch_170-gsm-65lb-coated-silk_4-0_hor',
-    prices: { GBP: 38.95, USD: 46.95, EUR: 43.95 },
+      prices: PRICE_BY_SIZE['30×40 cm'],
   },
   
   // 50×70 cm — Horizontal
@@ -280,7 +295,7 @@ export const FRAMED_POSTER: FramedPosterProduct = {
     frameColor: 'Wood',
     productUid:
       'framed_poster_mounted_500x700-mm-20x28-inch_natural-wood_wood_w12xt22-mm_plexiglass_500x700-mm-20x28-inch_170-gsm-65lb-coated-silk_4-0_hor',
-    prices: { GBP: 52.95, USD: 64.95, EUR: 59.95 },
+      prices: PRICE_BY_SIZE['50×70 cm'],
   },
   {
     sizeLabel: '50×70 cm',
@@ -289,7 +304,7 @@ export const FRAMED_POSTER: FramedPosterProduct = {
     frameColor: 'Black',
     productUid:
       'framed_poster_mounted_500x700-mm-20x28-inch_black_wood_w12xt22-mm_plexiglass_500x700-mm-20x28-inch_170-gsm-65lb-coated-silk_4-0_hor',
-    prices: { GBP: 52.95, USD: 64.95, EUR: 59.95 },
+      prices: PRICE_BY_SIZE['50×70 cm'],
   },
   {
     sizeLabel: '50×70 cm',
@@ -298,7 +313,7 @@ export const FRAMED_POSTER: FramedPosterProduct = {
     frameColor: 'White',
     productUid:
       'framed_poster_mounted_500x700-mm-20x28-inch_white_wood_w12xt22-mm_plexiglass_500x700-mm-20x28-inch_170-gsm-65lb-coated-silk_4-0_hor',
-    prices: { GBP: 52.95, USD: 64.95, EUR: 59.95 },
+      prices: PRICE_BY_SIZE['50×70 cm'],
   },
   
   // 70×100 cm / 28×40″ — Horizontal
@@ -309,7 +324,8 @@ export const FRAMED_POSTER: FramedPosterProduct = {
     frameColor: 'Black',
     productUid:
       'framed_poster_mounted_700x1000-mm-28x40-inch_black_wood_w12xt22-mm_plexiglass_700x1000-mm-28x40-inch_170-gsm-65lb-coated-silk_4-0_hor',
-    prices: { GBP: 89.99, USD: 112.99, EUR: 103.99 },
+      prices: PRICE_BY_SIZE['70×100 cm / 28×40″'],
+
   },
   {
     sizeLabel: '70×100 cm / 28×40″',
@@ -318,7 +334,8 @@ export const FRAMED_POSTER: FramedPosterProduct = {
     frameColor: 'White',
     productUid:
       'framed_poster_mounted_700x1000-mm-28x40-inch_white_wood_w12xt22-mm_plexiglass_700x1000-mm-28x40-inch_170-gsm-65lb-coated-silk_4-0_hor',
-    prices: { GBP: 89.99, USD: 112.99, EUR: 103.99 },
+      prices: PRICE_BY_SIZE['70×100 cm / 28×40″'],
+
   },
   {
     sizeLabel: '70×100 cm / 28×40″',
@@ -327,7 +344,8 @@ export const FRAMED_POSTER: FramedPosterProduct = {
     frameColor: 'Dark wood',
     productUid:
       'framed_poster_mounted_700x1000-mm-28x40-inch_dark-wood_wood_w12xt22-mm_plexiglass_700x1000-mm-28x40-inch_170-gsm-65lb-coated-silk_4-0_hor',
-    prices: { GBP: 89.99, USD: 112.99, EUR: 103.99 },
+      prices: PRICE_BY_SIZE['70×100 cm / 28×40″'],
+
   },
   {
     sizeLabel: '70×100 cm / 28×40″',
@@ -336,7 +354,8 @@ export const FRAMED_POSTER: FramedPosterProduct = {
     frameColor: 'Wood',
     productUid:
       'framed_poster_mounted_700x1000-mm-28x40-inch_natural-wood_wood_w12xt22-mm_plexiglass_700x1000-mm-28x40-inch_170-gsm-65lb-coated-silk_4-0_hor',
-    prices: { GBP: 89.99, USD: 112.99, EUR: 103.99 },
+      prices: PRICE_BY_SIZE['70×100 cm / 28×40″'],
+
   },
   
   ],

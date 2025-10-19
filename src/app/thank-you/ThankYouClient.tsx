@@ -63,11 +63,16 @@ export default function ThankYouPage() {
             currency: currency || 'GBP',
           });
         }
-      } catch (err) {
-        setError('Could not load order details.');
-      } finally {
-        setLoading(false);
-      }
+      // } catch (err) {
+      //   setError('Could not load order details.'err);
+      // } finally {
+      //   setLoading(false);
+      // }
+    } catch {
+      setError('Could not load order details.');
+    } finally {
+      setLoading(false);
+    }
     };
 
     fetchOrder();

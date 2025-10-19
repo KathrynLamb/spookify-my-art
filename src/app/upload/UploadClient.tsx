@@ -914,31 +914,31 @@ async function fileToResizedDataUrl(file: File, maxDim = 1280, quality = 0.9): P
   return canvas.toDataURL('image/jpeg', quality);
 }
 
-async function fileToResizedBlob(
-  file: File,
-  maxDim = 1600,          // good for prints + keeps size small
-  quality = 0.85,
-  mime: 'image/jpeg' | 'image/png' = 'image/jpeg'
-): Promise<Blob> {
-  const bmp = await createImageBitmap(file);
-  const scale = Math.min(maxDim / bmp.width, maxDim / bmp.height, 1);
-  const w = Math.round(bmp.width * scale);
-  const h = Math.round(bmp.height * scale);
+// async function fileToResizedBlob(
+//   file: File,
+//   maxDim = 1600,          // good for prints + keeps size small
+//   quality = 0.85,
+//   mime: 'image/jpeg' | 'image/png' = 'image/jpeg'
+// ): Promise<Blob> {
+//   const bmp = await createImageBitmap(file);
+//   const scale = Math.min(maxDim / bmp.width, maxDim / bmp.height, 1);
+//   const w = Math.round(bmp.width * scale);
+//   const h = Math.round(bmp.height * scale);
 
-  const canvas = document.createElement('canvas');
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext('2d')!;
-  ctx.drawImage(bmp, 0, 0, w, h);
+//   const canvas = document.createElement('canvas');
+//   canvas.width = w;
+//   canvas.height = h;
+//   const ctx = canvas.getContext('2d')!;
+//   ctx.drawImage(bmp, 0, 0, w, h);
 
-  return await new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob(
-      (b) => (b ? resolve(b) : reject(new Error('toBlob failed'))),
-      mime,
-      quality
-    );
-  });
-}
+//   return await new Promise<Blob>((resolve, reject) => {
+//     canvas.toBlob(
+//       (b) => (b ? resolve(b) : reject(new Error('toBlob failed'))),
+//       mime,
+//       quality
+//     );
+//   });
+// }
 
 
 const isHttpUrl = (s: string) => /^https?:\/\//i.test(s);

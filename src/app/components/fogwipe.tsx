@@ -59,7 +59,7 @@ export default function FogAutoplay({
       style={
         {
           // CSS vars for easy tuning
-          // @ts-ignore
+
           '--flash-ms': `${flashMs}ms`,
           '--flash-op': flashOpacity,
           '--grade-k': gradeStrength,

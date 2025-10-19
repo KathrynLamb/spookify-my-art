@@ -62,8 +62,10 @@ export default function LandingPage() {
             </div>
 
             <FogWipe
-              before="/before_after_gallery/smile.png"
-              after="https://fpabsqys5cky7azh.public.blob.vercel-storage.com/spookified-1253911a-fdaa-46c8-8907-6c0de24f011c-M2VlkfGKR2oJKp63PrcVqhGOv3SiLs.png"
+              // before="/before_after_gallery/smile.png"
+              before="/before_after_gallery/prom.png"
+              after="/before_after_gallery/prom_spookified.png"
+              // after="https://fpabsqys5cky7azh.public.blob.vercel-storage.com/spookified-1253911a-fdaa-46c8-8907-6c0de24f011c-M2VlkfGKR2oJKp63PrcVqhGOv3SiLs.png"
               // after="/before_after_gallery/spookified_dad.png"
             />
           </div>

@@ -1,71 +1,93 @@
-'use client'
+'use client';
 
-import Image from 'next/image'
-import { useEffect, useMemo, useState } from 'react'
+import Image from 'next/image';
+import { useEffect, useMemo, useRef, useState } from 'react';
+
+type Phase = 0 | 1 | 2 | 3 | 4;
 
 type Props = {
-  before: string
-  after: string
-  altBefore?: string
-  altAfter?: string
-  className?: string
+  before: string;
+  after: string;
+  altBefore?: string;
+  altAfter?: string;
+  className?: string;
+
   /** timings (ms) */
-  beforeDelay?: number
-  fogIn?: number
-  crossfade?: number
-  settle?: number
+  beforeDelay?: number;
+  fogIn?: number;
+  crossfade?: number;
+  settle?: number;
+
   /** reveal tuning */
-  flashMs?: number          // how long the white flash lasts
-  flashOpacity?: number     // flash intensity 0–1
-  afterBrightness?: number  // brighten final image (CSS filter)
-  gradeStrength?: number    // 0–1: vignette/grade strength
-}
+  flashMs?: number;          // white flash length
+  flashOpacity?: number;     // 0–1
+  afterBrightness?: number;  // CSS brightness multiplier
+  gradeStrength?: number;    // 0–1
+
+  /** callbacks */
+  onComplete?: () => void;                 // fires once when phase === 4
+  onPhaseChange?: (phase: Phase) => void;  // optional
+};
 
 export default function FogAutoplay({
   before,
   after,
   altBefore = 'Before',
-  altAfter = 'After',
+  altAfter  = 'After',
   className = '',
+
   beforeDelay = 1800,
   fogIn = 1100,
   crossfade = 1200,
   settle = 800,
-  flashMs = 120,             // ⬅ shorter flash
-  flashOpacity = 0.45,       // ⬅ softer flash
-  afterBrightness = 1.18,    // ⬅ brighten spooky image
-  gradeStrength = 0.45,      // ⬅ reduce heavy darkening
+
+  flashMs = 120,
+  flashOpacity = 0.45,
+  afterBrightness = 1.18,
+  gradeStrength  = 0.45,
+
+  onComplete,
+  onPhaseChange,
 }: Props) {
-  // 0 pristine, 1 fog-in, 2 crossfade (reveal), 3 settle, 4 fog-out
-  const [phase, setPhase] = useState<0 | 1 | 2 | 3 | 4>(0)
+  // 0 pristine, 1 fog-in, 2 crossfade (reveal), 3 settle, 4 fog-out (done)
+  const [phase, setPhase] = useState<Phase>(0);
+  const doneFired = useRef(false);
 
+  // drive phases
   useEffect(() => {
-    const t1 = setTimeout(() => setPhase(1), beforeDelay)
-    const t2 = setTimeout(() => setPhase(2), beforeDelay + fogIn)
-    const t3 = setTimeout(() => setPhase(3), beforeDelay + fogIn + crossfade)
-    const t4 = setTimeout(() => setPhase(4), beforeDelay + fogIn + crossfade + settle)
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4) }
-  }, [beforeDelay, fogIn, crossfade, settle])
+    const t1 = setTimeout(() => setPhase(1), beforeDelay);
+    const t2 = setTimeout(() => setPhase(2), beforeDelay + fogIn);
+    const t3 = setTimeout(() => setPhase(3), beforeDelay + fogIn + crossfade);
+    const t4 = setTimeout(() => setPhase(4), beforeDelay + fogIn + crossfade + settle);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
+  }, [beforeDelay, fogIn, crossfade, settle]);
 
-  const beforeOpacity = useMemo(() => (phase < 2 ? 'opacity-100' : 'opacity-0'), [phase])
-  const afterOpacity  = useMemo(() => (phase < 2 ? 'opacity-0'   : 'opacity-100'), [phase])
-  const fogOpacity    = useMemo(() => (phase === 0 ? 'opacity-0' : phase < 4 ? 'opacity-95' : 'opacity-0'), [phase])
+  // notify
+  useEffect(() => {
+    onPhaseChange?.(phase);
+    if (phase === 4 && !doneFired.current) {
+      doneFired.current = true;
+      onComplete?.();
+    }
+  }, [phase, onPhaseChange, onComplete]);
 
-  const flashNow = phase === 2
+  const beforeOpacity = useMemo(() => (phase < 2 ? 'opacity-100' : 'opacity-0'), [phase]);
+  const afterOpacity  = useMemo(() => (phase < 2 ? 'opacity-0'   : 'opacity-100'), [phase]);
+  const fogOpacity    = useMemo(() => (phase === 0 ? 'opacity-0' : phase < 4 ? 'opacity-95' : 'opacity-0'), [phase]);
+  const flashNow = phase === 2;
 
   return (
     <div
       className={`relative h-[420px] w-full overflow-hidden rounded-2xl border border-white/10 bg-[#0e0e11] shadow-xl ${className}`}
       style={
         {
-          // CSS vars for easy tuning
-
           '--flash-ms': `${flashMs}ms`,
           '--flash-op': flashOpacity,
           '--grade-k': gradeStrength,
           '--after-bright': afterBrightness,
         } as React.CSSProperties
       }
+      aria-label="Spooky reveal"
     >
       {/* BEFORE */}
       <Image
@@ -88,7 +110,7 @@ export default function FogAutoplay({
         style={{ filter: 'brightness(var(--after-bright)) contrast(1.05) saturate(1.06)' }}
       />
 
-      {/* Softer color grade & vignette (lighter than before) */}
+      {/* softer grade & vignette */}
       <div
         className={`pointer-events-none absolute inset-0 transition-opacity duration-500 ${phase >= 2 ? 'opacity-100' : 'opacity-0'}`}
         style={{
@@ -106,13 +128,13 @@ export default function FogAutoplay({
         <div className={`fog fog-c ${fogOpacity}`} style={{ transition: `opacity ${fogIn}ms ease, filter 300ms ease` }} />
       </div>
 
-      {/* Quick white flash */}
+      {/* quick white flash */}
       <div
         className={`pointer-events-none absolute inset-0 bg-white ${flashNow ? 'opacity-[var(--flash-op)]' : 'opacity-0'}`}
         style={{ transition: 'opacity var(--flash-ms) ease-out' }}
       />
 
-      {/* Subtle frame & vignette edge */}
+      {/* frame */}
       <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-inset ring-white/10" />
       <div className="pointer-events-none absolute inset-0 rounded-2xl" style={{ boxShadow: 'inset 0 0 90px 30px rgba(0,0,0,.4)' }} />
 
@@ -147,5 +169,5 @@ export default function FogAutoplay({
         }
       `}</style>
     </div>
-  )
+  );
 }

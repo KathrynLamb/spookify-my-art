@@ -1,7 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
-import FogWipe from "./components/fogwipe";
+// import FogWipe from "./components/fogwipe";
 import LanternSlider from "./components/lantern-slider";
+import { HeroSpooky } from "./components/hero-spooky";
 
 export const metadata = {
   title: "Spookify — Turn any photo into haunting wall art",
@@ -61,13 +62,14 @@ export default function LandingPage() {
               </div>
             </div>
 
-            <FogWipe
+            {/* <FogWipe
               // before="/before_after_gallery/smile.png"
               before="/before_after_gallery/prom.png"
               after="/before_after_gallery/prom_spookified.png"
               // after="https://fpabsqys5cky7azh.public.blob.vercel-storage.com/spookified-1253911a-fdaa-46c8-8907-6c0de24f011c-M2VlkfGKR2oJKp63PrcVqhGOv3SiLs.png"
               // after="/before_after_gallery/spookified_dad.png"
-            />
+            /> */}
+               <HeroSpooky />
           </div>
         </div>
       </section>

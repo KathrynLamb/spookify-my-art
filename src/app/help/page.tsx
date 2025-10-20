@@ -7,7 +7,7 @@ export const metadata: Metadata = {
     "Support, delivery times, returns and refunds for Spookify My Art posters and prints.",
 };
 
-const email = "support@aigifts.com"; // ✅ update if you prefer a different inbox
+const email = "support@aigifts.org"; // ✅ update if you prefer a different inbox
 const businessName = "Spookify My Art";
 const siteHost = "aigifts.org";
 

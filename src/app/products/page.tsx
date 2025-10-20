@@ -227,7 +227,7 @@ function ProductsInner() {
   async function onSelect(productTitle: string, variant: CardVariant, titleSuffix: string) {
     try {
       if (!canProceed) {
-        router.push('/upload');
+        router.push('/upload?from=products'); // ⬅️ add this query flag
         return;
       }
 
@@ -245,7 +245,7 @@ function ProductsInner() {
           fileUrl: publicUrl,
         };
         localStorage.setItem('spookify:pending-product', JSON.stringify(pending));
-        router.push('/upload'); // design now; upload page will read pending
+        router.push('/upload?from=products'); // ⬅️ add this query flag
         return;
       }
 

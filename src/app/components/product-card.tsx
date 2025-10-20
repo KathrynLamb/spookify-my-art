@@ -160,7 +160,8 @@ export default function ProductCard({
     localStorage.setItem('spookify:pending-product', JSON.stringify(selection));
   
     // Go to the upload page
-    window.location.href = '/upload';
+
+    window.location.href = '/upload?from=products';
   };
   
 

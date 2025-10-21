@@ -75,7 +75,7 @@ export default function LandingPage() {
       </section>
 
       {/* --- HOW IT WORKS --- */}
-      <section className="mx-auto max-w-7xl px-4 py-16 md:py-20">
+      <section className="mx-auto max-w-7xl px-4 py-8 md:py-12">
         <h2 className="mb-8 text-center text-3xl font-bold md:text-4xl">How it works</h2>
         <div className="grid gap-4 md:grid-cols-3">
           <Card title="1) Upload" desc="Drop a photo. We’ll guide style & spookiness." iconSrc="/upload.png" />

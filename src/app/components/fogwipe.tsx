@@ -78,15 +78,13 @@ export default function FogAutoplay({
 
   return (
     <div
-      className={`relative h-[420px] w-full overflow-hidden rounded-2xl border border-white/10 bg-[#0e0e11] shadow-xl ${className}`}
-      style={
-        {
-          '--flash-ms': `${flashMs}ms`,
-          '--flash-op': flashOpacity,
-          '--grade-k': gradeStrength,
-          '--after-bright': afterBrightness,
-        } as React.CSSProperties
-      }
+      className={`relative w-full aspect-square overflow-hidden rounded-2xl border border-white/10 bg-[#0e0e11] shadow-xl ${className}`}
+      style={{
+        '--flash-ms': `${flashMs}ms`,
+        '--flash-op': flashOpacity,
+        '--grade-k': gradeStrength,
+        '--after-bright': afterBrightness,
+      } as React.CSSProperties}
       aria-label="Spooky reveal"
     >
       {/* BEFORE */}

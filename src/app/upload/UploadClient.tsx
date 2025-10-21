@@ -3,11 +3,10 @@
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-
-import { Ghost } from 'lucide-react';
+import { Ghost, Send } from 'lucide-react';
 import {
   Comparison,
   ComparisonItem,
@@ -15,15 +14,6 @@ import {
 } from '@/components/ui/shadcn-io/comparison/index';
 
 import type { Currency } from '@/lib/currency';
-
-/* ======================= PayPal ======================= */
-// Your PayPal “Payment link & QR code” URL
-const PAYPAL_LINK =
-  'https://www.paypal.com/ncp/payment/2GLZRSAPB83GY';
-
-// Optional: short instruction shown after we open PayPal
-const PAYPAL_NOTE_HELP =
-  'In PayPal, paste your image link into “Add a note to seller”. If you can’t see the notes box, email your photo link + PayPal Transaction ID to hello@aigifts.org';
 
 /* ======================= Types ======================= */
 type Role = 'user' | 'assistant';
@@ -43,7 +33,7 @@ type PendingSelection = {
   titleSuffix: string;
   currency: Currency;
   imageId: string;
-  fileUrl: string; // may be data: URL; we'll normalize
+  fileUrl: string;
   lemon?: boolean;
 };
 
@@ -71,18 +61,16 @@ type UploadOriginalOk = {
 
 type UploadOriginalErr = { error?: string };
 
+/* ======================= Utilities ======================= */
 function parseJSON<T>(text: string): T | null {
   try { return JSON.parse(text) as T; }
   catch { return null; }
 }
-
 function hasImageId(v: unknown): v is UploadOriginalOk {
   if (typeof v !== 'object' || v === null) return false;
   const obj = v as Record<string, unknown>;
   return typeof obj.imageId === 'string' && typeof obj.fileUrl === 'string';
 }
-
-/* ======================= Utils ======================= */
 function extractConfigFrom(text: string): unknown | null {
   let m = text.match(/```json\s*([\s\S]*?)\s*```/i);
   if (!m) m = text.match(/```\s*([\s\S]*?)\s*```/);
@@ -97,15 +85,12 @@ function extractConfigFrom(text: string): unknown | null {
     return null;
   }
 }
-
 function isPlan(v: unknown): v is NonNullable<Plan> {
   return !!v && typeof v === 'object';
 }
-
 function summarizePlan(plan: Plan, userText: string): string {
   const fp = (plan?.finalizedPrompt || '').trim();
   let gist = '';
-
   if (fp) {
     const pieces = fp
       .replace(/\s+/g, ' ')
@@ -117,7 +102,6 @@ function summarizePlan(plan: Plan, userText: string): string {
   } else if (userText) {
     gist = userText.replace(/\s+/g, ' ').trim();
   }
-
   return `Got it — ${gist}. Plan ready — hit “Use this plan → Generate”.`;
 }
 
@@ -133,33 +117,6 @@ async function fileToResizedDataUrl(file: File, maxDim = 1280, quality = 0.9): P
   ctx.drawImage(bitmap, 0, 0, w, h);
   return canvas.toDataURL('image/jpeg', quality);
 }
-
-// async function fileToResizedBlob(
-//   file: File,
-//   maxDim = 1600,          // good for prints + keeps size small
-//   quality = 0.85,
-//   mime: 'image/jpeg' | 'image/png' = 'image/jpeg'
-// ): Promise<Blob> {
-//   const bmp = await createImageBitmap(file);
-//   const scale = Math.min(maxDim / bmp.width, maxDim / bmp.height, 1);
-//   const w = Math.round(bmp.width * scale);
-//   const h = Math.round(bmp.height * scale);
-
-//   const canvas = document.createElement('canvas');
-//   canvas.width = w;
-//   canvas.height = h;
-//   const ctx = canvas.getContext('2d')!;
-//   ctx.drawImage(bmp, 0, 0, w, h);
-
-//   return await new Promise<Blob>((resolve, reject) => {
-//     canvas.toBlob(
-//       (b) => (b ? resolve(b) : reject(new Error('toBlob failed'))),
-//       mime,
-//       quality
-//     );
-//   });
-// }
-
 
 const isHttpUrl = (s: string) => /^https?:\/\//i.test(s);
 
@@ -191,10 +148,7 @@ export default function UploadWithChatPage() {
   const [input, setInput] = useState('');
   const [chatBusy, setChatBusy] = useState(false);
   const [plan, setPlan] = useState<Plan>(null);
-  const finalizedPrompt = useMemo(
-    () => (plan?.finalizedPrompt ?? ''),
-    [plan]
-  );
+  const finalizedPrompt = useMemo(() => (plan?.finalizedPrompt ?? ''), [plan]);
 
   // generation state
   const [generating, setGenerating] = useState(false);
@@ -203,32 +157,39 @@ export default function UploadWithChatPage() {
   // product selection handoff (design-first path)
   const [pending, setPending] = useState<PendingSelection | null>(null);
 
-  // Refs for UX improvements
+  // layout helpers
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileShowAfter, setMobileShowAfter] = useState(false);
 
-    // Load pending product only when we explicitly came from /products
-    useEffect(() => {
-      try {
-        const params = new URLSearchParams(window.location.search);
-        const from = params.get('from'); // expects 'products'
-        if (from !== 'products') {
-          setPending(null); // ensure banner doesn’t render
-          return;
-        }
-        const raw = localStorage.getItem('spookify:pending-product');
-        if (raw) setPending(JSON.parse(raw) as PendingSelection);
-      } catch {
-        // no-op
+  // responsive flag
+  useEffect(() => {
+    const run = () => setIsMobile(window.innerWidth < 768);
+    run();
+    window.addEventListener('resize', run);
+    return () => window.removeEventListener('resize', run);
+  }, []);
+
+  // load pending from /products
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const from = params.get('from');
+      if (from !== 'products') {
+        setPending(null);
+        return;
       }
-    }, []);
+      const raw = localStorage.getItem('spookify:pending-product');
+      if (raw) setPending(JSON.parse(raw) as PendingSelection);
+    } catch { /* noop */ }
+  }, []);
 
+  // cleanup preview blobs
   useEffect(() => {
     return () => {
-      if (previewUrl && previewUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(previewUrl);
-      }
+      if (previewUrl && previewUrl.startsWith('blob:')) URL.revokeObjectURL(previewUrl);
     };
   }, [previewUrl]);
 
@@ -239,9 +200,7 @@ export default function UploadWithChatPage() {
       if (!r.ok) return;
       const j = (await r.json()) as { plan?: Plan };
       if (j?.plan) setPlan(j.plan);
-    } catch {
-      /* no-op */
-    }
+    } catch { /* noop */ }
   };
 
   const postChat = async (msgs: Msg[]): Promise<ChatResponse> => {
@@ -255,55 +214,44 @@ export default function UploadWithChatPage() {
     return data;
   };
 
-  // --- Auto scroll to bottom on new messages or state changes ---
-  const scrollToBottom = () => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  };
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, chatBusy, generating]);
+  // scroll chat to bottom on changes
+  const scrollToBottom = () => chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  useEffect(() => { scrollToBottom(); }, [messages, chatBusy, generating]);
 
-  // --- Expand textarea as user types ---
-  const autoResize = () => {
+  // auto-resize composer
+  // const autoResize = () => {
+  //   const el = inputRef.current;
+  //   if (!el) return;
+  //   el.style.height = '0px';
+  //   el.style.height = Math.min(Math.max(el.scrollHeight, 40), isMobile ? 96 : 160) + 'px';
+  // };
+  const autoResize = useCallback(() => {
     const el = inputRef.current;
     if (!el) return;
     el.style.height = '0px';
-    el.style.height = Math.min(Math.max(el.scrollHeight, 40), 160) + 'px';
-  };
-  useEffect(() => {
-    autoResize();
-  }, [input]);
+    el.style.height = Math.min(Math.max(el.scrollHeight, 40), isMobile ? 96 : 160) + 'px';
+  }, [isMobile]);
+  
+  useEffect(() => { autoResize(); }, [autoResize, input]);
 
+  // upload handling
   const setFromFile = async (file: File) => {
-    // helper: make a resized JPEG Blob
-    const fileToResizedBlob = async (
-      src: File,
-      maxDim = 2000,
-      quality = 0.86
-    ): Promise<Blob> => {
+    // local helper blob
+    const fileToResizedBlob = async (src: File, maxDim = 2000, quality = 0.86): Promise<Blob> => {
       const bmp = await createImageBitmap(src);
       const scale = Math.min(maxDim / bmp.width, maxDim / bmp.height, 1);
       const w = Math.round(bmp.width * scale);
       const h = Math.round(bmp.height * scale);
-  
       const canvas = document.createElement('canvas');
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) throw new Error('Canvas 2D unavailable');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d'); if (!ctx) throw new Error('Canvas 2D unavailable');
       ctx.drawImage(bmp, 0, 0, w, h);
-  
       return await new Promise<Blob>((resolve, reject) => {
-        canvas.toBlob(
-          (b) => (b ? resolve(b) : reject(new Error('toBlob failed'))),
-          'image/jpeg',
-          quality
-        );
+        canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob failed'))), 'image/jpeg', quality);
       });
     };
-  
+
     try {
-      // 1) Normalize file (HEIC -> JPG)
       let f: File = file;
       const isHeic = f.name.toLowerCase().endsWith('.heic') || f.type === 'image/heic';
       if (isHeic) {
@@ -311,37 +259,28 @@ export default function UploadWithChatPage() {
         f = await convertHEICtoJPG(f);
       }
       if (!f.type.startsWith('image/')) return;
-  
-      // 2) Reset UI & show fast local preview
+
       setError(null);
       setSpookified(null);
       setPlan(null);
       setMessages([]);
-  
+
       const previewObjUrl = URL.createObjectURL(f);
       setPreviewUrl(previewObjUrl);
-  
-      // small dataURL for chat and “original” reference (not full-res)
+
       const chatDataUrl = await fileToResizedDataUrl(f, 1280, 0.9);
       setOriginalDataUrl(chatDataUrl);
-  
-      // 3) Build a resized upload blob to stay under function limits
+
       const resizedBlob = await fileToResizedBlob(f, 2000, 0.86);
-      const uploadFile = new File(
-        [resizedBlob],
-        f.name.replace(/\.[^.]+$/, '') + '-web.jpg',
-        { type: 'image/jpeg' }
-      );
-  
-      // 4) Try multipart upload first
+      const uploadFile = new File([resizedBlob], f.name.replace(/\.[^.]+$/, '') + '-web.jpg', { type: 'image/jpeg' });
+
       const fd = new FormData();
       fd.append('file', uploadFile);
-  
+
       let res = await fetch('/api/upload-original', { method: 'POST', body: fd });
-      let text = await res.text(); // read once
+      let text = await res.text();
       let json = parseJSON<UploadOriginalOk | UploadOriginalErr>(text);
-  
-      // 5) If payload was still too big, retry with JSON dataUrl (smaller)
+
       if (res.status === 413 || /too[_\s-]?large|payload/i.test(text)) {
         const tinyDataUrl = await fileToResizedDataUrl(f, 1400, 0.84);
         res = await fetch('/api/upload-original', {
@@ -352,24 +291,21 @@ export default function UploadWithChatPage() {
         text = await res.text();
         json = parseJSON<UploadOriginalOk | UploadOriginalErr>(text);
       }
-  
+
       if (!res.ok || !json || !hasImageId(json)) {
         const errMsg = (json as UploadOriginalErr | null)?.error || text || 'Upload failed';
         throw new Error(errMsg);
       }
-  
-      // 6) Success — stash id and nudge the chat
+
       const newId = json.imageId;
       setImageId(newId);
-  
       setMessages([
         {
           role: 'assistant',
           content:
-            'Great pic! How do you want to spookify it? (e.g., cozy-cute, spookiness 3, fog + tiny ghost, moonlit blues, no blood)',
+            'Nice photo! Pick a vibe below or type your own (e.g., cozy-cute • spookiness 3 • fog + tiny ghost • moonlit blues • no blood).',
         },
       ]);
-  
       await refreshPlanFromServer(newId);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -377,35 +313,27 @@ export default function UploadWithChatPage() {
       setChatBusy(false);
     }
   };
-  
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (f) void setFromFile(f);
   };
-
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     const f = e.dataTransfer.files?.[0];
     if (f) void setFromFile(f);
   };
 
-  // --- Subsequent chat sends ---
+  // send chat
   const send = async () => {
     if (!input.trim() || !imageId || generating) return;
-
     const userText = input.trim();
 
     const noUserImageYet =
       !messages.some((m) => m.role === 'user' && Array.isArray(m.images) && m.images.length > 0);
     const shouldAttachImage = !!originalDataUrl && noUserImageYet;
 
-    const userMessage: Msg = {
-      role: 'user',
-      content: userText,
-      images: shouldAttachImage ? [originalDataUrl!] : undefined,
-    };
-
+    const userMessage: Msg = { role: 'user', content: userText, images: shouldAttachImage ? [originalDataUrl!] : undefined };
     const newMsgs = [...messages, userMessage];
 
     setMessages(newMsgs);
@@ -415,7 +343,6 @@ export default function UploadWithChatPage() {
 
     try {
       const data = await postChat(newMsgs);
-
       const maybeCfg = data.plan ?? extractConfigFrom(data.content);
       const cfg: Plan = isPlan(maybeCfg) ? (maybeCfg as Plan) : null;
 
@@ -426,7 +353,6 @@ export default function UploadWithChatPage() {
       } else {
         setMessages((prev) => [...prev, { role: 'assistant', content: data.content }]);
       }
-
       await refreshPlanFromServer(imageId);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -435,75 +361,63 @@ export default function UploadWithChatPage() {
     }
   };
 
-  // --- Generation ---
-// inside UploadWithChatPage
-const generate = async () => {
-  if (!imageId) { setError('Please upload an image first'); return; }
-  setGenerating(true);
-  setError(null);
+  // generate
+  const generate = async () => {
+    if (!imageId) { setError('Please upload an image first'); return; }
+    setGenerating(true);
+    setError(null);
 
-  try {
-    const start = await fetch('/api/spookify/begin', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: imageId, promptOverride: finalizedPrompt || undefined }),
-    });
-    const s = await start.json();
-    if (!start.ok || !s?.jobId) throw new Error(s?.error || 'Failed to start');
+    try {
+      const start = await fetch('/api/spookify/begin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: imageId, promptOverride: finalizedPrompt || undefined }),
+      });
+      const s = await start.json();
+      if (!start.ok || !s?.jobId) throw new Error(s?.error || 'Failed to start');
 
-    const jobId = s.jobId as string;
+      const jobId = s.jobId as string;
+      let stopped = false;
 
-    let stopped = false;
+      const poll = async () => {
+        if (stopped) return;
+        const r = await fetch(`/api/spookify/status?id=${encodeURIComponent(jobId)}`);
+        const j = await r.json();
+        if (j.status === 'done' && j.resultUrl) {
+          setSpookified(j.resultUrl as string);
+          setGenerating(false);
+          stopped = true;
+          return;
+        }
+        if (j.status === 'error') {
+          setError(j.error || 'Spookify failed');
+          setGenerating(false);
+          stopped = true;
+          return;
+        }
+        setTimeout(poll, 2000);
+      };
+      poll();
 
-    const poll = async () => {
-      if (stopped) return;
-      const r = await fetch(`/api/spookify/status?id=${encodeURIComponent(jobId)}`);
-      const j = await r.json();
-      if (j.status === 'done' && j.resultUrl) {
-        setSpookified(j.resultUrl as string);
-        setGenerating(false);
-        stopped = true;
-        return;
-      }
-      if (j.status === 'error') {
-        setError(j.error || 'Spookify failed');
-        setGenerating(false);
-        stopped = true;
-        return;
-      }
-      setTimeout(poll, 2000);
-    };
-    poll();
+      const onVis = () => {
+        if (!stopped && typeof document !== 'undefined' && document.visibilityState === 'visible') {
+          void poll();
+        }
+      };
+      document.addEventListener('visibilitychange', onVis, { passive: true });
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+      setGenerating(false);
+    }
+  };
 
-    const onVis = () => {
-      if (!stopped && typeof document !== 'undefined' && document.visibilityState === 'visible') {
-        void poll();
-      }
-    };
-    document.addEventListener('visibilitychange', onVis, { passive: true });
-  } catch (e: unknown) {
-    setError(e instanceof Error ? e.message : String(e));
-    setGenerating(false);
-  }
-};
-
-
-
-  // --- Legacy Print handoff (no design-first) -> go choose product ---
+  // routes
   const goChooseProduct = async () => {
     try {
-      if (!spookified) {
-        setError('No spookified image found. Generate first.');
-        return;
-      }
-      if (!imageId) {
-        setError('Missing image id.');
-        return;
-      }
+      if (!spookified) { setError('No spookified image found. Generate first.'); return; }
+      if (!imageId) { setError('Missing image id.'); return; }
       let fileUrl = spookified;
-      if (!isHttpUrl(spookified)) {
-        fileUrl = await ensurePublicUrl(spookified, imageId);
-      }
+      if (!isHttpUrl(spookified)) fileUrl = await ensurePublicUrl(spookified, imageId);
       const qp = new URLSearchParams({ fileUrl, imageId });
       router.push(`/products?${qp.toString()}`);
     } catch (e) {
@@ -511,51 +425,36 @@ const generate = async () => {
     }
   };
 
-  // --- Design-first direct print using saved selection (NOW: PayPal) ---
-// --- Design-first direct print using saved selection -> go to custom checkout
-const printWithPending = async () => {
-  try {
-    if (!spookified || !pending) {
-      alert('Please generate your spookified image first.');
-      return;
-    }
-    if (!pending.variant?.productUid) {
-      alert('Missing SKU — please reselect your product.');
-      return;
-    }
+  const printWithPending = async () => {
+    try {
+      if (!spookified || !pending) { alert('Please generate your spookified image first.'); return; }
+      if (!pending.variant?.productUid) { alert('Missing SKU — please reselect your product.'); return; }
 
-    const useId: string = pending.imageId || imageId || `img-${Date.now()}`;
-    const publicUrl = await ensurePublicUrl(spookified, useId);
+      const useId: string = pending.imageId || imageId || `img-${Date.now()}`;
+      const publicUrl = await ensurePublicUrl(spookified, useId);
 
-    // price in major units for selected currency (fallback to GBP)
-    const priceMajor =
-      pending.variant.prices[pending.currency] ??
-      pending.variant.prices.GBP ??
-      0;
+      const priceMajor =
+        pending.variant.prices[pending.currency] ??
+        pending.variant.prices.GBP ??
+        0;
 
-    // Build a nice title the same way as products page
-    const niceTitle =
-      pending.titleSuffix ||
-      `${pending.variant.sizeLabel}${
-        pending.variant.frameColor ? ` – ${pending.variant.frameColor}` : ''
-      } – ${pending.variant.orientation}`;
+      const niceTitle =
+        pending.titleSuffix ||
+        `${pending.variant.sizeLabel}${pending.variant.frameColor ? ` – ${pending.variant.frameColor}` : ''} – ${pending.variant.orientation}`;
 
-    const qp = new URLSearchParams({
-      fileUrl: publicUrl,
-      imageId: useId,
-      title: `${pending.productTitle} – ${niceTitle}`,
-      amount: String(priceMajor),
-      currency: pending.currency,
-      size: pending.variant.sizeLabel,
-      orientation: pending.variant.orientation,
-      productUid: pending.variant.productUid, 
-    });
-    if (pending.variant.frameColor) qp.set('frameColor', pending.variant.frameColor);
+      const qp = new URLSearchParams({
+        fileUrl: publicUrl,
+        imageId: useId,
+        title: `${pending.productTitle} – ${niceTitle}`,
+        amount: String(priceMajor),
+        currency: pending.currency,
+        size: pending.variant.sizeLabel,
+        orientation: pending.variant.orientation,
+        productUid: pending.variant.productUid,
+      });
+      if (pending.variant.frameColor) qp.set('frameColor', pending.variant.frameColor);
 
-    // (optional) remember last order locally
-    localStorage.setItem(
-      'spookify:last-order',
-      JSON.stringify({
+      localStorage.setItem('spookify:last-order', JSON.stringify({
         product: pending.productTitle,
         size: pending.variant.sizeLabel,
         orientation: pending.variant.orientation,
@@ -564,50 +463,52 @@ const printWithPending = async () => {
         imageId: useId,
         currency: pending.currency,
         ts: Date.now(),
-      })
-    );
+      }));
 
-    // 👉 go to your custom checkout page
-    router.push(`/checkout?${qp.toString()}`);
-  } catch (e) {
-    setError(e instanceof Error ? e.message : String(e));
-  }
-};
+      router.push(`/checkout?${qp.toString()}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
 
+  // preset prompts (chips)
+  const presets = [
+    'Cozy-cute • spookiness 3 • fog + tiny ghost',
+    'Storybook • warm candlelight • no blood',
+    'Moody forest • teal & orange • mist',
+  ];
 
+  /* ======================= Render ======================= */
   return (
-    <main className="min-h-screen bg-black text-white p-4 md:p-8">
-      <h1 className="text-3xl md:text-4xl font-bold text-center mb-2">Spookify Your Art 👻</h1>
-      <p className="text-center text-gray-400 mb-6">
-        Upload, chat about the vibe, then generate — all on one page.
-      </p>
+    <main className="h-[calc(100vh-64px)] bg-black text-white px-4 md:px-8 pt-4 pb-16 md:pb-8">
+      <header className="max-w-6xl mx-auto text-center mb-3">
+        <h1 className="text-3xl md:text-4xl font-bold">Spookify Your Art 👻</h1>
+        <p className="text-white/60 mt-1">Upload → Pick vibe → Generate → Print</p>
+      </header>
 
+      {pending && !originalDataUrl && !spookified ? (
+        <div className="animate-[fade-in_0.4s_ease-out] mb-4 max-w-xl mx-auto bg-orange-600/10 border border-orange-600/30 text-orange-200 text-sm md:text-base px-4 py-3 rounded-xl text-center shadow-sm">
+          You’ve chosen the
+          <strong className="mx-1 text-white">
+            {pending.variant?.sizeLabel}
+            {pending.variant?.frameColor ? ` ${pending.variant.frameColor} Frame` : ''}
+            {` – ${pending.variant?.orientation}`}
+          </strong>
+          print.
+          <span className="block mt-1 text-white/80">
+            Ready to <span className="font-semibold text-orange-400">Spookify</span>?
+          </span>
+        </div>
+      ) : null}
 
+      {error ? <p className="text-red-400 text-center mb-3">{error}</p> : null}
 
-        {pending && !originalDataUrl && !spookified ? (
-          <div className="animate-[fade-in_0.4s_ease-out] mb-6 max-w-lg mx-auto bg-orange-600/10 border border-orange-600/30 text-orange-200 text-sm md:text-base px-4 py-3 rounded-xl text-center shadow-sm">
-            You’ve chosen the
-            <strong className="mx-1 text-white">
-              {pending.variant?.sizeLabel}
-              {pending.variant?.frameColor ? ` ${pending.variant.frameColor} Frame` : ''}
-              {` – ${pending.variant?.orientation}`}
-            </strong>
-            print.
-            <span className="block mt-1 text-white/80">
-              Ready to <span className="font-semibold text-orange-400">Spookify</span>?
-            </span>
-          </div>
-        ) : null}
-
-
-      {error ? <p className="text-red-400 text-center mb-4">{error}</p> : null}
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
-        {/* LEFT: Upload + Preview + Result */}
-        <div className="lg:col-span-1 space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 max-w-6xl mx-auto h-[calc(100%-120px)]">
+        {/* LEFT: Upload + Stage */}
+        <section className="lg:col-span-1 flex flex-col gap-4 h-full">
           {!spookified && !originalDataUrl ? (
             <div
-              className="border-2 border-dashed border-white/20 rounded-xl p-6 bg-gray-950 text-center cursor-pointer hover:border-white/40 transition"
+              className="flex-1 min-h-[320px] border-2 border-dashed border-white/20 rounded-xl p-6 bg-gray-950 text-center cursor-pointer hover:border-white/40 transition grid place-items-center"
               onClick={() => fileInputRef.current?.click()}
               onDragOver={(e) => e.preventDefault()}
               onDrop={handleDrop}
@@ -620,13 +521,8 @@ const printWithPending = async () => {
                 className="hidden"
               />
               {previewUrl ? (
-                <div className="relative w-full aspect-square">
-                  <Image
-                    src={previewUrl}
-                    alt="Preview"
-                    fill
-                    className="object-contain rounded-md"
-                  />
+                <div className="relative w-full max-w-[520px] aspect-square">
+                  <Image src={previewUrl} alt="Preview" fill className="object-contain rounded-md" />
                 </div>
               ) : (
                 <p className="text-gray-400">Click or drag & drop your image here</p>
@@ -635,37 +531,59 @@ const printWithPending = async () => {
           ) : null}
 
           {originalDataUrl ? (
-            <div className="bg-gray-950 rounded-xl p-4 border border-white/10">
-              <div className="relative w-full aspect-square border border-white/10 rounded overflow-hidden bg-black">
-                {/* Comparison slider appears only when we have BOTH images */}
+            <div className="bg-gray-950 rounded-xl p-3 md:p-4 border border-white/10 flex-1 min-h-0">
+              <div className="relative w-full h-full aspect-square border border-white/10 rounded overflow-hidden bg-black">
+                {/* Desktop/Tablet: drag slider. Mobile: tap toggle */}
                 {spookified ? (
-                  <Comparison className="w-full h-full" mode="drag">
-                    <ComparisonItem position="left">
+                  <>
+                    <div className="absolute z-10 right-3 top-3 md:hidden">
+                      <button
+                        onClick={() => setMobileShowAfter(!mobileShowAfter)}
+                        className="rounded-full bg-black/70 border border-white/15 px-3 py-1 text-[11px]"
+                      >
+                        {mobileShowAfter ? 'Show original' : 'Show spookified'}
+                      </button>
+                    </div>
+                    <div className="hidden md:block w-full h-full">
+                      <Comparison className="w-full h-full" mode="drag">
+                        <ComparisonItem position="left">
+                          <Image
+                            src={originalDataUrl}
+                            alt="Original"
+                            fill
+                            className="object-contain"
+                            sizes="(max-width: 1024px) 100vw, 50vw"
+                            priority
+                          />
+                        </ComparisonItem>
+                        <ComparisonItem position="right">
+                          <Image
+                            src={spookified}
+                            alt="Spookified"
+                            fill
+                            className="object-contain"
+                            sizes="(max-width: 1024px) 100vw, 50vw"
+                            priority
+                          />
+                        </ComparisonItem>
+                        <ComparisonHandle>
+                          <div className="relative z-50 flex items-center justify-center h-full w-12">
+                            <Ghost className="h-6 w-6 text-orange-500 drop-shadow-md" />
+                          </div>
+                        </ComparisonHandle>
+                      </Comparison>
+                    </div>
+                    <div className="md:hidden w-full h-full">
                       <Image
-                        src={originalDataUrl}
-                        alt="Original"
+                        src={mobileShowAfter ? spookified : originalDataUrl}
+                        alt={mobileShowAfter ? 'Spookified' : 'Original'}
                         fill
                         className="object-contain"
-                        sizes="(max-width: 1024px) 100vw, 50vw"
+                        sizes="100vw"
                         priority
                       />
-                    </ComparisonItem>
-                    <ComparisonItem position="right">
-                      <Image
-                        src={spookified}
-                        alt="Spookified"
-                        fill
-                        className="object-contain"
-                        sizes="(max-width: 1024px) 100vw, 50vw"
-                        priority
-                      />
-                    </ComparisonItem>
-                    <ComparisonHandle>
-                      <div className="relative z-50 flex items-center justify-center h-full w-12">
-                        <Ghost className="h-6 w-6 text-orange-500 drop-shadow-md" />
-                      </div>
-                    </ComparisonHandle>
-                  </Comparison>
+                    </div>
+                  </>
                 ) : (
                   <Image
                     src={originalDataUrl}
@@ -677,9 +595,9 @@ const printWithPending = async () => {
                   />
                 )}
 
-                {/* Shimmer overlay while generating */}
+                {/* Generating overlay */}
                 {generating ? (
-                  <div className="absolute inset-0 pointer-events-none">
+                  <div className="absolute inset-0 pointer-events-none" aria-live="polite">
                     <div className="absolute inset-0 bg-black/30 backdrop-blur-[1px]" />
                     <div className="absolute inset-0 animate-shimmer" />
                     <div className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-black/70 px-3 py-1 text-xs border border-white/10">
@@ -689,7 +607,7 @@ const printWithPending = async () => {
                 ) : null}
               </div>
 
-              <div className="flex items-center justify-between mt-3 gap-3 flex-wrap">
+              <div className="flex items-center justify-between mt-3 gap-2 flex-wrap">
                 <div className="flex gap-2">
                   {spookified ? (
                     <button
@@ -700,7 +618,6 @@ const printWithPending = async () => {
                       Choose product
                     </button>
                   ) : null}
-
                   {spookified && pending ? (
                     <button
                       onClick={printWithPending}
@@ -714,14 +631,39 @@ const printWithPending = async () => {
               </div>
             </div>
           ) : null}
-        </div>
+        </section>
 
-        {/* RIGHT: Chat + Generate */}
-        <div className="lg:col-span-2 space-y-4">
+        {/* RIGHT: Chat */}
+        <section className="lg:col-span-2 flex flex-col gap-4 h-full">
+          {/* Chips show after upload */}
+          {originalDataUrl ? (
+            <div className="hidden md:flex flex-wrap gap-2">
+              {presets.map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setInput(p)}
+                  className="px-3 py-1.5 text-xs md:text-sm rounded-full border border-white/10 bg-white/5 hover:bg-white/10"
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
           <div
             ref={chatScrollRef}
-            className="bg-gray-950 rounded-xl p-4 border border-white/10 h-[420px] overflow-y-auto"
+            className="bg-gray-950 rounded-xl p-4 border border-white/10 flex-1 min-h-0 overflow-y-auto"
           >
+            {/* Empty state */}
+            {!originalDataUrl && messages.length === 0 ? (
+              <div className="h-full grid place-items-center text-center text-white/70">
+                <div>
+                  <p className="font-medium mb-2">Start by uploading a photo</p>
+                  <p className="text-sm">Then pick a vibe or type your own prompt.</p>
+                </div>
+              </div>
+            ) : null}
+
             {messages.map((m, i) => (
               <div key={i} className={`mb-3 ${m.role === 'user' ? 'text-right' : 'text-left'}`}>
                 <div
@@ -752,61 +694,47 @@ const printWithPending = async () => {
             <div ref={chatEndRef} />
           </div>
 
-          {/* Expanding input */}
-          <div className="flex gap-2 items-end">
-            <textarea
-              ref={inputRef}
-              value={input}
-              onChange={(e) => {
-                setInput(e.target.value);
-                autoResize();
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  if (!chatBusy && !generating && imageId && input.trim()) {
-                    void send();
-                  }
-                }
-              }}
-              placeholder={
-                originalDataUrl
-                  ? 'Tell me your vibe (e.g., cozy cute, spookiness 3, fog + tiny ghost, moonlit blues, no blood)'
-                  : 'Upload an image to begin the séance 👻'
-              }
-              className="flex-1 px-3 py-2 rounded bg-gray-900 border border-white/10 outline-none disabled:opacity-60 resize-none leading-6"
-              disabled={!originalDataUrl || chatBusy || generating}
-              rows={2}
-              style={{ maxHeight: 160 }}
-            />
-            <button
-              onClick={send}
-              disabled={chatBusy || generating || !imageId || !originalDataUrl || !input.trim()}
-              className="px-4 py-2 rounded bg-white text-black hover:bg-orange-300 disabled:opacity-50"
-            >
-              Send
-            </button>
-          </div>
+          {/* Desktop/tablet composer (sticky inside panel) */}
+          <Composer
+            desktop
+            disabled={!originalDataUrl || chatBusy || generating}
+            value={input}
+            setValue={setInput}
+            onSend={send}
+            inputRef={inputRef}
+            autoResize={autoResize}
+          />
 
-          <div className="bg-gray-950 rounded-xl p-4 border border-white/10">
-            <div className="flex items-center justify-between mb-2">
-              {plan ? (
-                <button
-                  onClick={generate}
-                  disabled={generating || !imageId}
-                  className="px-3 py-1.5 rounded bg-orange-600 hover:bg-orange-500 disabled:opacity-50"
-                >
-                  Use this plan → Generate
-                </button>
-              ) : (
-                <p className="text-gray-400 text-sm">
-                  Upload your image & tell me your vibe — I’ll craft the plan and then you can
-                  generate.
-                </p>
-              )}
-            </div>
+          {/* Generate CTA bar (sticks within panel) */}
+          <div className="bg-gray-950 rounded-xl p-3 border border-white/10 sticky bottom-0">
+            {plan ? (
+              <button
+                onClick={generate}
+                disabled={generating || !imageId}
+                className="w-full px-4 py-2 rounded bg-orange-600 hover:bg-orange-500 disabled:opacity-50"
+                aria-busy={generating}
+              >
+                Use this plan → Generate
+              </button>
+            ) : (
+              <p className="text-gray-400 text-sm">
+                Tell me your vibe — I’ll craft the plan and then you can generate.
+              </p>
+            )}
           </div>
-        </div>
+        </section>
+      </div>
+
+      {/* Mobile sticky composer */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-black/80 backdrop-blur border-t border-white/10 px-3 py-2">
+        <Composer
+          disabled={!originalDataUrl || chatBusy || generating}
+          value={input}
+          setValue={setInput}
+          onSend={send}
+          inputRef={inputRef}
+          autoResize={autoResize}
+        />
       </div>
 
       {/* chat typing indicator + shimmer CSS */}
@@ -853,5 +781,62 @@ const printWithPending = async () => {
         }
       `}</style>
     </main>
+  );
+}
+
+/* ============== Small subcomponent: Composer ============== */
+function Composer({
+  value,
+  setValue,
+  onSend,
+  inputRef,
+  autoResize,
+  disabled,
+  desktop = false,
+}: {
+  value: string;
+  setValue: (v: string) => void;
+  onSend: () => void | Promise<void>;
+  inputRef: React.RefObject<HTMLTextAreaElement | null>;
+  autoResize: () => void;
+  disabled: boolean;
+  desktop?: boolean;
+}) {
+  return (
+    <div className={`flex gap-2 items-end ${desktop ? '' : ''}`}>
+      <textarea
+        ref={inputRef}
+        value={value}
+        onChange={(e) => {
+          setValue(e.target.value);
+          autoResize();
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            if (!disabled && value.trim()) void onSend();
+          }
+        }}
+        placeholder={
+          disabled
+            ? 'Upload an image to begin'
+            : 'Tell me your vibe (e.g., cozy-cute • spookiness 3 • fog + tiny ghost • moonlit blues • no blood)'
+        }
+        className="flex-1 px-3 py-2 rounded bg-gray-900 border border-white/10 outline-none disabled:opacity-60 resize-none leading-6 text-sm"
+        disabled={disabled}
+        rows={2}
+        style={{ maxHeight: 160 }}
+        aria-label="Chat message"
+      />
+      <button
+        onClick={() => { if (!disabled && value.trim()) void onSend(); }}
+        disabled={disabled || !value.trim()}
+        className="px-4 py-2 rounded bg-white text-black hover:bg-orange-300 disabled:opacity-50 inline-flex items-center gap-2"
+        aria-label="Send message"
+      >
+        <Send className="h-4 w-4" />
+        <span className="hidden sm:inline">Send</span>
+      </button>
+    </div>
   );
 }

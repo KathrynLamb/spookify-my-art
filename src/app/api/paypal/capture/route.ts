@@ -142,13 +142,31 @@ export async function POST(req: Request) {
         ],
       }
 
-      // Send to your own normalizer/placer
-      const gRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/gelato/place-order`, {
+
+
+      const reqUrl = new URL(req.url);
+      const baseUrl =
+        process.env.NEXT_PUBLIC_BASE_URL?.replace(/\/$/, '') ||
+        (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '') ||
+        reqUrl.origin ||
+        'http://localhost:3000';
+  
+      // Call your own Gelato placer with an absolute URL
+      const gRes = await fetch(`${baseUrl}/api/gelato/place-order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(gelatoPayload),
+        // optional: avoid caching
         cache: 'no-store',
-      })
+      });
+
+      // Send to your own normalizer/placer
+    //   const gRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/gelato/place-order`, {
+    //     method: 'POST',
+    //     headers: { 'Content-Type': 'application/json' },
+    //     body: JSON.stringify(gelatoPayload),
+    //     cache: 'no-store',
+    //   })
       gelato = await gRes.json()
     }
 

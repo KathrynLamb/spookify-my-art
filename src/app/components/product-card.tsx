@@ -6,9 +6,10 @@ import PriceTag from './price-tag';
 import { ChipGroup } from '../components/ui/chips';
 import { useCurrency } from '@/contexts/CurrencyContext';
 
-type Orientation = 'Vertical' | 'Horizontal';
 type FrameColor = 'Black' | 'White' | 'Wood' | 'Dark wood';
 type Currency = 'GBP' | 'USD' | 'EUR';
+
+export type Orientation = 'Vertical' | 'Horizontal';
 
 export type Variant = {
   sizeLabel: string;
@@ -27,7 +28,10 @@ type Props = {
   onSelectLemonSqueezy?: (v?: Variant) => void;
   controls?: { showFrame?: boolean };
   canProceed: boolean;
+  preselectOrientation?: Orientation | null;
+
 };
+
 
 const isDataOrBlob = (s: string) => /^(data:|blob:)/i.test(s);
 
@@ -39,8 +43,11 @@ export default function ProductCard({
   canProceed,
   controls = { showFrame: true },
   onSelect,
+  preselectOrientation,
+
 }: Props) {
   const { currency } = useCurrency();
+  console.log("preselected orientation", preselectOrientation)
 
   // Distinct option lists
   const sizeOptions = useMemo(
@@ -58,7 +65,8 @@ export default function ProductCard({
 
   // Selections
   const [size, setSize] = useState<string>(sizeOptions[0]);
-  const [orientation, setOrientation] = useState<Orientation>(orientationOptions[0]!);
+  // const [orientation, setOrientation] = useState<Orientation>(orientationOptions[0]!);
+  const [orientation, setOrientation] = useState<Orientation>('Vertical');
   const [frame, setFrame] = useState<FrameColor | undefined>(
     controls.showFrame ? frameOptions[0] : undefined
   );
@@ -98,7 +106,13 @@ export default function ProductCard({
   );
 
   const activePrice = active?.prices[currency] ?? active?.prices.GBP;
-
+  
+  useEffect(() => {
+    if (preselectOrientation && preselectOrientation !== orientation) {
+      setOrientation(preselectOrientation); // ✅ now typed as Orientation
+    }
+  }, [preselectOrientation, orientation]);
+  
   // --- Auto-fix illegal selections (without setting state during render) ---
   // Fix frame if needed
   useEffect(() => {
@@ -160,11 +174,9 @@ export default function ProductCard({
     localStorage.setItem('spookify:pending-product', JSON.stringify(selection));
   
     // Go to the upload page
-
     window.location.href = '/upload?from=products';
   };
   
-
   const handleLemon = () => {
     if (onSelectLemonSqueezy) onSelectLemonSqueezy(active);
   };
@@ -245,16 +257,6 @@ export default function ProductCard({
         </span>
 
         <div className="flex items-center gap-2">
-          {/* Optional Lemon button (only shown if provided) */}
-          {onSelectLemonSqueezy && (
-            <button
-              type="button"
-              onClick={handleLemon}
-              className="rounded-full border border-white/15 bg-white/5 hover:bg-white/10 px-4 h-10 text-sm font-medium text-white"
-            >
-              Lemon
-            </button>
-          )}
 
           <button
             type="button"

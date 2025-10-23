@@ -552,6 +552,16 @@ const generate = async () => {
       let fileUrl = spookified;
       if (!isHttpUrl(spookified)) fileUrl = await ensurePublicUrl(spookified, imageId);
       const qp = new URLSearchParams({ fileUrl, imageId });
+      if (plan?.orientation && (plan.orientation === 'Horizontal' || plan.orientation === 'Vertical')) {
+        qp.set('orientation', plan.orientation);
+      }
+      // router.push(`/products?${qp.toString()}`);
+      try {
+        localStorage.setItem('spookify:last-plan', JSON.stringify({
+          orientation: plan?.orientation ?? null,
+          ts: Date.now(),
+        }));
+      } catch {}
       router.push(`/products?${qp.toString()}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -842,17 +852,13 @@ const generate = async () => {
           {/* Generate CTA bar (sticks within panel) */}
             {plan && (
                 <div className="bg-gray-950 rounded-xl p-3 border border-white/10 sticky bottom-0">
-              {/* <button
-                onClick={generate}
-                disabled={generating || !imageId}
-                className="w-full px-4 py-2 rounded bg-orange-600 hover:bg-orange-500 disabled:opacity-50"
-                aria-busy={generating}
-              >
-                Use this plan → Generate
-              </button> */}
-              <button disabled={!canGenerate} onClick={generate}>Use this plan → Generate</button>
-
-              </div>
+                   <button 
+                      className="w-full px-4 py-2 rounded bg-orange-600 hover:bg-orange-500 disabled:opacity-50"
+                      aria-busy={generating}
+                      disabled={!canGenerate} onClick={generate}>
+                          Use this plan → Generate
+                    </button>
+                </div>
             )}
 
             {plan && !plan.orientation && (

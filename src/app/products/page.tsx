@@ -28,6 +28,8 @@ type ManualOrderPayload = {
   currency: Currency;
 };
 
+
+
 /* ---------- Manual order modal (optional fallback) ---------- */
 function ManualOrderModal({
   open,
@@ -189,6 +191,26 @@ function ProductsInner() {
   const router = useRouter();
   const sp = useSearchParams();
 
+// Prefer query, fall back to localStorage on mount
+const [preferredOrientation, setPreferredOrientation] = useState<'Horizontal' | 'Vertical' | null>(
+  (sp.get('orientation') === 'Horizontal' || sp.get('orientation') === 'Vertical')
+    ? (sp.get('orientation') as 'Horizontal' | 'Vertical')
+    : null
+);
+
+useEffect(() => {
+  if (preferredOrientation) return; // already from query
+  try {
+    const raw = localStorage.getItem('spookify:last-plan');
+    if (!raw) return;
+    const j = JSON.parse(raw) as { orientation?: string | null };
+    if (j?.orientation === 'Horizontal' || j?.orientation === 'Vertical') {
+      setPreferredOrientation(j.orientation);
+    }
+  } catch {}
+}, [preferredOrientation]);
+
+
   const fileUrlQP = sp.get('fileUrl') || '';
   const imageId = sp.get('imageId') || '';
   const canProceed = useMemo(() => !!(fileUrlQP && imageId), [fileUrlQP, imageId]);
@@ -301,7 +323,7 @@ function ProductsInner() {
 
           <div className="flex items-center gap-4">
             {/* Design-first toggle */}
-            <label className="flex items-center gap-2 text-sm">
+            {/* <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
                 className="accent-orange-600"
@@ -309,7 +331,7 @@ function ProductsInner() {
                 onChange={(e) => setDesignFirst(e.target.checked)}
               />
               <span className="text-white/80">Design first (choose product, then upload)</span>
-            </label>
+            </label> */}
 
             <div className="text-sm">
               <label className="mr-2 text-white/70">Ship to</label>
@@ -347,6 +369,7 @@ function ProductsInner() {
             }
             controls={{ showFrame: true }}
             canProceed={canProceed}
+            preselectOrientation={preferredOrientation}
           />
 
           <ProductCard
@@ -359,6 +382,7 @@ function ProductsInner() {
             }
             controls={{ showFrame: false }}
             canProceed={canProceed}
+            preselectOrientation={preferredOrientation}
           />
         </div>
 

@@ -44,6 +44,8 @@ type Plan = {
   palette?: string;
   avoid?: string[];
   textOverlay?: string;
+  orientation?: 'Horizontal' | 'Vertical' | 'Square';
+  targetAspect?: number; // derived from orientation/size later
   finalizedPrompt?: string;
 } | null;
 
@@ -156,13 +158,25 @@ export default function UploadWithChatPage() {
 
   // product selection handoff (design-first path)
   const [pending, setPending] = useState<PendingSelection | null>(null);
+  const [askedOrientation, setAskedOrientation] = useState(false);
 
+  useEffect(() => {
+    if (!plan || askedOrientation || plan.orientation) return;
+    setMessages(prev => [
+      ...prev,
+      { role: 'assistant',
+        content: 'Quick one — should the final print be Horizontal, Vertical, or Square?' }
+    ]);
+    setAskedOrientation(true);
+  }, [plan, askedOrientation]);
   // layout helpers
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [mobileShowAfter, setMobileShowAfter] = useState(false);
+
+  const canGenerate = !!imageId && !!plan?.orientation && !generating;
 
   // responsive flag
   useEffect(() => {
@@ -192,6 +206,18 @@ export default function UploadWithChatPage() {
       if (previewUrl && previewUrl.startsWith('blob:')) URL.revokeObjectURL(previewUrl);
     };
   }, [previewUrl]);
+
+  useEffect(() => {
+    const variant = pending?.variant;
+    if (!variant?.orientation) return;
+  
+    setPlan(p => ({
+      ...(p ?? {}),
+      orientation: variant.orientation,
+      targetAspect: variant.orientation === 'Horizontal' ? 1.4 : 0.7,
+    }));
+  }, [pending]);
+  
 
   // --- API helpers ---
   const refreshPlanFromServer = async (id: string) => {
@@ -362,54 +388,161 @@ export default function UploadWithChatPage() {
   };
 
   // generate
-  const generate = async () => {
-    if (!imageId) { setError('Please upload an image first'); return; }
-    setGenerating(true);
-    setError(null);
+  // generate
+// const generate = async () => {
+//   if (!imageId) { setError('Please upload an image first'); return; }
+//   if (!plan?.orientation) { setError('Pick an orientation (Horizontal / Vertical / Square) before generating.'); return; }
 
-    try {
-      const start = await fetch('/api/spookify/begin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: imageId, promptOverride: finalizedPrompt || undefined }),
-      });
-      const s = await start.json();
-      if (!start.ok || !s?.jobId) throw new Error(s?.error || 'Failed to start');
+//   setGenerating(true);
+//   setError(null);
 
-      const jobId = s.jobId as string;
-      let stopped = false;
+//   // Map orientation → aspect if plan.targetAspect isn't already set
+//   const aspect =
+//     typeof plan.targetAspect === 'number' && plan.targetAspect > 0
+//       ? plan.targetAspect
+//       : plan.orientation === 'Horizontal'
+//       ? 1.4   // tweak to your product aspect (e.g., 70×100 -> 1.428)
+//       : plan.orientation === 'Vertical'
+//       ? 0.7   // inverse of 1.4
+//       : 1;    // Square
 
-      const poll = async () => {
-        if (stopped) return;
-        const r = await fetch(`/api/spookify/status?id=${encodeURIComponent(jobId)}`);
+//   try {
+//     const start = await fetch('/api/spookify/begin', {
+//       method: 'POST',
+//       headers: { 'Content-Type': 'application/json' },
+//       body: JSON.stringify({
+//         id: imageId,
+//         promptOverride: finalizedPrompt || undefined,
+//         orientation: plan.orientation,                 // for logging/safety
+//         target: { aspect, minWidth: 2048, mode: 'cover' }, // worker will fit to this
+//       }),
+//     });
+
+//     const s = await start.json();
+//     if (!start.ok || !s?.jobId) throw new Error(s?.error || 'Failed to start');
+
+//     const jobId: string = s.jobId;
+//     let stopped = false;
+
+//     const poll = async () => {
+//       if (stopped) return;
+//       try {
+//         const r = await fetch(`/api/spookify/status?id=${encodeURIComponent(jobId)}`, { cache: 'no-store' });
+//         const j = await r.json();
+
+//         if (j.status === 'done' && j.resultUrl) {
+//           setSpookified(j.resultUrl as string);
+//           setGenerating(false);
+//           stopped = true;
+//           document.removeEventListener('visibilitychange', onVis as any);
+//           return;
+//         }
+//         if (j.status === 'error') {
+//           setError(j.error || 'Spookify failed');
+//           setGenerating(false);
+//           stopped = true;
+//           document.removeEventListener('visibilitychange', onVis as any);
+//           return;
+//         }
+//       } catch {
+//         // transient network failures → keep polling
+//       }
+//       setTimeout(poll, 2000);
+//     };
+
+//     const onVis: EventListener = () => {
+//       if (!stopped && typeof document !== 'undefined' && document.visibilityState === 'visible') {
+//         void poll();
+//       }
+//     };
+    
+//     document.addEventListener('visibilitychange', onVis, { passive: true });
+//     // Remove the 'as any' when cleaning up:
+//     document.removeEventListener('visibilitychange', onVis);
+//     void poll();
+    
+//   } catch (e: unknown) {
+//     setError(e instanceof Error ? e.message : String(e));
+//     setGenerating(false);
+//   }
+// };
+
+const generate = async () => {
+  if (!imageId) { setError('Please upload an image first'); return; }
+  if (!plan?.orientation) { setError('Pick an orientation (Horizontal / Vertical / Square) before generating.'); return; }
+
+  setGenerating(true);
+  setError(null);
+
+  const aspect =
+    typeof plan.targetAspect === 'number' && plan.targetAspect > 0
+      ? plan.targetAspect
+      : plan.orientation === 'Horizontal'
+      ? 1.4
+      : plan.orientation === 'Vertical'
+      ? 0.7
+      : 1;
+
+  try {
+    const start = await fetch('/api/spookify/begin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: imageId,
+        promptOverride: finalizedPrompt || undefined,
+        orientation: plan.orientation,
+        target: { aspect, minWidth: 2048, mode: 'cover' },
+      }),
+    });
+
+    const s = await start.json();
+    if (!start.ok || !s?.jobId) throw new Error(s?.error || 'Failed to start');
+
+    const jobId: string = s.jobId;
+    let stopped = false;
+
+    const poll = async (): Promise<void> => {
+      if (stopped) return;
+      try {
+        const r = await fetch(`/api/spookify/status?id=${encodeURIComponent(jobId)}`, { cache: 'no-store' });
         const j = await r.json();
+
         if (j.status === 'done' && j.resultUrl) {
           setSpookified(j.resultUrl as string);
           setGenerating(false);
           stopped = true;
+          document.removeEventListener('visibilitychange', onVis);
           return;
         }
         if (j.status === 'error') {
           setError(j.error || 'Spookify failed');
           setGenerating(false);
           stopped = true;
+          document.removeEventListener('visibilitychange', onVis);
           return;
         }
-        setTimeout(poll, 2000);
-      };
-      poll();
+      } catch {
+        // ignore transient network failures
+      }
+      setTimeout(poll, 2000);
+    };
 
-      const onVis = () => {
-        if (!stopped && typeof document !== 'undefined' && document.visibilityState === 'visible') {
-          void poll();
-        }
-      };
-      document.addEventListener('visibilitychange', onVis, { passive: true });
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
-      setGenerating(false);
-    }
-  };
+    // ✅ Properly typed listener (no `as any`)
+    const onVis: EventListener = () => {
+      if (!stopped && document.visibilityState === 'visible') {
+        void poll();
+      }
+    };
+
+    document.addEventListener('visibilitychange', onVis, { passive: true });
+    void poll();
+  } catch (e: unknown) {
+    setError(e instanceof Error ? e.message : String(e));
+    setGenerating(false);
+  }
+};
+
+
 
   // routes
   const goChooseProduct = async () => {
@@ -480,7 +613,8 @@ export default function UploadWithChatPage() {
 
   /* ======================= Render ======================= */
   return (
-    <main className="h-[calc(100vh-64px)] bg-black text-white px-4 md:px-8 pt-4 pb-16 md:pb-8">
+    
+<main className="min-h-screen bg-black text-white px-4 md:px-8 pt-4 pb-[6rem] md:pb-16 overflow-y-auto">
       <header className="max-w-6xl mx-auto text-center mb-3">
         <h1 className="text-3xl md:text-4xl font-bold">Spookify Your Art 👻</h1>
         <p className="text-white/60 mt-1">Upload → Pick vibe → Generate → Print</p>
@@ -503,7 +637,7 @@ export default function UploadWithChatPage() {
 
       {error ? <p className="text-red-400 text-center mb-3">{error}</p> : null}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 max-w-6xl mx-auto h-[calc(100%-120px)]">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 max-w-6xl mx-auto">
         {/* LEFT: Upload + Stage */}
         <section className="lg:col-span-1 flex flex-col gap-4 h-full">
           {!spookified && !originalDataUrl ? (
@@ -634,7 +768,7 @@ export default function UploadWithChatPage() {
         </section>
 
         {/* RIGHT: Chat */}
-        <section className="lg:col-span-2 flex flex-col gap-4 h-full">
+        <section className="lg:col-span-2 flex flex-col gap-4 max-h-full overflow-y-auto">
           {/* Chips show after upload */}
           {originalDataUrl ? (
             <div className="hidden md:flex flex-wrap gap-2">
@@ -652,7 +786,7 @@ export default function UploadWithChatPage() {
 
           <div
             ref={chatScrollRef}
-            className="bg-gray-950 rounded-xl p-4 border border-white/10 flex-1 min-h-0 overflow-y-auto"
+            className="bg-gray-950 rounded-xl p-4 border border-white/10 flex-1 min-h-0 "
           >
             {/* Empty state */}
             {!originalDataUrl && messages.length === 0 ? (
@@ -706,36 +840,46 @@ export default function UploadWithChatPage() {
           />
 
           {/* Generate CTA bar (sticks within panel) */}
-          <div className="bg-gray-950 rounded-xl p-3 border border-white/10 sticky bottom-0">
-            {plan ? (
-              <button
+            {plan && (
+                <div className="bg-gray-950 rounded-xl p-3 border border-white/10 sticky bottom-0">
+              {/* <button
                 onClick={generate}
                 disabled={generating || !imageId}
                 className="w-full px-4 py-2 rounded bg-orange-600 hover:bg-orange-500 disabled:opacity-50"
                 aria-busy={generating}
               >
                 Use this plan → Generate
-              </button>
-            ) : (
-              <p className="text-gray-400 text-sm">
-                Tell me your vibe — I’ll craft the plan and then you can generate.
-              </p>
+              </button> */}
+              <button disabled={!canGenerate} onClick={generate}>Use this plan → Generate</button>
+
+              </div>
             )}
-          </div>
+
+            {plan && !plan.orientation && (
+              <div className="text-[13px] text-white/70">
+                Pick an orientation to continue: 
+                <button onClick={() => setPlan(p => ({...p, orientation:'Horizontal', targetAspect:1.4}))} className="btn">Horizontal</button>
+                <button onClick={() => setPlan(p => ({...p, orientation:'Vertical', targetAspect:0.7}))} className="btn">Vertical</button>
+                <button onClick={() => setPlan(p => ({...p, orientation:'Square', targetAspect:1}))} className="btn">Square</button>
+              </div>
+            )}
         </section>
       </div>
 
       {/* Mobile sticky composer */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-black/80 backdrop-blur border-t border-white/10 px-3 py-2">
-        <Composer
-          disabled={!originalDataUrl || chatBusy || generating}
-          value={input}
-          setValue={setInput}
-          onSend={send}
-          inputRef={inputRef}
-          autoResize={autoResize}
-        />
-      </div>
+  <Composer
+    disabled={!originalDataUrl || chatBusy || generating}
+    value={input}
+    setValue={setInput}
+    onSend={send}
+    inputRef={inputRef}
+    autoResize={autoResize}
+  />
+</div>
+
+{/* spacer so mobile users can scroll behind sticky bar */}
+<div className="h-[80px] md:hidden" />
 
       {/* chat typing indicator + shimmer CSS */}
       <style jsx>{`

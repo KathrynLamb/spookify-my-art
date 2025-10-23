@@ -53,6 +53,7 @@ export async function POST(req: Request) {
     const { orderID, gelatoOrder } = body
 
     if (!orderID) {
+      console.error('❌ Missing orderID in capture body', body)
       return NextResponse.json({ error: 'Missing orderID' }, { status: 400 })
     }
 
@@ -109,6 +110,8 @@ export async function POST(req: Request) {
       )
 
       if (!productUid) {
+        console.error('❌ No product UID match', { product, size, orientation, frameColor })
+
         return NextResponse.json(
           {
             ok: false,

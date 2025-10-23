@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const to = process.env.ORDERS_TO || 'katylamb2000@gmail.com';
+    const to = process.env.ORDERS_TO || 'support@aigifts.org';
     const from =
       process.env.ORDERS_FROM || process.env.SMTP_USER || 'orders@aigifts.org';
 

@@ -62,20 +62,13 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* <FogWipe
-              // before="/before_after_gallery/smile.png"
-              before="/before_after_gallery/prom.png"
-              after="/before_after_gallery/prom_spookified.png"
-              // after="https://fpabsqys5cky7azh.public.blob.vercel-storage.com/spookified-1253911a-fdaa-46c8-8907-6c0de24f011c-M2VlkfGKR2oJKp63PrcVqhGOv3SiLs.png"
-              // after="/before_after_gallery/spookified_dad.png"
-            /> */}
                <HeroSpooky />
           </div>
         </div>
       </section>
 
       {/* --- HOW IT WORKS --- */}
-      <section className="mx-auto max-w-7xl px-4 py-8 md:py-12">
+      <section className="mx-auto max-w-7xl px-4 py-4 md:py-12">
         <h2 className="mb-8 text-center text-3xl font-bold md:text-4xl">How it works</h2>
         <div className="grid gap-4 md:grid-cols-3">
           <Card title="1) Upload" desc="Drop a photo. We’ll guide style & spookiness." iconSrc="/upload.png" />
@@ -85,7 +78,8 @@ export default function LandingPage() {
       </section>
 
       {/* --- PRODUCT HIGHLIGHT --- */}
-      <section className="mx-auto max-w-7xl px-4 pb-8 md:pb-12">
+      <section className="mx-auto max-w-7xl px-4 pb-8 md:pb-12 py-16">
+      <h2 className="mb-8 text-center text-3xl font-bold md:text-4xl">Products</h2>
         <div className="grid gap-6 md:grid-cols-2">
           <ProductTeaser
             headline="Premium Wooden Framed Poster"

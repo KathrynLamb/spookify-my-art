@@ -384,21 +384,24 @@ export default function CheckoutClient() {
       onApprove: async (data, actions) => {
         try {
           setBusy(true);
-
+      
+          const product =
+            frameColor || productUid.toLowerCase().includes('framed')
+              ? 'framed-poster'
+              : 'poster'; // 👈 add this line
+      
           const captureRes = await fetch('/api/paypal/capture', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               orderID: data.orderID,
               gelatoOrder: {
-                orderReferenceId: data.orderID,
+                product, // 👈 include this
                 currency,
                 size,
                 orientation,
                 ...(frameColor ? { frameColor } : {}),
-                ...(productUid ? { productUid } : {}),
                 fileUrl,
-                // TODO: replace with real address form
                 shippingAddress: {
                   name: 'Kate Lamb',
                   addressLine1: 'Manor House',
@@ -410,6 +413,7 @@ export default function CheckoutClient() {
               },
             }),
           });
+      
 
           const result = await captureRes.json();
           console.log('[DEBUG] PayPal capture response:', result);

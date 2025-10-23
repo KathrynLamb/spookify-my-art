@@ -112,7 +112,7 @@ export default function ProductCard({
       setOrientation(preselectOrientation); // ✅ now typed as Orientation
     }
   }, [preselectOrientation, orientation]);
-  
+
   // --- Auto-fix illegal selections (without setting state during render) ---
   // Fix frame if needed
   useEffect(() => {
@@ -177,9 +177,7 @@ export default function ProductCard({
     window.location.href = '/upload?from=products';
   };
   
-  const handleLemon = () => {
-    if (onSelectLemonSqueezy) onSelectLemonSqueezy(active);
-  };
+
 
   const primaryCtaLabel = canProceed
     ? active

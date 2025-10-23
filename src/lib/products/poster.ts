@@ -48,14 +48,14 @@ export const POSTER: PosterProduct = {
       sizeToken: '130x180',
       orientation: 'Vertical',
       productUid: 'flat_130x180-mm-5r_250-gsm-100lb-uncoated-offwhite-archival_4-0_ver',
-      prices: { GBP: 16.99, USD: 19.99, EUR: 18.99  },
+      prices: { GBP: 16.99, USD: 19.99, EUR: 18.99 },
     },
     {
       sizeLabel: '13×18 cm / 5×7″',
       sizeToken: '130x180',
       orientation: 'Horizontal',
       productUid: 'flat_130x180-mm-5r_250-gsm-100lb-uncoated-offwhite-archival_4-0_hor',
-      prices: { GBP: 16.99, USD: 19.99, EUR: 18.99  },
+      prices: { GBP: 16.99, USD: 19.99, EUR: 18.99 },
     },
 
     // 30×40 cm
@@ -64,7 +64,7 @@ export const POSTER: PosterProduct = {
       sizeToken: '300x400',
       orientation: 'Vertical',
       productUid: 'flat_300x400-mm-12x16-inch_250-gsm-100lb-uncoated-offwhite-archival_4-0_ver',
-      prices: { GBP: 12.95, USD: 16.95, EUR: 15.49 },
+      prices: { GBP: 25.95, USD: 35.95, EUR: 29.49 },
 
     },
     {
@@ -72,7 +72,7 @@ export const POSTER: PosterProduct = {
       sizeToken: '300x400',
       orientation: 'Horizontal',
       productUid: 'flat_300x400-mm-12x16-inch_250-gsm-100lb-uncoated-offwhite-archival_4-0_hor',
-      prices: { GBP: 12.95, USD: 16.95, EUR: 15.49 },
+      prices: { GBP: 25.95, USD: 35.95, EUR: 29.49 },
 
     },
 
@@ -82,7 +82,8 @@ export const POSTER: PosterProduct = {
       sizeToken: '500x700',
       orientation: 'Vertical',
       productUid: 'flat_500x700-mm-20x28-inch_250-gsm-100lb-uncoated-offwhite-archival_4-0_ver',
-      prices: { GBP: 19.95, USD: 25.95, EUR: 23.95 },
+      prices: { GBP: 39.95, USD: 32.95, EUR: 53.95 },
+
 
     },
     {
@@ -90,7 +91,7 @@ export const POSTER: PosterProduct = {
       sizeToken: '500x700',
       orientation: 'Horizontal',
       productUid: 'flat_500x700-mm-20x28-inch_250-gsm-100lb-uncoated-offwhite-archival_4-0_hor',
-      prices: { GBP: 19.95, USD: 25.95, EUR: 23.95 },
+      prices: { GBP: 39.95, USD: 32.95, EUR: 53.95 },
 
     },
 
@@ -100,7 +101,7 @@ export const POSTER: PosterProduct = {
       sizeToken: '700x1000',
       orientation: 'Vertical',
       productUid: 'flat_700x1000-mm-28x40-inch_250-gsm-100lb-uncoated-offwhite-archival_4-0_ver',
-      prices: { GBP: 25.95, USD: 32.95, EUR: 30.95 },
+      prices: { GBP: 44.95, USD: 59.95, EUR: 51.95 },
 
     },
     {
@@ -108,7 +109,7 @@ export const POSTER: PosterProduct = {
       sizeToken: '700x1000',
       orientation: 'Horizontal',
       productUid: 'flat_700x1000-mm-28x40-inch_250-gsm-100lb-uncoated-offwhite-archival_4-0_hor',
-      prices: { GBP: 25.95, USD: 32.95, EUR: 30.95 },
+      prices: { GBP: 44.95, USD: 59.95, EUR: 51.95 },
 
     },
   ],

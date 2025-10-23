@@ -13,8 +13,14 @@ import { POSTER } from '@/lib/products/poster';
 // UI
 import ProductCard, { type Variant as CardVariant } from '../components/product-card';
 import { FRAMED_POSTER } from '@/lib/products/index';
+import ProductCardPrintAtHome from '../components/product-card-print-at-home';
 
 const isHttpUrl = (s: string) => /^https?:\/\//i.test(s);
+const PRINT_AT_HOME = {
+  title: 'Print at home',
+  productUid: 'print-at-home',
+  prices: { GBP: 16.99, USD: 19.99, EUR: 18.99 },
+};
 
 /* ---------- Types ---------- */
 type ManualOrderPayload = {
@@ -322,17 +328,6 @@ useEffect(() => {
           <h1 className="text-3xl font-bold">Choose your poster</h1>
 
           <div className="flex items-center gap-4">
-            {/* Design-first toggle */}
-            {/* <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                className="accent-orange-600"
-                checked={designFirst}
-                onChange={(e) => setDesignFirst(e.target.checked)}
-              />
-              <span className="text-white/80">Design first (choose product, then upload)</span>
-            </label> */}
-
             <div className="text-sm">
               <label className="mr-2 text-white/70">Ship to</label>
               <select
@@ -354,7 +349,7 @@ useEffect(() => {
           Checkout uses PayPal. Your generated image is shown on the next page; complete payment there.
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <ProductCard
             title={FRAMED_POSTER.title}
             artSrc="/livingroom_frame_1.png"
@@ -384,6 +379,28 @@ useEffect(() => {
             canProceed={canProceed}
             preselectOrientation={preferredOrientation}
           />
+          <ProductCardPrintAtHome
+            title={PRINT_AT_HOME.title}
+            artSrc="/mockups/print_v3.png"
+            productUid={PRINT_AT_HOME.productUid}
+            prices={PRINT_AT_HOME.prices}
+            canProceed={canProceed}
+            defaultOrientation={preferredOrientation ?? 'Vertical'}
+            onSelect={(variant, titleSuffix) =>
+              onSelect(
+                PRINT_AT_HOME.title,
+                {
+                  // Map aspect ratio to the shape expected by your checkout
+                  sizeLabel: variant.aspectRatio,
+                  orientation: variant.orientation,
+                  productUid: PRINT_AT_HOME.productUid,
+                  prices: PRINT_AT_HOME.prices,
+                } , // CardVariant-compatible shape
+                titleSuffix
+              )
+            }
+          />
+      
         </div>
 
         <p className="mt-6 text-xs text-white/50">

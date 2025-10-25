@@ -21,8 +21,10 @@ type Props = {
       orientation: Orientation;
       productUid: string;
       prices: Partial<Record<Currency, number>>;
+
     },
-    titleSuffix: string
+    titleSuffix: string,
+    fromPrintAtHome: boolean
   ) => void;
   defaultOrientation?: Orientation;
 };
@@ -57,9 +59,9 @@ export default function ProductCardPrintAtHome({
   const handlePrimary = () => {
     const variant = { aspectRatio: aspect, orientation, productUid, prices };
     const titleSuffix = `${aspect} – ${orientation}`;
-
+    const fromPrintAtHome = true
     if (canProceed && onSelect) {
-      onSelect(variant, titleSuffix);
+      onSelect(variant, titleSuffix, fromPrintAtHome);
       return;
     }
 

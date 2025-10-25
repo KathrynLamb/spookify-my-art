@@ -1,28 +1,123 @@
+// // app/api/orders/get/route.ts
+// import { NextRequest, NextResponse } from 'next/server';
+// import { ORDER_CTX } from '@/app/api/_order-kv';
+
+// export const runtime = 'nodejs';
+// export const dynamic = 'force-dynamic';
+
+// const ENV = process.env.PAYPAL_ENV?.toLowerCase() === 'live' ? 'live' : 'sandbox';
+// const BASE = ENV === 'live' ? 'https://api-m.paypal.com' : 'https://api-m.sandbox.paypal.com';
+
+// const CLIENT_ID = process.env.PAYPAL_CLIENT_ID || process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || '';
+// const CLIENT_SECRET = process.env.PAYPAL_CLIENT_SECRET || process.env.PAYPAL_SECRET || '';
+
+// async function getAccessToken(): Promise<string> {
+//   const auth = Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString('base64');
+//   const res = await fetch(`${BASE}/v1/oauth2/token`, {
+//     method: 'POST',
+//     headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+//     body: 'grant_type=client_credentials',
+//     cache: 'no-store',
+//   });
+//   if (!res.ok) throw new Error('PayPal auth failed');
+//   const json = (await res.json()) as { access_token?: string };
+//   if (!json.access_token) throw new Error('No access token returned by PayPal');
+//   return json.access_token;
+// }
+
+// type PayPalItem = { category?: string; sku?: string };
+// type PayPalAmount = { value?: string; currency_code?: string };
+// type PayPalPurchaseUnit = {
+//   amount?: PayPalAmount;
+//   description?: string;
+//   custom_id?: string;   // we set this to imageId in /create
+//   items?: PayPalItem[];
+//   shipping?: { name?: { full_name?: string }; address?: Record<string, unknown> };
+// };
+// type PayPalOrder = {
+//   id?: string;
+//   create_time?: string;
+//   payer?: { email_address?: string };
+//   purchase_units?: PayPalPurchaseUnit[];
+// };
+
+// export async function POST(req: NextRequest) {
+//   try {
+//     const { orderId, sessionId } = (await req.json()) as { orderId?: string; sessionId?: string };
+
+//     if (!orderId && !sessionId) {
+//       return NextResponse.json({ error: 'Missing orderId or sessionId' }, { status: 400 });
+//     }
+
+//     const id = orderId || sessionId!;
+
+//     // ✅ Read context we saved during /api/paypal/create
+//     const ctx = ORDER_CTX.get(id);
+//     const fileUrlCtx = ctx?.fileUrl;
+//     const imageIdCtx = ctx?.imageId;
+
+//     const token = await getAccessToken();
+//     const r = await fetch(`${BASE}/v2/checkout/orders/${encodeURIComponent(id)}`, {
+//       headers: { Authorization: `Bearer ${token}` },
+//       cache: 'no-store',
+//     });
+
+//     if (!r.ok) {
+//       const errText = await r.text().catch(() => '');
+//       return NextResponse.json({ error: errText || 'Order not found' }, { status: 404 });
+//     }
+
+//     const paypal = (await r.json()) as PayPalOrder;
+
+//     const pu = paypal.purchase_units?.[0];
+//     const amountVal = pu?.amount?.value ? Number(pu.amount.value) : undefined;
+//     const currency = pu?.amount?.currency_code || undefined;
+//     const createdAt = paypal.create_time || undefined;
+//     const imageIdFromPU = pu?.custom_id || undefined;
+//     const title = pu?.description || undefined;
+//     const digital = (pu?.items?.[0]?.category === 'DIGITAL_GOODS') || undefined;
+
+//     // Prefer ctx values we explicitly saved; fall back to PayPal fields
+//     const fileUrl = fileUrlCtx;
+
+//     console.log("FILE+++>>", fileUrl)
+//     const imageIdOut = imageIdCtx || imageIdFromPU;
+
+//     const result = {
+//       orderId: paypal.id ?? id,
+//       amount: Number.isFinite(amountVal ?? NaN) ? amountVal : undefined,
+//       currency,
+//       createdAt,
+//       title,
+//       digital,
+//       fileUrl,       // ✅ now present for your Thank You page
+//       imageId: imageIdOut,
+//     };
+
+//     return NextResponse.json(result);
+//   } catch (e) {
+//     const msg = e instanceof Error ? e.message : 'Unexpected error';
+//     return NextResponse.json({ error: msg }, { status: 500 });
+//   }
+// }
 // app/api/orders/get/route.ts
 import { NextRequest, NextResponse } from 'next/server';
+import { ORDER_CTX } from '@/app/api/_order-kv';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const ENV = process.env.PAYPAL_ENV?.toLowerCase() === 'live' ? 'live' : 'sandbox';
-const BASE =
-  ENV === 'live'
-    ? 'https://api-m.paypal.com'
-    : 'https://api-m.sandbox.paypal.com';
+const BASE = ENV === 'live' ? 'https://api-m.paypal.com' : 'https://api-m.sandbox.paypal.com';
 
-const CLIENT_ID =
-  process.env.PAYPAL_CLIENT_ID || process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || '';
-const CLIENT_SECRET =
-  process.env.PAYPAL_CLIENT_SECRET || process.env.PAYPAL_SECRET || '';
+const CLIENT_ID = process.env.PAYPAL_CLIENT_ID || process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || '';
+const CLIENT_SECRET = process.env.PAYPAL_CLIENT_SECRET || process.env.PAYPAL_SECRET || '';
 
 async function getAccessToken(): Promise<string> {
   const auth = Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString('base64');
   const res = await fetch(`${BASE}/v1/oauth2/token`, {
     method: 'POST',
-    headers: {
-      Authorization: `Basic ${auth}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
+    headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
     body: 'grant_type=client_credentials',
     cache: 'no-store',
   });
@@ -32,51 +127,44 @@ async function getAccessToken(): Promise<string> {
   return json.access_token;
 }
 
-/** Minimal shape for PayPal order we read */
+type PayPalItem = { category?: string };
 type PayPalAmount = { value?: string; currency_code?: string };
 type PayPalPurchaseUnit = {
   amount?: PayPalAmount;
   description?: string;
-  custom_id?: string;
-  shipping?: {
-    name?: { full_name?: string };
-    address?: Record<string, unknown>;
-  };
+  custom_id?: string;       // we set this to imageId in /create
+  items?: PayPalItem[];
 };
 type PayPalOrder = {
   id?: string;
   create_time?: string;
-  payer?: { email_address?: string };
   purchase_units?: PayPalPurchaseUnit[];
 };
 
 export async function POST(req: NextRequest) {
   try {
-    const { orderId, sessionId } = (await req.json()) as {
-      orderId?: string;
-      sessionId?: string;
-    };
-
+    const { orderId, sessionId } = (await req.json()) as { orderId?: string; sessionId?: string };
     if (!orderId && !sessionId) {
-      return NextResponse.json(
-        { error: 'Missing orderId or sessionId' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Missing orderId or sessionId' }, { status: 400 });
     }
+
     const id = orderId || sessionId!;
 
-    const token = await getAccessToken();
-    const r = await fetch(
-      `${BASE}/v2/checkout/orders/${encodeURIComponent(id)}`,
-      { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' }
-    );
+    // ✅ read ctx INSIDE the handler
+    const ctx = ORDER_CTX.get(id);
+    console.log("CTX", ctx)
+    const fileUrlCtx = ctx?.fileUrl;
+    console.log("fileUrlCtx", fileUrlCtx)
+    const imageIdCtx = ctx?.imageId;
 
+    const token = await getAccessToken();
+    const r = await fetch(`${BASE}/v2/checkout/orders/${encodeURIComponent(id)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: 'no-store',
+    });
     if (!r.ok) {
       const errText = await r.text().catch(() => '');
-      return NextResponse.json(
-        { error: errText || 'Order not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: errText || 'Order not found' }, { status: 404 });
     }
 
     const paypal = (await r.json()) as PayPalOrder;
@@ -85,25 +173,21 @@ export async function POST(req: NextRequest) {
     const amountVal = pu?.amount?.value ? Number(pu.amount.value) : undefined;
     const currency = pu?.amount?.currency_code || undefined;
     const createdAt = paypal.create_time || undefined;
+    const title = pu?.description || undefined;
+    const digital = (pu?.items?.[0]?.category === 'DIGITAL_GOODS') || undefined;
+    const imageIdFromPU = pu?.custom_id || undefined;
 
-    // If you set these during create, you can surface them here:
-    // const imageId = pu?.custom_id;
-    // const title   = pu?.description;
-
-    const result = {
+    return NextResponse.json({
       orderId: paypal.id ?? id,
       amount: Number.isFinite(amountVal ?? NaN) ? amountVal : undefined,
       currency,
       createdAt,
-      // payerEmail: paypal.payer?.email_address,
-      // shippingName: pu?.shipping?.name?.full_name,
-      // shippingAddress: pu?.shipping?.address,
-      // imageId,
-      // title,
-    };
-
-    return NextResponse.json(result);
-  } catch (e: unknown) {
+      title,
+      digital,
+      fileUrl: fileUrlCtx ?? undefined,              // may be undefined in serverless
+      imageId: imageIdCtx ?? imageIdFromPU ?? undefined,
+    });
+  } catch (e) {
     const msg = e instanceof Error ? e.message : 'Unexpected error';
     return NextResponse.json({ error: msg }, { status: 500 });
   }

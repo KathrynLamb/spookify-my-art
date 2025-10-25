@@ -26,6 +26,9 @@ const SHIPPING: Record<Currency, { standard: number; express: number }> = {
   EUR: { standard: 549, express: 1299 },
 }
 
+const DIGITAL_SKUS = ['print-at-home'];
+
+
 function baseUrl() {
   const envUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.SITE_URL
   if (envUrl) return envUrl.replace(/\/+$/, '')
@@ -51,54 +54,98 @@ export async function POST(req: NextRequest) {
     const ship = SHIPPING[currency]
     const lineName = title ?? `Spookified Wall Art – ${sku}`
 
-    const session = await stripe.checkout.sessions.create({
-      mode: 'payment',
-      allow_promotion_codes: true,
-      customer_creation: 'if_required',
-      currency: stripeCurrency,
-      shipping_address_collection: { allowed_countries: ALLOWED },
-      shipping_options: [
-        {
-          shipping_rate_data: {
-            display_name: 'Standard',
-            type: 'fixed_amount',
-            fixed_amount: { amount: ship.standard, currency: stripeCurrency },
-            delivery_estimate: {
-              minimum: { unit: 'business_day', value: 3 },
-              maximum: { unit: 'business_day', value: 7 },
+    // const session = await stripe.checkout.sessions.create({
+    //   mode: 'payment',
+    //   allow_promotion_codes: true,
+    //   customer_creation: 'if_required',
+    //   currency: stripeCurrency,
+    //   shipping_address_collection: { allowed_countries: ALLOWED },
+    //   shipping_options: [
+    //     {
+    //       shipping_rate_data: {
+    //         display_name: 'Standard',
+    //         type: 'fixed_amount',
+    //         fixed_amount: { amount: ship.standard, currency: stripeCurrency },
+    //         delivery_estimate: {
+    //           minimum: { unit: 'business_day', value: 3 },
+    //           maximum: { unit: 'business_day', value: 7 },
+    //         },
+    //       },
+    //     },
+    //     {
+    //       shipping_rate_data: {
+    //         display_name: 'Express',
+    //         type: 'fixed_amount',
+    //         fixed_amount: { amount: ship.express, currency: stripeCurrency },
+    //         delivery_estimate: {
+    //           minimum: { unit: 'business_day', value: 1 },
+    //           maximum: { unit: 'business_day', value: 2 },
+    //         },
+    //       },
+    //     },
+    //   ],
+    //   line_items: [
+    //     {
+    //       quantity: 1,
+    //       price_data: {
+    //         currency: stripeCurrency,
+    //         unit_amount: unitAmount,
+    //         product_data: {
+    //           name: lineName,
+    //           images: [fileUrl],
+    //           metadata: { imageId, sku, fileUrl },
+    //         },
+    //       },
+    //     },
+    //   ],
+    //   metadata: { fileUrl, imageId, sku, currency },
+    //   success_url: `${baseUrl()}/post-checkout?session_id={CHECKOUT_SESSION_ID}`,
+    //   cancel_url: `${baseUrl()}/upload?cancelled=1`,
+    // })
+
+    const isDigital = DIGITAL_SKUS.includes(sku);
+
+const session = await stripe.checkout.sessions.create({
+  mode: 'payment',
+  allow_promotion_codes: true,
+  customer_creation: 'if_required',
+  currency: stripeCurrency,
+  ...(isDigital
+    ? {} // ✅ skip shipping
+    : {
+        shipping_address_collection: { allowed_countries: ALLOWED },
+        shipping_options: [
+          {
+            shipping_rate_data: {
+              display_name: 'Standard',
+              type: 'fixed_amount',
+              fixed_amount: { amount: ship.standard, currency: stripeCurrency },
+              delivery_estimate: {
+                minimum: { unit: 'business_day', value: 3 },
+                maximum: { unit: 'business_day', value: 7 },
+              },
             },
           },
+        ],
+      }),
+  line_items: [
+    {
+      quantity: 1,
+      price_data: {
+        currency: stripeCurrency,
+        unit_amount: unitAmount,
+        product_data: {
+          name: lineName,
+          images: [fileUrl],
+          metadata: { imageId, sku, fileUrl },
         },
-        {
-          shipping_rate_data: {
-            display_name: 'Express',
-            type: 'fixed_amount',
-            fixed_amount: { amount: ship.express, currency: stripeCurrency },
-            delivery_estimate: {
-              minimum: { unit: 'business_day', value: 1 },
-              maximum: { unit: 'business_day', value: 2 },
-            },
-          },
-        },
-      ],
-      line_items: [
-        {
-          quantity: 1,
-          price_data: {
-            currency: stripeCurrency,
-            unit_amount: unitAmount,
-            product_data: {
-              name: lineName,
-              images: [fileUrl],
-              metadata: { imageId, sku, fileUrl },
-            },
-          },
-        },
-      ],
-      metadata: { fileUrl, imageId, sku, currency },
-      success_url: `${baseUrl()}/post-checkout?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${baseUrl()}/upload?cancelled=1`,
-    })
+      },
+    },
+  ],
+  metadata: { fileUrl, imageId, sku, currency },
+  success_url: `${baseUrl()}/post-checkout?session_id={CHECKOUT_SESSION_ID}`,
+  cancel_url: `${baseUrl()}/upload?cancelled=1`,
+});
 
     return NextResponse.json({ url: session.url })
   } catch (err: unknown) {

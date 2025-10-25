@@ -1,9 +1,5 @@
-
-// import { findProductUid } from '@/lib/products/index'
-// import { findProductUid } from '@/lib/products/index'
 import { findProductUid } from '@/lib/products/index'
 import { NextResponse } from 'next/server'
-// import { findProductUid } from '@/lib/products' // <- your new helper (src/lib/products/index.ts)
 
 const ENV = process.env.PAYPAL_ENV?.toLowerCase() === 'live' ? 'live' : 'sandbox'
 const BASE =
@@ -32,21 +28,24 @@ async function getAccessToken() {
   return json.access_token as string
 }
 
-// Types we expect from the client
+// -----------------------------
+// Types
+// -----------------------------
 type CaptureInput = {
   orderID: string
   gelatoOrder?: {
-    // IMPORTANT: include product so we can choose the right catalog
-    product: 'framed-poster' | 'poster'
+    product: 'framed-poster' | 'poster' | 'print-at-home'
     currency: 'GBP' | 'USD' | 'EUR'
     size: string
     orientation: 'Vertical' | 'Horizontal'
-    // only required for framed-poster
     frameColor?: 'Black' | 'White' | 'Wood' | 'Dark wood'
     fileUrl: string
   }
 }
 
+// -----------------------------
+// Main Handler
+// -----------------------------
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as CaptureInput
@@ -57,7 +56,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing orderID' }, { status: 400 })
     }
 
-    // 1) Capture the PayPal order
+    // 1️⃣ Capture the PayPal payment
     const token = await getAccessToken()
     const captureRes = await fetch(`${BASE}/v2/checkout/orders/${orderID}/capture`, {
       method: 'POST',
@@ -76,8 +75,7 @@ export async function POST(req: Request) {
       )
     }
 
-    // 2) Extract buyer shipping from PayPal result (we pass this through;
-    //    your /api/gelato/place-order normalizes it)
+    // 2️⃣ Extract buyer shipping info (if available)
     const pu = paypal?.purchase_units?.[0] ?? {}
     const shipping = pu?.shipping ?? {}
     const addr = shipping?.address ?? {}
@@ -96,13 +94,23 @@ export async function POST(req: Request) {
       email: paypal?.payer?.email_address || '',
     }
 
-    // 3) If a Gelato order is requested, resolve productUid and place it
+    // 3️⃣ Handle order fulfillment
     let gelato: unknown = null
 
     if (gelatoOrder) {
       const { product, currency, size, orientation, frameColor, fileUrl } = gelatoOrder
 
-      // Make sure we have the right productUid from your catalog
+      // 🧩 Case 1: DIGITAL PRINT-AT-HOME
+      if (product === 'print-at-home') {
+        console.log('💾 Digital order — skipping Gelato placement')
+        return NextResponse.json({
+          ok: true,
+          paypal,
+          gelato: { ok: true, digital: true, note: 'No Gelato fulfillment needed' },
+        })
+      }
+
+      // 🧩 Case 2: PHYSICAL PRODUCT — needs Gelato
       const productUid = findProductUid(
         product === 'poster'
           ? { product, size, orientation }
@@ -111,7 +119,6 @@ export async function POST(req: Request) {
 
       if (!productUid) {
         console.error('❌ No product UID match', { product, size, orientation, frameColor })
-
         return NextResponse.json(
           {
             ok: false,
@@ -123,7 +130,7 @@ export async function POST(req: Request) {
         )
       }
 
-      // Build payload for your internal Gelato route
+      // Build the Gelato order payload
       const gelatoPayload = {
         orderReferenceId: orderID,
         currency,
@@ -145,35 +152,25 @@ export async function POST(req: Request) {
         ],
       }
 
-
-
-      const reqUrl = new URL(req.url);
+      // Determine the correct base URL for internal call
+      const reqUrl = new URL(req.url)
       const baseUrl =
         process.env.NEXT_PUBLIC_BASE_URL?.replace(/\/$/, '') ||
         (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '') ||
         reqUrl.origin ||
-        'http://localhost:3000';
-  
-      // Call your own Gelato placer with an absolute URL
+        'http://localhost:3000'
+
+      // Call Gelato placement route
       const gRes = await fetch(`${baseUrl}/api/gelato/place-order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(gelatoPayload),
-        // optional: avoid caching
         cache: 'no-store',
-      });
-
-      // Send to your own normalizer/placer
-    //   const gRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/gelato/place-order`, {
-    //     method: 'POST',
-    //     headers: { 'Content-Type': 'application/json' },
-    //     body: JSON.stringify(gelatoPayload),
-    //     cache: 'no-store',
-    //   })
+      })
       gelato = await gRes.json()
     }
 
-    // 4) Combined result
+    // 4️⃣ Return unified result
     return NextResponse.json({ ok: true, paypal, gelato })
   } catch (err) {
     console.error('[PayPal Capture] Fatal error', err)

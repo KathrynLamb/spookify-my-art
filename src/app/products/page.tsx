@@ -252,7 +252,7 @@ useEffect(() => {
   }, [currency]);
 
   // When designFirst is ON, "Select" stores variant + image info, then routes to /upload
-  async function onSelect(productTitle: string, variant: CardVariant, titleSuffix: string) {
+  async function onSelect(productTitle: string, variant: CardVariant, titleSuffix: string, fromPrintAtHome: boolean) {
     try {
       if (!canProceed) {
         router.push('/upload?from=products'); // ⬅️ add this query flag
@@ -298,6 +298,7 @@ useEffect(() => {
       });
 
       if (variant.frameColor) qp.set('frameColor', variant.frameColor);
+      if (fromPrintAtHome) qp.set('sku', 'print-at-home');
 
       router.push(`/checkout?${qp.toString()}`);
     } catch (e) {
@@ -355,11 +356,12 @@ useEffect(() => {
             artSrc="/livingroom_frame_1.png"
             mockupSrc="/framedPosterGelato.png"
             variants={framedVariants}
-            onSelect={(v, titleSuffix) =>
+            onSelect={(v, titleSuffix, fromPrintAtHome) =>
               onSelect(
                 FRAMED_POSTER.title,
                 v,
-                titleSuffix || `${v.sizeLabel} – ${v.frameColor ?? ''} – ${v.orientation}`.replace(/\s–\s–/, ' –')
+                titleSuffix || `${v.sizeLabel} – ${v.frameColor ?? ''} – ${v.orientation}`.replace(/\s–\s–/, ' –'),
+                fromPrintAtHome ?? false  // ✅ add this
               )
             }
             controls={{ showFrame: true }}
@@ -372,8 +374,9 @@ useEffect(() => {
             artSrc="/poster_costumes2.png"
             mockupSrc="/posterFromGelato.png"
             variants={posterVariants}
-            onSelect={(v, titleSuffix) =>
-              onSelect(POSTER.title, v, titleSuffix || `${v.sizeLabel} – ${v.orientation}`)
+            onSelect={(v, titleSuffix, fromPrintAtHome) =>
+              onSelect(POSTER.title, v, titleSuffix || `${v.sizeLabel} – ${v.orientation}`, fromPrintAtHome ?? false)  // ✅ add this),
+              
             }
             controls={{ showFrame: false }}
             canProceed={canProceed}
@@ -386,7 +389,7 @@ useEffect(() => {
             prices={PRINT_AT_HOME.prices}
             canProceed={canProceed}
             defaultOrientation={preferredOrientation ?? 'Vertical'}
-            onSelect={(variant, titleSuffix) =>
+            onSelect={(variant, titleSuffix, fromPrintAtHome) =>
               onSelect(
                 PRINT_AT_HOME.title,
                 {
@@ -396,7 +399,8 @@ useEffect(() => {
                   productUid: PRINT_AT_HOME.productUid,
                   prices: PRINT_AT_HOME.prices,
                 } , // CardVariant-compatible shape
-                titleSuffix
+                titleSuffix,
+                fromPrintAtHome ?? false  // ✅ add this
               )
             }
           />

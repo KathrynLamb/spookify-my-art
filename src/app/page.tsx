@@ -80,7 +80,7 @@ export default function LandingPage() {
       {/* --- PRODUCT HIGHLIGHT --- */}
       <section className="mx-auto max-w-7xl px-4 pb-8 md:pb-12 py-16">
       <h2 className="mb-8 text-center text-3xl font-bold md:text-4xl">Products</h2>
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid gap-6 md:grid-cols-3">
           <ProductTeaser
             headline="Premium Wooden Framed Poster"
             copy="Semi-gloss 200 gsm behind plexiglass in hardwood frames. Ready-to-hang."
@@ -93,6 +93,12 @@ export default function LandingPage() {
             copy="Archival 200 gsm matte paper. Rich color, glare-free finish."
             cta={{ href: "/products", label: "Pick a size" }}
             image="/poster_costumes2.png"
+          />
+          <ProductTeaser
+            headline="Print At Home DownloadPack"
+            copy="High Res A-Series JPG/PDFs (A5, A4, A3)"
+            cta={{ href: "/upload", label: "Download and print in minutes" }}
+            image="/mockups/print_v3.png"
           />
         </div>
       </section>

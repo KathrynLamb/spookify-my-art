@@ -25,7 +25,7 @@ type Props = {
   mockupSrc?: string; // (kept for compatibility, not used here)
   variants: Variant[];
   onSelect?: (v: Variant, titleSuffix: string) => void;  // <— add
-  onSelectLemonSqueezy?: (v?: Variant) => void;
+  // onSelectLemonSqueezy?: (v?: Variant) => void;
   controls?: { showFrame?: boolean };
   canProceed: boolean;
   preselectOrientation?: Orientation | null;
@@ -39,7 +39,7 @@ export default function ProductCard({
   title,
   artSrc,
   variants,
-  onSelectLemonSqueezy,
+  // onSelectLemonSqueezy,
   canProceed,
   controls = { showFrame: true },
   onSelect,

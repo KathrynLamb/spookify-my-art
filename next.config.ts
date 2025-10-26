@@ -9,6 +9,9 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: 'fpabsqys5cky7azh.public.blob.vercel-storage.com' },
     ],
   },
+  experimental: {
+    serverExternalPackages: ['sharp'], // keep native module external
+  },
 }
 
 export default nextConfig

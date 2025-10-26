@@ -1,8 +1,16 @@
+export const runtime = 'nodejs';
+
+
 import { NextResponse } from 'next/server';
 import { getJob, updateJob, type SpookifyJobInput } from '@/lib/jobs';
-import sharp from 'sharp';
+// import sharp from 'sharp';
+async function getSharp() {
+  const mod = await import('sharp');
+  return mod.default;
+}
 
-export const runtime = 'nodejs';
+
+
 export const dynamic = 'force-dynamic';
 
 const DEFAULT_PROMPT =
@@ -57,6 +65,7 @@ async function conformImage(
   pngBuffer: Buffer,
   opts: { aspect?: number; minWidth?: number; mode: 'cover' | 'contain' }
 ): Promise<Buffer> {
+  const sharp = await getSharp();
   const img = sharp(pngBuffer);
   const meta = await img.metadata();
 

@@ -1,271 +1,271 @@
-'use client';
+import React, { useMemo, useState } from "react";
+import Image from "next/image";
+import { cn } from "@/lib/utils";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
-import Image from 'next/image';
-import { useEffect, useMemo, useState, useCallback } from 'react';
-import PriceTag from './price-tag';
-import { ChipGroup } from '../components/ui/chips';
-import { useCurrency } from '@/contexts/CurrencyContext';
-
-type FrameColor = 'Black' | 'White' | 'Wood' | 'Dark wood';
-type Currency = 'GBP' | 'USD' | 'EUR';
-
-export type Orientation = 'Vertical' | 'Horizontal';
+export type Currency = "GBP" | "USD" | "EUR";
 
 export type Variant = {
-  sizeLabel: string;
-  frameColor?: FrameColor;
-  orientation: Orientation;
-  productUid: string;
-  prices: Partial<Record<Currency, number>>;
+  sizeLabel: string; // e.g. "30×40 cm"
+  orientation: "Portrait" | "Landscape" | "Square";
+  frameColor?: "Black" | "White" | "Wood" | "Dark wood";
+  productUid?: string;
+  prices: Record<Currency, number> & { GBP: number };
 };
 
-type Props = {
+export type ProductCardV2Props = {
   title: string;
   artSrc: string;
-  mockupSrc?: string; // (kept for compatibility, not used here)
+  badge?: string;
   variants: Variant[];
-  onSelect?: (v: Variant, titleSuffix: string, fromPrintAtHome: boolean) => void;  // <— add
-  // onSelectLemonSqueezy?: (v?: Variant) => void;
+  /** legacy support: page passes controls={{ showFrame: true }} */
   controls?: { showFrame?: boolean };
-  canProceed: boolean;
-  preselectOrientation?: Orientation | null;
-
+  /** direct flag also supported */
+  showFrame?: boolean;
+  preselectOrientation?: "Portrait" | "Landscape" | "Square" | null;
+  /** true if image already exists (upload-first flow) */
+  canProceed?: boolean;
+  onSelect: (
+    variant: Variant,
+    titleSuffix?: string,
+    fromPrintAtHome?: boolean
+  ) => void;
 };
 
+const fmt = (n: number, c: Currency = "GBP") => {
+  try {
+    return new Intl.NumberFormat(undefined, { style: "currency", currency: c }).format(n);
+  } catch {
+    return `${n.toFixed(2)} ${c}`;
+  }
+};
 
-const isDataOrBlob = (s: string) => /^(data:|blob:)/i.test(s);
-
-export default function ProductCard({
+export default function ProductCardV2({
   title,
   artSrc,
+  badge,
   variants,
-  // onSelectLemonSqueezy,
-  canProceed,
-  controls = { showFrame: true },
+  controls,
+  showFrame,
+  preselectOrientation = null,
+  canProceed = false,
   onSelect,
-  preselectOrientation,
+}: ProductCardV2Props) {
 
-}: Props) {
+  console.log("Variants", variants, "PS", preselectOrientation, badge)
+  // 🔑 react to “Ship to” changes
   const { currency } = useCurrency();
-  console.log("preselected orientation", preselectOrientation)
 
-  // Distinct option lists
-  const sizeOptions = useMemo(
-    () => [...new Set(variants.map((v) => v.sizeLabel))],
+  // resolve frame toggle from either prop shape
+  const showFrameOn = (controls?.showFrame ?? showFrame) ?? false;
+
+  // Options
+  const orientations = useMemo(
+    () => Array.from(new Set(variants.map(v => v.orientation))),
     [variants]
   );
-  const orientationOptions = useMemo(
-    () => [...new Set(variants.map((v) => v.orientation))],
+  const sizes = useMemo(
+    () => Array.from(new Set(variants.map(v => v.sizeLabel))),
     [variants]
   );
-  const frameOptions = useMemo(
-    () => [...new Set(variants.map((v) => v.frameColor).filter(Boolean))] as FrameColor[],
-    [variants]
-  );
-
-  // Selections
-  const [size, setSize] = useState<string>(sizeOptions[0]);
-  // const [orientation, setOrientation] = useState<Orientation>(orientationOptions[0]!);
-  const [orientation, setOrientation] = useState<Orientation>('Vertical');
-  const [frame, setFrame] = useState<FrameColor | undefined>(
-    controls.showFrame ? frameOptions[0] : undefined
-  );
-
-  // Availability helpers
-  const isVariantAvailable = useCallback(
-    (s: string, o: Orientation, f?: FrameColor) =>
-      variants.some(
-        (v) => v.sizeLabel === s && v.orientation === o && (controls.showFrame ? v.frameColor === f : true)
-      ),
-    [variants, controls.showFrame]
-  );
-
-  const isFrameDisabled = useCallback(
-    (f: FrameColor) => !isVariantAvailable(size, orientation, f),
-    [isVariantAvailable, size, orientation]
-  );
-  const isSizeDisabled = useCallback(
-    (s: string) => !isVariantAvailable(s, orientation, frame),
-    [isVariantAvailable, orientation, frame]
-  );
-  const isOrientationDisabled = useCallback(
-    (o: Orientation) => !isVariantAvailable(size, o, frame),
-    [isVariantAvailable, size, frame]
-  );
-
-  // Active variant
-  const active = useMemo(
+  const frameColors = useMemo(
     () =>
-      variants.find(
-        (v) =>
-          v.sizeLabel === size &&
-          v.orientation === orientation &&
-          (controls.showFrame ? v.frameColor === frame : true)
-      ),
-    [variants, size, orientation, frame, controls.showFrame]
+      Array.from(new Set(variants.map(v => v.frameColor).filter(Boolean))) as NonNullable<
+        Variant["frameColor"]
+      >[],
+    [variants]
   );
 
-  const activePrice = active?.prices[currency] ?? active?.prices.GBP;
-  
-  useEffect(() => {
-    if (preselectOrientation && preselectOrientation !== orientation) {
-      setOrientation(preselectOrientation); // ✅ now typed as Orientation
-    }
-  }, [preselectOrientation, orientation]);
+  // State
+  const [orientation, setOrientation] = useState<"Portrait" | "Landscape" | "Square" | null>(
+    preselectOrientation ?? orientations[0] ?? null
+  );
+  const [size, setSize] = useState<string>(sizes[0] || "");
+  const [frame, setFrame] = useState<Variant["frameColor"] | undefined>(frameColors[0]);
 
-  // --- Auto-fix illegal selections (without setting state during render) ---
-  // Fix frame if needed
-  useEffect(() => {
-    if (!controls.showFrame) return;
-    if (frame && isFrameDisabled(frame)) {
-      const next = frameOptions.find((f) => !isFrameDisabled(f));
-      if (next && next !== frame) setFrame(next);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [size, orientation, frameOptions.join('|')]); // deliberate deps
+  // Find exact match for current selection
+  const selected = useMemo(() => {
+    if (!orientation) return undefined;
+    return variants.find(
+      v =>
+        v.sizeLabel === size &&
+        v.orientation === orientation &&
+        (!showFrameOn || v.frameColor === frame)
+    );
+  }, [variants, size, orientation, frame, showFrameOn]);
 
-  // Fix size if needed
-  useEffect(() => {
-    if (isSizeDisabled(size)) {
-      const next = sizeOptions.find((s) => !isSizeDisabled(s));
-      if (next && next !== size) setSize(next);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orientation, frame, sizeOptions.join('|')]); // deliberate deps
+  const price = selected?.prices?.[currency] ?? selected?.prices?.GBP ?? 0;
 
-  // Fix orientation if needed
-  useEffect(() => {
-    if (isOrientationDisabled(orientation)) {
-      const next = orientationOptions.find((o) => !isOrientationDisabled(o));
-      if (next && next !== orientation) setOrientation(next);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [size, frame, orientationOptions.join('|')]); // deliberate deps
+  // CTA label + disabled state
+  const primaryLabel = !selected ? "Not available" : canProceed ? "Select" : "Select, then Spookify";
+  const primaryDisabled = !selected;
 
-  // CTA handlers
-  const handlePrimary = async () => {
-    if (!active) return;
-    const fromPrintAtHome = false
-  // If we came from the upload-first flow (we have fileUrl & imageId on /products)
-  // and the parent provided onSelect, hand off to checkout instead of redirecting.
- if (canProceed && onSelect) {
-     const titleSuffix = `${active.sizeLabel}${
-      active.frameColor ? ` – ${active.frameColor}` : ''
-   } – ${active.orientation}`;
-   onSelect(active, titleSuffix, fromPrintAtHome);
-   return;
- }
-  
+  const handlePrimary = () => {
+    if (!selected) return;
+
+    const fromPrintAtHome = false;
+    const titleSuffix = buildTitleSuffix(selected);
+
+    if (canProceed) {
+      onSelect(selected, titleSuffix, fromPrintAtHome);
+      return;
+    }
+
+    // Product-first flow: stash choice and move to upload
     const selection = {
       productTitle: title,
       variant: {
-        sizeLabel: active.sizeLabel,
-        orientation: active.orientation,
-        productUid: active.productUid,
-        prices: active.prices,
-        frameColor: active.frameColor,
+        sizeLabel: selected.sizeLabel,
+        orientation: selected.orientation,
+        productUid: selected.productUid,
+        prices: selected.prices,
+        frameColor: selected.frameColor,
       },
-      titleSuffix: `${active.sizeLabel}${active.frameColor ? ` – ${active.frameColor}` : ''} – ${active.orientation}`,
-      currency,
-      imageId: '', // will be filled later during upload
-      fileUrl: '', // will be replaced once the user uploads
+      titleSuffix,
+      currency, // from context
+      imageId: "",
+      fileUrl: "",
     };
-  
-    localStorage.setItem('spookify:pending-product', JSON.stringify(selection));
-  
-    // Go to the upload page
-    window.location.href = '/upload?from=products';
+
+    try {
+      localStorage.setItem("spookify:pending-product", JSON.stringify(selection));
+    } catch {}
+    window.location.href = "/upload?from=products";
   };
-  
-
-
-  const primaryCtaLabel = canProceed
-    ? active
-      ? 'Select'
-      : 'Not available'
-    : 'Select, then Spookify';
 
   return (
-    <div className="relative flex flex-col rounded-xl overflow-hidden bg-[#0f0f11] border border-white/10 shadow-sm hover:shadow-lg transition">
-      {/* Image Preview */}
-      {artSrc && (
-        <div className="relative w-full bg-black">
-          <Image
-            src={artSrc}
-            alt="Artwork preview"
-            width={800}
-            height={1000}
-            unoptimized={isDataOrBlob(artSrc)}
-            className="w-full h-auto object-contain"
-          />
-        </div>
-      )}
-
-      {/* Info + Options */}
-      <div className="flex flex-col gap-4 p-4 pb-20">
-        {/* Title + Price */}
-        <div className="flex justify-between items-center">
-          <h3 className="text-base font-semibold">{title}</h3>
-          <PriceTag amount={activePrice} currency={currency} />
-        </div>
-
-        {/* Options */}
-        <div className="flex flex-col gap-3">
-          {/* Size */}
-          <div>
-            <div className="text-xs text-white/60 uppercase mb-1">Size</div>
-            <ChipGroup
-              options={sizeOptions as readonly string[]}
-              value={size}
-              onChange={setSize}
-              isDisabled={isSizeDisabled}
-            />
-          </div>
-
-          {/* Frame (optional) */}
-          {controls.showFrame && frameOptions.length > 0 && (
-            <div>
-              <div className="text-xs text-white/60 uppercase mb-1">Frame</div>
-              <ChipGroup
-                options={frameOptions as readonly FrameColor[]}
-                value={frame as FrameColor}
-                onChange={setFrame as (f: FrameColor) => void}
-                isDisabled={isFrameDisabled}
-              />
-            </div>
-          )}
-
-          {/* Orientation */}
-          <div>
-            <div className="text-xs text-white/60 uppercase mb-1">Orientation</div>
-            <ChipGroup
-              options={orientationOptions as readonly Orientation[]}
-              value={orientation}
-              onChange={setOrientation}
-              isDisabled={isOrientationDisabled}
-            />
-          </div>
-        </div>
+    <div className="group relative flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0e0e11]">
+      {/* media */}
+      <div className="relative h-56 w-full overflow-hidden">
+        <Image
+          src={artSrc}
+          alt={title}
+          fill
+          sizes="(min-width:1024px) 480px, 100vw"
+          className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+        />
+        {badge && (
+          <span className="pointer-events-none absolute right-3 top-3 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] text-white/80 backdrop-blur">
+            {badge}
+          </span>
+        )}
+        <div className="pointer-events-none absolute inset-0 ring-1 ring-inset ring-white/10" />
       </div>
 
-      {/* Fixed bottom CTA */}
-      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#0f0f11] via-[#0f0f11]/90 to-transparent backdrop-blur-sm p-4 flex items-center justify-between gap-2">
-        <span className="text-white/90 font-medium">
-          <PriceTag amount={activePrice} currency={currency} />
-        </span>
+      {/* content */}
+      <div className="flex flex-1 flex-col gap-4 p-5">
+        <div className="flex items-start justify-between gap-3">
+          <h3 className="text-lg font-semibold leading-tight">{title}</h3>
+          <div className="shrink-0 rounded-md bg-white/5 px-2.5 py-1 text-sm font-semibold">
+            {fmt(price, currency)}
+          </div>
+        </div>
 
-        <div className="flex items-center gap-2">
+        {/* Orientation */}
+        {orientations.length > 1 && (
+          <fieldset>
+            <legend className="mb-2 text-xs text-white/55">Orientation</legend>
+            <div className="inline-flex rounded-lg border border-white/10 bg-white/5 p-1">
+              {orientations.map(o => (
+                <button
+                  key={o}
+                  type="button"
+                   onClick={() => setOrientation(o)}
+                  className={cn(
+                    "px-3 py-1.5 text-sm rounded-md",
+                    orientation === o
+                      ? "bg-orange-600 text-white"
+                      : "text-white/80 hover:bg-white/10"
+                  )}
+                >
+                  {o}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+        )}
 
+        {/* Size grid */}
+        <fieldset>
+          <legend className="mb-2 text-xs text-white/55">Size</legend>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {sizes.map(s => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setSize(s)}
+                className={cn(
+                  "rounded-lg border px-3 py-2 text-sm",
+                  s === size
+                    ? "border-orange-500 bg-orange-500/10 text-white"
+                    : "border-white/10 bg-white/5 text-white/80 hover:bg-white/10"
+                )}
+                aria-pressed={s === size}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        </fieldset>
+
+        {/* Frame colors */}
+        {showFrameOn && frameColors.length > 0 && (
+          <fieldset>
+            <legend className="mb-2 text-xs text-white/55">Frame</legend>
+            <div className="flex flex-wrap gap-2">
+              {frameColors.map(fc => (
+                <button
+                  key={fc}
+                  type="button"
+                  onClick={() => setFrame(fc)}
+                  className={cn(
+                    "inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm",
+                    fc === frame
+                      ? "border-orange-500 bg-orange-500/10 text-white"
+                      : "border-white/10 bg-white/5 text-white/80 hover:bg-white/10"
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "h-3 w-3 rounded-full",
+                      fc === "Black" && "bg-black",
+                      fc === "White" && "bg-white",
+                      fc === "Wood" && "bg-amber-700",
+                      fc === "Dark wood" && "bg-stone-700"
+                    )}
+                  />
+                  {fc}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+        )}
+
+        {/* Footer actions */}
+        <div className="mt-auto flex items-center justify-between gap-3 pt-2">
+          <p className="text-xs text-white/55">Archival paper • Fast fulfillment</p>
           <button
             type="button"
-            disabled={!active}
+            disabled={primaryDisabled}
             onClick={handlePrimary}
-            className="flex items-center justify-center rounded-full bg-orange-600 hover:bg-orange-500 px-5 h-10 text-sm font-medium text-white disabled:opacity-50 disabled:cursor-not-allowed transition"
+            className={cn(
+              "rounded-full px-4 py-2 text-sm font-semibold transition",
+              primaryDisabled
+                ? "bg-white/10 text-white/50 cursor-not-allowed"
+                : "bg-orange-600 hover:bg-orange-500 text-white"
+            )}
           >
-            {primaryCtaLabel}
+            {primaryLabel}
           </button>
         </div>
       </div>
     </div>
   );
+}
+
+function buildTitleSuffix(v: Variant) {
+  const bits = [v.sizeLabel];
+  if (v.frameColor) bits.push(v.frameColor);
+  bits.push(v.orientation);
+  return bits.join(" – ");
 }

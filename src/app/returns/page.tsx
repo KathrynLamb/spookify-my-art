@@ -41,7 +41,7 @@ export const metadata = {
     
     <h2 className="text-xl font-semibold text-white">3. How to Request a Refund</h2>
     <p>
-    Email us at <a href="mailto:katylamb@gmail.com" className="underline text-orange-300">katylamb@gmail.com</a> with your order number, issue details, and a photo of the issue.
+    Email us at <a href="mailto:katylamb@gmail.com" className="underline text-orange-300">support@aigifts.org</a> with your order number, issue details, and a photo of the issue.
     </p>
     
     

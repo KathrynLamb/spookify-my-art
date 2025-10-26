@@ -34,10 +34,31 @@ export default function LandingPage() {
               <h1 className="mt-4 text-4xl font-extrabold leading-tight md:text-6xl">
                 Turn your photo into <span className="text-orange-400">spooky</span> wall art
               </h1>
-              <p className="mt-4 max-w-xl text-white/70">
-                Upload a photo, tell us the vibe, and we’ll conjure a print-ready artwork in minutes.
-                Museum-grade paper, premium wood frames, global delivery.
-              </p>
+       {/* SUBHEAD */}
+       <p className="mt-5 max-w-xl text-[17px] leading-relaxed text-white/85">
+  Say the word <span className="text-orange-400 font-semibold">spookify</span> and our friendly AI designer
+  jumps in with wicked ideas. Prefer control? Dictate every detail. Either way, we’ll iterate
+  until it’s perfect—and print it pretty.
+</p>
+
+{/* FUN CHIPS */}
+<div className="mt-4 flex flex-wrap gap-2 text-xs text-white/75">
+  {['No awkward prompts', 'Redo until happy', 'Friendly, human vibe', 'Poster or framed'].map((t) => (
+    <span key={t} className="rounded-full border border-white/10 bg-white/5 px-3 py-1">{t}</span>
+  ))}
+</div>
+
+{/* <div className="mt-6 flex flex-wrap gap-3">
+  <Link href="/upload" className="rounded-full bg-orange-600 px-5 py-3 text-sm font-medium shadow-lg shadow-orange-600/20 hover:bg-orange-500">
+    Start with “spookify”
+  </Link>
+  <Link href="/products" className="rounded-full border border-white/15 bg-white/5 px-5 py-3 text-sm font-medium hover:border-white/25">
+    See frames & posters
+  </Link>
+</div> */}
+
+
+
 
               <div className="mt-6 flex flex-wrap gap-3">
                 <Link

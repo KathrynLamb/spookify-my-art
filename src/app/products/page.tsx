@@ -34,6 +34,16 @@ type ManualOrderPayload = {
   currency: Currency;
 };
 
+type AnyOrientation = string | null | undefined;
+
+function normalizeOrientation(o: AnyOrientation): "Portrait" | "Landscape" | "Square" | null {
+  if (!o) return null;
+  const s = String(o).toLowerCase();
+  if (s === "portrait" || s === "vertical") return "Portrait";
+  if (s === "landscape" || s === "horizontal") return "Landscape";
+  if (s === "square") return "Square";
+  return null;
+}
 
 
 /* ---------- Manual order modal (optional fallback) ---------- */
@@ -197,25 +207,22 @@ function ProductsInner() {
   const router = useRouter();
   const sp = useSearchParams();
 
-// Prefer query, fall back to localStorage on mount
-const [preferredOrientation, setPreferredOrientation] = useState<'Horizontal' | 'Vertical' | null>(
-  (sp.get('orientation') === 'Horizontal' || sp.get('orientation') === 'Vertical')
-    ? (sp.get('orientation') as 'Horizontal' | 'Vertical')
-    : null
-);
+  // Prefer query, fall back to localStorage on mount
+  const qOrientation = sp.get("orientation");
+  const [preferredOrientation, setPreferredOrientation] = useState<
+    "Portrait" | "Landscape" | "Square" | null
+  >(normalizeOrientation(qOrientation));
 
-useEffect(() => {
-  if (preferredOrientation) return; // already from query
-  try {
-    const raw = localStorage.getItem('spookify:last-plan');
-    if (!raw) return;
-    const j = JSON.parse(raw) as { orientation?: string | null };
-    if (j?.orientation === 'Horizontal' || j?.orientation === 'Vertical') {
-      setPreferredOrientation(j.orientation);
-    }
-  } catch {}
-}, [preferredOrientation]);
-
+  useEffect(() => {
+    if (preferredOrientation) return; // already from query
+    try {
+      const raw = localStorage.getItem("spookify:last-plan");
+      if (!raw) return;
+      const j = JSON.parse(raw) as { orientation?: string | null };
+      const norm = normalizeOrientation(j?.orientation);
+      if (norm) setPreferredOrientation(norm);
+    } catch {}
+  }, [preferredOrientation]);
 
   const fileUrlQP = sp.get('fileUrl') || '';
   const imageId = sp.get('imageId') || '';
@@ -310,17 +317,18 @@ useEffect(() => {
   const framedVariants: CardVariant[] = FRAMED_POSTER.variants.map((v) => ({
     sizeLabel: v.sizeLabel,
     frameColor: v.frameColor,
-    orientation: v.orientation,
+    orientation: normalizeOrientation(v.orientation) ?? "Portrait",
     productUid: v.productUid,
     prices: v.prices,
   }));
-
+  
   const posterVariants: CardVariant[] = POSTER.variants.map((v) => ({
     sizeLabel: v.sizeLabel,
-    orientation: v.orientation,
+    orientation: normalizeOrientation(v.orientation) ?? "Portrait",
     productUid: v.productUid,
     prices: v.prices,
   }));
+  
 
   return (
     <main className="min-h-screen bg-black text-white">
@@ -354,7 +362,7 @@ useEffect(() => {
           <ProductCard
             title={FRAMED_POSTER.title}
             artSrc="/livingroom_frame_1.png"
-            mockupSrc="/framedPosterGelato.png"
+            // mockupSrc="/framedPosterGelato.png"
             variants={framedVariants}
             onSelect={(v, titleSuffix, fromPrintAtHome) =>
               onSelect(
@@ -372,7 +380,7 @@ useEffect(() => {
           <ProductCard
             title={POSTER.title}
             artSrc="/poster_costumes2.png"
-            mockupSrc="/posterFromGelato.png"
+            // mockupSrc="/posterFromGelato.png"
             variants={posterVariants}
             onSelect={(v, titleSuffix, fromPrintAtHome) =>
               onSelect(POSTER.title, v, titleSuffix || `${v.sizeLabel} – ${v.orientation}`, fromPrintAtHome ?? false)  // ✅ add this),

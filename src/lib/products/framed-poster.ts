@@ -1,24 +1,17 @@
 // src/data/products/framed-poster.ts
 export type Currency = 'GBP' | 'USD' | 'EUR';
-export type Orientation = 'Vertical' | 'Horizontal';
+export type Orientation = 'Portrait' | 'Landscape' | 'Square';
 export type FrameColor = 'Black' | 'White' | 'Wood' | 'Dark wood';
 
-export type PriceTable = Partial<Record<Currency, number>>; // numeric, major units (e.g., 58.97)
+export type PriceTable = Partial<Record<Currency, number>>; // major units
 
 export type FramedPosterVariant = {
-  sizeLabel: string;          // human label shown in UI (keep identical to your dropdown)
-  sizeToken: string;          // internal token you use (optional but handy)
-  orientation: Orientation;   // Vertical | Horizontal
-  frameColor: FrameColor;     // Black | White | Wood | Dark wood
-  productUid: string;         // <-- <FILL> Gelato productUid for this exact combo
-  prices: PriceTable;         // <-- <FILL> e.g. { GBP: 58.97, USD: 69.90 }
-};
-
-export const PRICE_BY_SIZE: Record<string, PriceTable> = {
-  '15×20 cm / 6×8″': { GBP: 29.99, USD: 34.99, EUR: 32.99 },
-  '30×40 cm':        { GBP: 47.99, USD: 57.99, EUR: 53.99 },
-  '50×70 cm':        { GBP: 69.99, USD: 84.99, EUR: 79.99 },
-  '70×100 cm / 28×40″': { GBP: 104.99, USD: 124.99, EUR: 114.99 },
+  sizeLabel: string;        // shown in UI
+  sizeToken: string;        // internal key (e.g. "300x400")
+  orientation: Orientation; // Portrait | Landscape | Square
+  frameColor: FrameColor;
+  productUid: string;       // Gelato productUid for this combo
+  prices: PriceTable;
 };
 
 export type FramedPosterProduct = {
@@ -30,13 +23,115 @@ export type FramedPosterProduct = {
   glazing: 'Plexiglass';
   orientations: Orientation[];
   frameColors: FrameColor[];
-  sizes: string[];            // list you expose in the UI
-  variants: FramedPosterVariant[]; // each concrete, orderable combo
+  sizes: string[];              // all labels exposed in UI
+  variants: FramedPosterVariant[]; // concrete, orderable combos
 };
 
-// export const FRAMED_POSTER: FramedPosterProduct = {
-  export const FRAMED_POSTER: FramedPosterProduct = {
+/* ----------------- Config ----------------- */
 
+const FRAME_COLORS: FrameColor[] = ['Black', 'White', 'Wood', 'Dark wood'];
+
+// Retail prices by UI size label (rectangular)
+export const PRICE_BY_SIZE: Record<string, PriceTable> = {
+  '15×20 cm / 6×8″':          { GBP: 29.99, USD: 34.99, EUR: 32.99 },
+  '30×40 cm':                 { GBP: 47.99, USD: 57.99, EUR: 53.99 },
+  '50×70 cm':                 { GBP: 69.99, USD: 84.99, EUR: 79.99 },
+  '70×100 cm / 28×40″':       { GBP: 104.99, USD: 124.99, EUR: 114.99 },
+};
+
+// Rectangular sizes (Portrait/Landscape)
+const RECT_SIZES = [
+  { sizeLabel: '15×20 cm / 6×8″',   mm: '150x200-mm',  inches: '6x8-inch',   token: '150x200'  },
+  { sizeLabel: '30×40 cm',          mm: '300x400-mm',  inches: '12x16-inch', token: '300x400'  },
+  { sizeLabel: '50×70 cm',          mm: '500x700-mm',  inches: '20x28-inch', token: '500x700'  },
+  { sizeLabel: '70×100 cm / 28×40″',mm: '700x1000-mm', inches: '28x40-inch', token: '700x1000' },
+] as const;
+
+// Square sizes (Square orientation)
+const SQUARE_SIZES = [
+  { sizeLabel: '20×20 cm / 8″×8″',   mm: '200x200-mm', inches: '8x8-inch',   token: '200x200'  },
+  { sizeLabel: '30×30 cm / 12″×12″', mm: '300x300-mm', inches: '12x12-inch', token: '300x300'  },
+  { sizeLabel: '40×40 cm / 16″×16″', mm: '400x400-mm', inches: '16x16-inch', token: '400x400'  },
+  { sizeLabel: '50×50 cm / 20″×20″', mm: '500x500-mm', inches: '20x20-inch', token: '500x500'  },
+  { sizeLabel: '70×70 cm / 28″×28″', mm: '700x700-mm', inches: '28x28-inch', token: '700x700'  },
+] as const;
+
+// Square price table (set/adjust as you like)
+const SQUARE_PRICE_TABLE = new Map<string, PriceTable>([
+  ['200x200-mm', { GBP: 19.99, USD: 22.99, EUR: 21.99 }],
+  ['300x300-mm', { GBP: 24.99, USD: 28.99, EUR: 26.99 }],
+  ['400x400-mm', { GBP: 34.99, USD: 39.99, EUR: 37.99 }],
+  ['500x500-mm', { GBP: 44.99, USD: 51.99, EUR: 48.99 }],
+  ['700x700-mm', { GBP: 64.99, USD: 74.99, EUR: 69.99 }],
+]);
+
+/* ----------------- UID helpers ----------------- */
+/** Map UI frame color to Gelato token segment */
+const frameToken = (fc: FrameColor) =>
+  fc === 'Black' ? 'black_wood'
+: fc === 'White' ? 'white_wood'
+: fc === 'Wood'  ? 'natural-wood_wood' // matches Gelato’s “natural-wood_wood” in your examples
+:                  'dark-wood_wood';
+
+/**
+ * Build Gelato productUid for framed mounted prints.
+ * Adjust this pattern if your catalog uses different segments (paper stock, glazing, frame profile, etc).
+ *
+ * @param mm      e.g. "300x400-mm"
+ * @param inches  e.g. "12x16-inch"
+ * @param fc      frame color
+ * @param suffix  'ver' | 'hor' (Gelato often uses these even for square)
+ */
+const buildFramedMountedUid = (
+  mm: string,
+  inches: string,
+  fc: FrameColor,
+  suffix: 'ver' | 'hor' = 'ver'
+) =>
+  `framed_poster_mounted_${mm}-${inches}_${frameToken(fc)}_w12xt22-mm_plexiglass_${mm}-${inches}_170-gsm-65lb-coated-silk_4-0_${suffix}`;
+
+/* ----------------- Generators ----------------- */
+
+const buildRectVariants = (): FramedPosterVariant[] =>
+  RECT_SIZES.flatMap(({ sizeLabel, mm, inches, token }) =>
+    FRAME_COLORS.flatMap<FramedPosterVariant>((fc) => ([
+      // Portrait
+      {
+        sizeLabel,
+        sizeToken: token,
+        orientation: 'Portrait',
+        frameColor: fc,
+        productUid: buildFramedMountedUid(mm, inches, fc, 'ver'),
+        prices: PRICE_BY_SIZE[sizeLabel] ?? { GBP: 0, USD: 0, EUR: 0 },
+      },
+      // Landscape
+      {
+        sizeLabel,
+        sizeToken: token,
+        orientation: 'Landscape',
+        frameColor: fc,
+        productUid: buildFramedMountedUid(mm, inches, fc, 'hor'),
+        prices: PRICE_BY_SIZE[sizeLabel] ?? { GBP: 0, USD: 0, EUR: 0 },
+      },
+    ]))
+  );
+
+const buildSquareVariants = (): FramedPosterVariant[] =>
+  SQUARE_SIZES.flatMap(({ sizeLabel, mm, inches, token }) =>
+    FRAME_COLORS.map<FramedPosterVariant>((fc) => ({
+      sizeLabel,
+      sizeToken: token,
+      orientation: 'Square',
+      frameColor: fc,
+      // Square prints don't change with rotation, but many Gelato UIDs still use a suffix; 'ver' is fine.
+      productUid: buildFramedMountedUid(mm, inches, fc, 'ver'),
+      prices: SQUARE_PRICE_TABLE.get(mm) ?? { GBP: 0, USD: 0, EUR: 0 },
+    }))
+  );
+
+/* ----------------- Export product ----------------- */
+
+export const FRAMED_POSTER: FramedPosterProduct = {
   slug: 'framed-poster',
   title: 'Premium Wooden Framed Poster',
   description:
@@ -45,318 +140,25 @@ export type FramedPosterProduct = {
   paper: 'Premium Semi-Gloss 200 gsm',
   glazing: 'Plexiglass',
 
-  orientations: ['Vertical', 'Horizontal'],
-  frameColors: ['Black', 'White', 'Wood', 'Dark wood'],
+  orientations: ['Portrait', 'Landscape', 'Square'],
+  frameColors: FRAME_COLORS,
 
-  // Keep the set tight for launch; expand later
   sizes: [
+    // rectangular
     '15×20 cm / 6×8″',
     '30×40 cm',
     '50×70 cm',
     '70×100 cm / 28×40″',
+    // square
+    '20×20 cm / 8×8″',
+    '30×30 cm / 12×12″',
+    '40×40 cm / 16×16″',
+    '50×50 cm / 20×20″',
+    '70×70 cm / 28×28″',
   ],
 
-  // === Fill these productUid + prices with your real data ===
   variants: [
-    // 15×20 cm / 6×8″ — commonly uses 20×20 frame profile on Gelato
-    {
-      sizeLabel: '15×20 cm / 6×8″',
-      sizeToken: '150x200',
-      orientation: 'Vertical',
-      frameColor: 'White',
-      productUid: 'framed_poster_mounted_150x200-mm-6x8-inch_white_wood_w12xt22-mm_plexiglass_150x200-mm-6x8-inch_170-gsm-65lb-coated-silk_4-0_ver',
-      prices: PRICE_BY_SIZE['15×20 cm / 6×8″'],
-    },
-    {
-      sizeLabel: '15×20 cm / 6×8″',
-      sizeToken: '150x200',
-      orientation: 'Vertical',
-      frameColor: 'Black',
-      productUid: 'framed_poster_mounted_150x200-mm-6x8-inch_black_wood_w12xt22-mm_plexiglass_150x200-mm-6x8-inch_170-gsm-65lb-coated-silk_4-0_ver',
-      prices: PRICE_BY_SIZE['15×20 cm / 6×8″'],
-
-    },
-    {
-        sizeLabel: '15×20 cm / 6×8″',
-        sizeToken: '150x200',
-        orientation: 'Vertical',
-        frameColor: 'Wood',
-        productUid: 'framed_poster_mounted_150x200-mm-6x8-inch_natural-wood_wood_w12xt22-mm_plexiglass_150x200-mm-6x8-inch_170-gsm-65lb-coated-silk_4-0_ver',
-        prices: PRICE_BY_SIZE['15×20 cm / 6×8″'],
-
-      },
-      {
-        sizeLabel: '15×20 cm / 6×8″',
-        sizeToken: '150x200',
-        orientation: 'Vertical',
-        frameColor: 'Dark wood',
-        productUid: 'framed_poster_mounted_150x200-mm-6x8-inch_dark-wood_wood_w12xt22-mm_plexiglass_150x200-mm-6x8-inch_170-gsm-65lb-coated-silk_4-0_ver',
-        prices: PRICE_BY_SIZE['15×20 cm / 6×8″'],
-
-      },
-
-    // 30×40 cm
-    {
-      sizeLabel: '30×40 cm',
-      sizeToken: '300x400',
-      orientation: 'Vertical',
-      frameColor: 'White',
-      productUid: 'framed_poster_mounted_300x400-mm-12x16-inch_white_wood_w12xt22-mm_plexiglass_300x400-mm-12x16-inch_170-gsm-65lb-coated-silk_4-0_ver',
-      prices: { GBP: 38.95, USD: 46.95, EUR: 43.95 }, // <FILL/ADJUST>
-    },
-    {
-      sizeLabel: '30×40 cm',
-      sizeToken: '300x400',
-      orientation: 'Vertical',
-      frameColor: 'Black',
-      productUid: 'framed_poster_mounted_300x400-mm-12x16-inch_black_wood_w12xt22-mm_plexiglass_300x400-mm-12x16-inch_170-gsm-65lb-coated-silk_4-0_ver',
-      prices: PRICE_BY_SIZE['30×40 cm'],
-    },
-    {
-        sizeLabel: '30×40 cm',
-        sizeToken: '300x400',
-        orientation: 'Vertical',
-        frameColor: 'Wood',
-        productUid: 'framed_poster_mounted_300x400-mm-12x16-inch_natural-wood_wood_w12xt22-mm_plexiglass_300x400-mm-12x16-inch_170-gsm-65lb-coated-silk_4-0_ver',
-        prices: PRICE_BY_SIZE['30×40 cm'],     
-      },
-      {
-        sizeLabel: '30×40 cm',
-        sizeToken: '300x400',
-        orientation: 'Vertical',
-        frameColor: 'Dark wood',
-        productUid: 'framed_poster_mounted_300x400-mm-12x16-inch_dark-wood_wood_w12xt22-mm_plexiglass_300x400-mm-12x16-inch_170-gsm-65lb-coated-silk_4-0_ver',
-        prices: PRICE_BY_SIZE['30×40 cm'],      
-      },
-
-
-    // 50×70 cm
-    {
-      sizeLabel: '50×70 cm',
-      sizeToken: '500x700',
-      orientation: 'Vertical',
-      frameColor: 'Dark wood',
-      productUid: 'framed_poster_mounted_500x700-mm-20x28-inch_dark-wood_wood_w12xt22-mm_plexiglass_500x700-mm-20x28-inch_170-gsm-65lb-coated-silk_4-0_ver',
-      prices: PRICE_BY_SIZE['50×70 cm'],
-    },
-    {
-      sizeLabel: '50×70 cm',
-      sizeToken: '500x700',
-      orientation: 'Vertical',
-      frameColor: 'Wood',
-      productUid: 'framed_poster_mounted_500x700-mm-20x28-inch_natural-wood_wood_w12xt22-mm_plexiglass_500x700-mm-20x28-inch_170-gsm-65lb-coated-silk_4-0_ver',
-      prices: PRICE_BY_SIZE['50×70 cm'],
-    },
-    {
-        sizeLabel: '50×70 cm',
-        sizeToken: '500x700',
-        orientation: 'Vertical',
-        frameColor: 'Black',
-        productUid: 'framed_poster_mounted_500x700-mm-20x28-inch_black_wood_w12xt22-mm_plexiglass_500x700-mm-20x28-inch_170-gsm-65lb-coated-silk_4-0_ver',
-        prices: PRICE_BY_SIZE['50×70 cm'],
-      },
-      {
-        sizeLabel: '50×70 cm',
-        sizeToken: '500x700',
-        orientation: 'Vertical',
-        frameColor: 'White',
-        productUid: 'framed_poster_mounted_500x700-mm-20x28-inch_white_wood_w12xt22-mm_plexiglass_500x700-mm-20x28-inch_170-gsm-65lb-coated-silk_4-0_ver',
-        prices: PRICE_BY_SIZE['50×70 cm'],
-      },
-
-    // 70×100 cm / 28×40″
-    {
-      sizeLabel: '70×100 cm / 28×40″',
-      sizeToken: '700x1000',
-      orientation: 'Vertical',
-      frameColor: 'Black',
-      productUid: 'framed_poster_mounted_700x1000-mm-28x40-inch_black_wood_w12xt22-mm_plexiglass_700x1000-mm-28x40-inch_170-gsm-65lb-coated-silk_4-0_ver',
-      prices: PRICE_BY_SIZE['70×100 cm / 28×40″'],
-    },
-    {
-        sizeLabel: '70×100 cm / 28×40″',
-        sizeToken: '700x1000',
-        orientation: 'Vertical',
-        frameColor: 'White',
-        productUid: 'framed_poster_mounted_700x1000-mm-28x40-inch_white_wood_w12xt22-mm_plexiglass_700x1000-mm-28x40-inch_170-gsm-65lb-coated-silk_4-0_ver',
-        prices: PRICE_BY_SIZE['70×100 cm / 28×40″'],   
-       },
-    {
-      sizeLabel: '70×100 cm / 28×40″',
-      sizeToken: '700x1000',
-      orientation: 'Vertical',
-      frameColor: 'Dark wood',
-      productUid:
-        'framed_poster_mounted_700x1000-mm-28x40-inch_dark-wood_wood_w12xt22-mm_plexiglass_700x1000-mm-28x40-inch_170-gsm-65lb-coated-silk_4-0_ver',
-        prices: PRICE_BY_SIZE['70×100 cm / 28×40″'],  
-      },
-    {
-        sizeLabel: '70×100 cm / 28×40″',
-        sizeToken: '700x1000',
-        orientation: 'Vertical',
-        frameColor: 'Wood',
-        productUid:
-          'framed_poster_mounted_700x1000-mm-28x40-inch_natural-wood_wood_w12xt22-mm_plexiglass_700x1000-mm-28x40-inch_170-gsm-65lb-coated-silk_4-0_ver70 * 100',
-          prices: PRICE_BY_SIZE['70×100 cm / 28×40″'],   
-        },
-    // (Optional) horizontal examples
-   // ⬇️ Append these to FRAMED_POSTER.variants (after your vertical ones)
-
-// 15×20 cm / 6×8″ — Horizontal
-{
-    sizeLabel: '15×20 cm / 6×8″',
-    sizeToken: '150x200',
-    orientation: 'Horizontal',
-    frameColor: 'White',
-    productUid:
-      'framed_poster_mounted_150x200-mm-6x8-inch_white_wood_w12xt22-mm_plexiglass_150x200-mm-6x8-inch_170-gsm-65lb-coated-silk_4-0_hor',
-    prices: { GBP: 24.95, USD: 29.95, EUR: 27.95 },
-  },
-  {
-    sizeLabel: '15×20 cm / 6×8″',
-    sizeToken: '150x200',
-    orientation: 'Horizontal',
-    frameColor: 'Black',
-    productUid:
-      'framed_poster_mounted_150x200-mm-6x8-inch_black_wood_w12xt22-mm_plexiglass_150x200-mm-6x8-inch_170-gsm-65lb-coated-silk_4-0_hor',
-      prices: PRICE_BY_SIZE['15×20 cm / 6×8″'],
-  },
-  {
-    sizeLabel: '15×20 cm / 6×8″',
-    sizeToken: '150x200',
-    orientation: 'Horizontal',
-    frameColor: 'Wood',
-    productUid:
-      'framed_poster_mounted_150x200-mm-6x8-inch_natural-wood_wood_w12xt22-mm_plexiglass_150x200-mm-6x8-inch_170-gsm-65lb-coated-silk_4-0_hor',
-      prices: PRICE_BY_SIZE['15×20 cm / 6×8″'],
-  },
-  {
-    sizeLabel: '15×20 cm / 6×8″',
-    sizeToken: '150x200',
-    orientation: 'Horizontal',
-    frameColor: 'Dark wood',
-    productUid:
-      'framed_poster_mounted_150x200-mm-6x8-inch_dark-wood_wood_w12xt22-mm_plexiglass_150x200-mm-6x8-inch_170-gsm-65lb-coated-silk_4-0_hor',
-      prices: PRICE_BY_SIZE['15×20 cm / 6×8″'],
-  },
-  
-  // 30×40 cm — Horizontal
-  {
-    sizeLabel: '30×40 cm',
-    sizeToken: '300x400',
-    orientation: 'Horizontal',
-    frameColor: 'White',
-    productUid:
-      'framed_poster_mounted_300x400-mm-12x16-inch_white_wood_w12xt22-mm_plexiglass_300x400-mm-12x16-inch_170-gsm-65lb-coated-silk_4-0_hor',
-      prices: PRICE_BY_SIZE['30×40 cm'],
-  },
-  {
-    sizeLabel: '30×40 cm',
-    sizeToken: '300x400',
-    orientation: 'Horizontal',
-    frameColor: 'Black',
-    productUid:
-      'framed_poster_mounted_300x400-mm-12x16-inch_black_wood_w12xt22-mm_plexiglass_300x400-mm-12x16-inch_170-gsm-65lb-coated-silk_4-0_hor',
-      prices: PRICE_BY_SIZE['30×40 cm'],
-  },
-  {
-    sizeLabel: '30×40 cm',
-    sizeToken: '300x400',
-    orientation: 'Horizontal',
-    frameColor: 'Wood',
-    productUid:
-      'framed_poster_mounted_300x400-mm-12x16-inch_natural-wood_wood_w12xt22-mm_plexiglass_300x400-mm-12x16-inch_170-gsm-65lb-coated-silk_4-0_hor',
-      prices: PRICE_BY_SIZE['30×40 cm'],
-  },
-  {
-    sizeLabel: '30×40 cm',
-    sizeToken: '300x400',
-    orientation: 'Horizontal',
-    frameColor: 'Dark wood',
-    productUid:
-      'framed_poster_mounted_300x400-mm-12x16-inch_dark-wood_wood_w12xt22-mm_plexiglass_300x400-mm-12x16-inch_170-gsm-65lb-coated-silk_4-0_hor',
-      prices: PRICE_BY_SIZE['30×40 cm'],
-  },
-  
-  // 50×70 cm — Horizontal
-  {
-    sizeLabel: '50×70 cm',
-    sizeToken: '500x700',
-    orientation: 'Horizontal',
-    frameColor: 'Dark wood',
-    productUid:
-      'framed_poster_mounted_500x700-mm-20x28-inch_dark-wood_wood_w12xt22-mm_plexiglass_500x700-mm-20x28-inch_170-gsm-65lb-coated-silk_4-0_hor',
-    prices: { GBP: 52.95, USD: 64.95, EUR: 59.95 },
-  },
-  {
-    sizeLabel: '50×70 cm',
-    sizeToken: '500x700',
-    orientation: 'Horizontal',
-    frameColor: 'Wood',
-    productUid:
-      'framed_poster_mounted_500x700-mm-20x28-inch_natural-wood_wood_w12xt22-mm_plexiglass_500x700-mm-20x28-inch_170-gsm-65lb-coated-silk_4-0_hor',
-      prices: PRICE_BY_SIZE['50×70 cm'],
-  },
-  {
-    sizeLabel: '50×70 cm',
-    sizeToken: '500x700',
-    orientation: 'Horizontal',
-    frameColor: 'Black',
-    productUid:
-      'framed_poster_mounted_500x700-mm-20x28-inch_black_wood_w12xt22-mm_plexiglass_500x700-mm-20x28-inch_170-gsm-65lb-coated-silk_4-0_hor',
-      prices: PRICE_BY_SIZE['50×70 cm'],
-  },
-  {
-    sizeLabel: '50×70 cm',
-    sizeToken: '500x700',
-    orientation: 'Horizontal',
-    frameColor: 'White',
-    productUid:
-      'framed_poster_mounted_500x700-mm-20x28-inch_white_wood_w12xt22-mm_plexiglass_500x700-mm-20x28-inch_170-gsm-65lb-coated-silk_4-0_hor',
-      prices: PRICE_BY_SIZE['50×70 cm'],
-  },
-  
-  // 70×100 cm / 28×40″ — Horizontal
-  {
-    sizeLabel: '70×100 cm / 28×40″',
-    sizeToken: '700x1000',
-    orientation: 'Horizontal',
-    frameColor: 'Black',
-    productUid:
-      'framed_poster_mounted_700x1000-mm-28x40-inch_black_wood_w12xt22-mm_plexiglass_700x1000-mm-28x40-inch_170-gsm-65lb-coated-silk_4-0_hor',
-      prices: PRICE_BY_SIZE['70×100 cm / 28×40″'],
-
-  },
-  {
-    sizeLabel: '70×100 cm / 28×40″',
-    sizeToken: '700x1000',
-    orientation: 'Horizontal',
-    frameColor: 'White',
-    productUid:
-      'framed_poster_mounted_700x1000-mm-28x40-inch_white_wood_w12xt22-mm_plexiglass_700x1000-mm-28x40-inch_170-gsm-65lb-coated-silk_4-0_hor',
-      prices: PRICE_BY_SIZE['70×100 cm / 28×40″'],
-
-  },
-  {
-    sizeLabel: '70×100 cm / 28×40″',
-    sizeToken: '700x1000',
-    orientation: 'Horizontal',
-    frameColor: 'Dark wood',
-    productUid:
-      'framed_poster_mounted_700x1000-mm-28x40-inch_dark-wood_wood_w12xt22-mm_plexiglass_700x1000-mm-28x40-inch_170-gsm-65lb-coated-silk_4-0_hor',
-      prices: PRICE_BY_SIZE['70×100 cm / 28×40″'],
-
-  },
-  {
-    sizeLabel: '70×100 cm / 28×40″',
-    sizeToken: '700x1000',
-    orientation: 'Horizontal',
-    frameColor: 'Wood',
-    productUid:
-      'framed_poster_mounted_700x1000-mm-28x40-inch_natural-wood_wood_w12xt22-mm_plexiglass_700x1000-mm-28x40-inch_170-gsm-65lb-coated-silk_4-0_hor',
-      prices: PRICE_BY_SIZE['70×100 cm / 28×40″'],
-
-  },
-  
+    ...buildRectVariants(),
+    ...buildSquareVariants(),
   ],
 };

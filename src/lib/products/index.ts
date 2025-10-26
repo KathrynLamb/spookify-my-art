@@ -3,7 +3,7 @@ import { FRAMED_POSTER } from './framed-poster'
 import { POSTER } from './poster'
 
 export type ProductSlug = 'framed-poster' | 'poster'
-export type Orientation = 'Vertical' | 'Horizontal'
+export type Orientation = 'Vertical' | 'Horizontal' | 'Square'; 
 
 export { FRAMED_POSTER, POSTER }
 

@@ -3,7 +3,7 @@
 export type Currency = 'GBP' | 'USD' | 'EUR';
 
 export type FrameColor = 'Black' | 'White' | 'Wood' | 'Dark wood';
-export type Orientation = 'Vertical' | 'Horizontal';
+export type Orientation = 'Vertical' | 'Horizontal' | "Square";
 
 export type SizeLabel =
   | '15×20 cm / 6×8″'

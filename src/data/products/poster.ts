@@ -1,6 +1,6 @@
 // src/data/products/poster.ts
 export type Currency = 'GBP' | 'USD' | 'EUR'
-export type Orientation = 'Vertical' | 'Horizontal'
+export type Orientation = 'Vertical' | 'Horizontal' | "Square";
 
 export type PosterPriceTable = Partial<Record<Currency, number>> // major units
 

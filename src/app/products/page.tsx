@@ -29,21 +29,47 @@ type ManualOrderPayload = {
   imageId: string;
   product: string;
   sizeLabel: string;
-  orientation: 'Vertical' | 'Horizontal';
+  orientation: 'Portrait' | 'Landscape' | 'Square';
   frameColor?: string | null;
   currency: Currency;
 };
 
-type AnyOrientation = string | null | undefined;
+// type AnyOrientation = string | null | undefined;
 
-function normalizeOrientation(o: AnyOrientation): "Portrait" | "Landscape" | "Square" | null {
+// function normalizeOrientation(o: AnyOrientation): "Portrait" | "Landscape" | "Square" | null {
+//   if (!o) return null;
+//   const s = String(o).toLowerCase();
+//   if (s === "portrait" || s === "vertical") return "Portrait";
+//   if (s === "landscape" || s === "horizontal") return "Landscape";
+//   if (s === "square") return "Square";
+//   return null;
+// }
+
+type AnyOrientation = string | null | undefined;
+// type Curr = 'GBP' | 'USD' | 'EUR';
+
+function normalizeOrientation(
+  o: AnyOrientation
+): 'Portrait' | 'Landscape' | 'Square' | null {
   if (!o) return null;
   const s = String(o).toLowerCase();
-  if (s === "portrait" || s === "vertical") return "Portrait";
-  if (s === "landscape" || s === "horizontal") return "Landscape";
-  if (s === "square") return "Square";
+  if (s === 'portrait' || s === 'vertical') return 'Portrait';
+  if (s === 'landscape' || s === 'horizontal') return 'Landscape';
+  if (s === 'square') return 'Square';
   return null;
 }
+type Curr = 'GBP' | 'USD' | 'EUR';
+
+function coercePrices(
+  input: Partial<Record<Curr, number>> | null | undefined
+): Record<Curr, number> & { GBP: number } {
+  const src: Partial<Record<Curr, number>> = input ?? {};
+  const GBP = typeof src.GBP === 'number' ? src.GBP : 0;
+  const USD = typeof src.USD === 'number' ? src.USD : 0;
+  const EUR = typeof src.EUR === 'number' ? src.EUR : 0;
+  return { GBP, USD, EUR };
+}
+
 
 
 /* ---------- Manual order modal (optional fallback) ---------- */
@@ -247,7 +273,7 @@ function ProductsInner() {
     email: '',
     product: '',
     sizeLabel: '',
-    orientation: 'Vertical',
+    orientation: 'Portrait',
     frameColor: null,
     fileUrl: fileUrlQP,
     imageId: imageId || '',
@@ -314,21 +340,22 @@ function ProductsInner() {
   }
 
   // Map data → card variants (typed)
-  const framedVariants: CardVariant[] = FRAMED_POSTER.variants.map((v) => ({
-    sizeLabel: v.sizeLabel,
-    frameColor: v.frameColor,
-    orientation: normalizeOrientation(v.orientation) ?? "Portrait",
-    productUid: v.productUid,
-    prices: v.prices,
-  }));
-  
-  const posterVariants: CardVariant[] = POSTER.variants.map((v) => ({
-    sizeLabel: v.sizeLabel,
-    orientation: normalizeOrientation(v.orientation) ?? "Portrait",
-    productUid: v.productUid,
-    prices: v.prices,
-  }));
-  
+// Map data → card variants (typed)
+const framedVariants: CardVariant[] = FRAMED_POSTER.variants.map((v) => ({
+  sizeLabel: v.sizeLabel,
+  frameColor: v.frameColor,
+  orientation: normalizeOrientation(v.orientation) ?? "Portrait",
+  productUid: v.productUid,
+  prices: coercePrices(v.prices), // <-- use coercer
+}));
+
+const posterVariants: CardVariant[] = POSTER.variants.map((v) => ({
+  sizeLabel: v.sizeLabel,
+  orientation: normalizeOrientation(v.orientation) ?? "Portrait",
+  productUid: v.productUid,
+  prices: coercePrices(v.prices), // <-- use coercer
+}));
+
 
   return (
     <main className="min-h-screen bg-black text-white">
@@ -396,7 +423,7 @@ function ProductsInner() {
             productUid={PRINT_AT_HOME.productUid}
             prices={PRINT_AT_HOME.prices}
             canProceed={canProceed}
-            defaultOrientation={preferredOrientation ?? 'Vertical'}
+            defaultOrientation={preferredOrientation ?? 'Portrait'}
             onSelect={(variant, titleSuffix, fromPrintAtHome) =>
               onSelect(
                 PRINT_AT_HOME.title,

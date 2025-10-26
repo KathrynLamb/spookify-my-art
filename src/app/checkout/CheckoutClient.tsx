@@ -235,6 +235,7 @@ if (isPrintAtHome) {
     // include productUid because it's used in the effect
   }, [
     sdkReady,
+    sku,
     sdkErr,
     missing,
     amount,

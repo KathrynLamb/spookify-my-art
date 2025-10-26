@@ -17,7 +17,7 @@ export function normalizeOrientation(
 export function coercePrices(
   input: unknown
 ): Record<Currency, number> & { GBP: number } {
-  let map: Partial<Record<Currency, number>> = {};
+  const map: Partial<Record<Currency, number>> = {};
 
   if (Array.isArray(input)) {
     for (const row of input as Array<{ currency?: string; price?: number }>) {

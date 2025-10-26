@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 import { useCurrency } from '@/contexts/CurrencyContext';
 
 export type Currency = 'GBP' | 'USD' | 'EUR';
-export type Orientation = 'Vertical' | 'Horizontal';
+export type Orientation = 'Portrait' | 'Landscape' | 'Square';
 
 type PriceRow = { currency: string; price: number };
 type Prices = PriceRow[] | Partial<Record<Currency, number>>;
@@ -44,7 +44,7 @@ export default function ProductCardPrintAtHome({
   artSrc,
   productUid,
   prices,
-  defaultOrientation = 'Vertical',
+  defaultOrientation = 'Portrait',
   canProceed = false,
   onSelect,
 }: Props) {
@@ -74,7 +74,7 @@ export default function ProductCardPrintAtHome({
     (Array.isArray(prices) ? prices[0]?.price : undefined) ??
     0;
 
-  const orientations = ['Vertical', 'Horizontal'] as const;
+  const orientations = ['Portrait', 'Landscape', 'Square'] as const;
   const aspectOptions = useMemo(
     () => ['2:3', '3:4', '4:5', '5:7', 'A-Series'] as const,
     []

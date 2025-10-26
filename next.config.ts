@@ -1,8 +1,7 @@
-// next.config.ts
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  // ✅ Top-level in Next 15
+  // ⬅️ Top-level in Next 15
   serverExternalPackages: ['sharp'],
 
   images: {

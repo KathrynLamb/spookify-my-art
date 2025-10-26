@@ -4,6 +4,9 @@ export const runtime = 'nodejs';
 import { NextResponse } from 'next/server';
 import { getJob, updateJob, type SpookifyJobInput } from '@/lib/jobs';
 // import sharp from 'sharp';
+
+console.log('[sharp] runtime', process.platform, process.arch);
+
 async function getSharp() {
   const mod = await import('sharp');
   return mod.default;

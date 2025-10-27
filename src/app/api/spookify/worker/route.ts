@@ -123,7 +123,6 @@ const jimpModUnknown: unknown = await import('jimp');
 const jimpNs = jimpModUnknown as Record<string, unknown>;
 const jimpDefault = (jimpNs.default ?? jimpNs) as unknown;
 const jimpNamed = jimpNs.Jimp as unknown;
-// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 const Jimp: JimpCtor = (jimpNamed ?? jimpDefault) as JimpCtor;
 
 

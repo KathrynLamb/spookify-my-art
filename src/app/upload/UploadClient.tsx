@@ -434,14 +434,13 @@ const generate = async () => {
           setSpookified(j.resultUrl as string);
           setGenerating(false);
           stopped = true;
-          document.removeEventListener('visibilitychange', onVis as any);
-          return;
+          document.removeEventListener('visibilitychange', onVis);          return;
         }
         if (j.status === 'error') {
           setError(j.error || 'Spookify failed');
           setGenerating(false);
           stopped = true;
-          document.removeEventListener('visibilitychange', onVis as any);
+          document.addEventListener('visibilitychange', onVis, { passive: true });
           return;
         }
       } catch {

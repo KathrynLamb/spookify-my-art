@@ -418,112 +418,29 @@ export default function UploadWithChatPage() {
 
   // generate
   // generate
-const generate = async () => {
-  if (!imageId) { setError('Please upload an image first'); return; }
-  console.log("error line 423")
-
-  if (!plan?.orientation) { setError
-    console.log("error line 426")
-
-    return; }
-
-  setGenerating(true);
-  setError(null);
-  console.log("error line 431")
-
-
-  // Map orientation → aspect if plan.targetAspect isn't already set
-  const aspect =
-    typeof plan.targetAspect === 'number' && plan.targetAspect > 0
-      ? plan.targetAspect
-      : plan.orientation === 'Horizontal'
-      ? 1.4   // tweak to your product aspect (e.g., 70×100 -> 1.428)
-      : plan.orientation === 'Vertical'
-      ? 0.7   // inverse of 1.4
-      : 1;    // Square
-
-  try {
-    const start = await fetch('/api/spookify/begin', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id: imageId,
-        promptOverride: finalizedPrompt || undefined,
-        orientation: plan.orientation,
-        target: { aspect, minWidth: 2048, mode: 'cover' },
-      }),
-    });
-    const sText = await start.text();
-    if (!start.ok) throw new Error(`HTTP ${start.status} /api/spookify/begin\n${sText}`);
-    const s = JSON.parse(sText);
-    
-
- 
-    const jobId: string = s.jobId;
-    let stopped = false;
-
-    const poll = async () => {
-      if (stopped) return;
-      try {
-        const r = await fetch(`/api/spookify/status?id=${encodeURIComponent(jobId)}`, { cache: 'no-store' });
-        const j = await r.json();
-
-        if (j.status === 'done' && j.resultUrl) {
-          setSpookified(j.resultUrl as string);
-          setGenerating(false);
-          stopped = true;
-          document.removeEventListener('visibilitychange', onVis);          return;
-        }
-        if (j.status === 'error') {
-          setError(j.error || 'Spookify failed');
-          console.log("error line 479")
-
-          setGenerating(false);
-          stopped = true;
-          document.addEventListener('visibilitychange', onVis, { passive: true });
-          return;
-        }
-      } catch {
-        // transient network failures → keep polling
-      }
-      setTimeout(poll, 2000);
-    };
-
-    const onVis: EventListener = () => {
-      if (!stopped && typeof document !== 'undefined' && document.visibilityState === 'visible') {
-        void poll();
-      }
-    };
-    
-    document.addEventListener('visibilitychange', onVis, { passive: true });
-    // Remove the 'as any' when cleaning up:
-    document.removeEventListener('visibilitychange', onVis);
-    void poll();
-    
-  } catch (e: unknown) {
-    console.log("error line 485")
-    setError(e instanceof Error ? e.message : String(e));
-    console.log("error line 506")
-
-    setGenerating(false);
-  }
-};
-
 // const generate = async () => {
 //   if (!imageId) { setError('Please upload an image first'); return; }
-//   if (!plan?.orientation) { setError('Pick an orientation (Horizontal / Vertical / Square) before generating.'); return; }
+//   console.log("error line 423")
+
+//   if (!plan?.orientation) { setError
+//     console.log("error line 426")
+
+//     return; }
 
 //   setGenerating(true);
 //   setError(null);
+//   console.log("error line 431")
 
+
+//   // Map orientation → aspect if plan.targetAspect isn't already set
 //   const aspect =
 //     typeof plan.targetAspect === 'number' && plan.targetAspect > 0
 //       ? plan.targetAspect
 //       : plan.orientation === 'Horizontal'
-//       ? 1.4
+//       ? 1.4   // tweak to your product aspect (e.g., 70×100 -> 1.428)
 //       : plan.orientation === 'Vertical'
-//       ? 0.7
-//       : 1;
+//       ? 0.7   // inverse of 1.4
+//       : 1;    // Square
 
 //   try {
 //     const start = await fetch('/api/spookify/begin', {
@@ -536,16 +453,17 @@ const generate = async () => {
 //         target: { aspect, minWidth: 2048, mode: 'cover' },
 //       }),
 //     });
+//     const sText = await start.text();
+//     if (!start.ok) throw new Error(`HTTP ${start.status} /api/spookify/begin\n${sText}`);
+//     const s = JSON.parse(sText);
+    
 
-//     const s = await start.json();
-//     if (!start.ok || !s?.jobId) throw new Error(s?.error || 'Failed to start');
-
+ 
 //     const jobId: string = s.jobId;
 //     let stopped = false;
 
-//     const poll = async (): Promise<void> => {
+//     const poll = async () => {
 //       if (stopped) return;
-
 //       try {
 //         const r = await fetch(`/api/spookify/status?id=${encodeURIComponent(jobId)}`, { cache: 'no-store' });
 //         const j = await r.json();
@@ -554,37 +472,203 @@ const generate = async () => {
 //           setSpookified(j.resultUrl as string);
 //           setGenerating(false);
 //           stopped = true;
-//           document.removeEventListener('visibilitychange', onVis);
-//           return;
+//           document.removeEventListener('visibilitychange', onVis);          return;
 //         }
 //         if (j.status === 'error') {
 //           setError(j.error || 'Spookify failed');
+//           console.log("error line 479")
+
 //           setGenerating(false);
 //           stopped = true;
-//           document.removeEventListener('visibilitychange', onVis);
+//           document.addEventListener('visibilitychange', onVis, { passive: true });
 //           return;
 //         }
 //       } catch {
-//         // ignore transient network failures
+//         // transient network failures → keep polling
 //       }
 //       setTimeout(poll, 2000);
 //     };
 
-//     // ✅ Properly typed listener (no `as any`)
 //     const onVis: EventListener = () => {
-//       if (!stopped && document.visibilityState === 'visible') {
+//       if (!stopped && typeof document !== 'undefined' && document.visibilityState === 'visible') {
 //         void poll();
 //       }
 //     };
-
+    
 //     document.addEventListener('visibilitychange', onVis, { passive: true });
+//     // Remove the 'as any' when cleaning up:
+//     document.removeEventListener('visibilitychange', onVis);
 //     void poll();
+    
 //   } catch (e: unknown) {
+//     console.log("error line 485")
 //     setError(e instanceof Error ? e.message : String(e));
+//     console.log("error line 506")
+
 //     setGenerating(false);
-//   }s
+//   }
 // };
 
+// // const generate = async () => {
+// //   if (!imageId) { setError('Please upload an image first'); return; }
+// //   if (!plan?.orientation) { setError('Pick an orientation (Horizontal / Vertical / Square) before generating.'); return; }
+
+// //   setGenerating(true);
+// //   setError(null);
+
+// //   const aspect =
+// //     typeof plan.targetAspect === 'number' && plan.targetAspect > 0
+// //       ? plan.targetAspect
+// //       : plan.orientation === 'Horizontal'
+// //       ? 1.4
+// //       : plan.orientation === 'Vertical'
+// //       ? 0.7
+// //       : 1;
+
+// //   try {
+// //     const start = await fetch('/api/spookify/begin', {
+// //       method: 'POST',
+// //       headers: { 'Content-Type': 'application/json' },
+// //       body: JSON.stringify({
+// //         id: imageId,
+// //         promptOverride: finalizedPrompt || undefined,
+// //         orientation: plan.orientation,
+// //         target: { aspect, minWidth: 2048, mode: 'cover' },
+// //       }),
+// //     });
+
+// //     const s = await start.json();
+// //     if (!start.ok || !s?.jobId) throw new Error(s?.error || 'Failed to start');
+
+// //     const jobId: string = s.jobId;
+// //     let stopped = false;
+
+// //     const poll = async (): Promise<void> => {
+// //       if (stopped) return;
+
+// //       try {
+// //         const r = await fetch(`/api/spookify/status?id=${encodeURIComponent(jobId)}`, { cache: 'no-store' });
+// //         const j = await r.json();
+
+// //         if (j.status === 'done' && j.resultUrl) {
+// //           setSpookified(j.resultUrl as string);
+// //           setGenerating(false);
+// //           stopped = true;
+// //           document.removeEventListener('visibilitychange', onVis);
+// //           return;
+// //         }
+// //         if (j.status === 'error') {
+// //           setError(j.error || 'Spookify failed');
+// //           setGenerating(false);
+// //           stopped = true;
+// //           document.removeEventListener('visibilitychange', onVis);
+// //           return;
+// //         }
+// //       } catch {
+// //         // ignore transient network failures
+// //       }
+// //       setTimeout(poll, 2000);
+// //     };
+
+// //     // ✅ Properly typed listener (no `as any`)
+// //     const onVis: EventListener = () => {
+// //       if (!stopped && document.visibilityState === 'visible') {
+// //         void poll();
+// //       }
+// //     };
+
+// //     document.addEventListener('visibilitychange', onVis, { passive: true });
+// //     void poll();
+// //   } catch (e: unknown) {
+// //     setError(e instanceof Error ? e.message : String(e));
+// //     setGenerating(false);
+// //   }s
+// // };
+
+const generate = async () => {
+  if (!imageId) {
+    setError('Please upload an image first');
+    return;
+  }
+
+  if (!plan?.orientation) {
+    setError('Pick an orientation (Horizontal / Vertical / Square) before generating.');
+    return;
+  }
+
+  setGenerating(true);
+  setError(null);
+
+  const aspect =
+    typeof plan.targetAspect === 'number' && plan.targetAspect > 0
+      ? plan.targetAspect
+      : plan.orientation === 'Horizontal'
+      ? 1.4
+      : plan.orientation === 'Vertical'
+      ? 0.7
+      : 1;
+
+  try {
+    const start = await fetch('/api/spookify/begin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: imageId,
+        promptOverride: finalizedPrompt || undefined,
+        orientation: plan.orientation,
+        target: { aspect, minWidth: 2048, mode: 'cover' },
+      }),
+    });
+
+    // Keep this verbose body capture so your red banner shows the culprit route
+    const sText = await start.text();
+    if (!start.ok) throw new Error(`HTTP ${start.status} /api/spookify/begin\n${sText}`);
+    const s = JSON.parse(sText);
+    if (!s?.jobId) throw new Error('Missing jobId');
+
+    const jobId: string = s.jobId;
+    let stopped = false;
+
+    const onVis: EventListener = () => {
+      if (!stopped && document.visibilityState === 'visible') {
+        void poll();
+      }
+    };
+
+    const poll = async (): Promise<void> => {
+      if (stopped) return;
+      try {
+        const r = await fetch(`/api/spookify/status?id=${encodeURIComponent(jobId)}`, { cache: 'no-store' });
+        const j = await r.json();
+
+        if (j.status === 'done' && j.resultUrl) {
+          setSpookified(j.resultUrl as string);
+          setGenerating(false);
+          stopped = true;
+          document.removeEventListener('visibilitychange', onVis);
+          return;
+        }
+
+        if (j.status === 'error') {
+          setError(j.error || 'Spookify failed');
+          setGenerating(false);
+          stopped = true;
+          document.removeEventListener('visibilitychange', onVis);
+          return;
+        }
+      } catch {
+        // ignore transient network flakiness
+      }
+      setTimeout(poll, 2000);
+    };
+
+    document.addEventListener('visibilitychange', onVis, { passive: true });
+    void poll();
+  } catch (e: unknown) {
+    setError(e instanceof Error ? e.message : String(e));
+    setGenerating(false);
+  }
+};
 
 
   // routes

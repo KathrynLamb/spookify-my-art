@@ -15,43 +15,34 @@ export type SpookifyJob = {
   id: string;
   status: 'queued' | 'processing' | 'done' | 'error';
   resultUrl?: string | null;
+  resultFullUrl?: string | null; // used by worker for full-res URL
   error?: string | null;
   input: SpookifyJobInput;
   createdAt: number;
   updatedAt: number;
 };
 
-const JOB_TTL_SECONDS = 60 * 60; // 1 hour
+export const JOB_TTL_SECONDS = 60 * 60; // 1 hour
 
-// Detect whether a KV backend is configured.
-// Support both the Upstash/Vercel KV env names.
+/* ================= Backend detection ================= */
+
 const useKV =
   !!process.env.KV_REST_API_URL ||
   !!process.env.KV_REST_API_TOKEN ||
   !!process.env.KV_URL ||
   !!process.env.VERCEL_KV_URL ||
-  !!process.env.UPSTASH_REDIS_REST_URL;
+  !!process.env.UPSTASH_REDIS_REST_URL ||
+  !!process.env.UPSTASH_REDIS_REST_TOKEN;
 
-// Dev/local fallback (NOT shared across lambdas)
-const mem = new Map<string, SpookifyJob>();
+const mem = new Map<string, SpookifyJob>(); // dev/local fallback (not shared)
 
-function key(id: string) {
-  return `spookify:job:${id}`;
-}
+const key = (id: string) => `spookify:job:${id}`;
 
-/** Minimal KV client surface we use directly from @vercel/kv */
-type RawKVClient = {
-  get(k: string): Promise<unknown>;
-  set(k: string, v: unknown): Promise<unknown>;
-  expire(k: string, seconds: number): Promise<unknown>;
-};
-type RawKVModule = { kv: RawKVClient };
-
-/** Our wrapper interface */
 type KVLike = {
   get<T>(k: string): Promise<T | null>;
   set(k: string, v: unknown): Promise<void>;
   expire(k: string, seconds: number): Promise<void>;
+  backend: 'vercel-kv' | 'upstash-redis';
 };
 
 let kvClient: KVLike | null = null;
@@ -60,38 +51,32 @@ async function getKV(): Promise<KVLike | null> {
   if (!useKV) return null;
   if (kvClient) return kvClient;
 
-  const modUnknown = await import('@vercel/kv').catch(() => null as unknown);
-  if (!modUnknown) return null;
-
-  // Safely detect the named export `kv`
-  const maybeModule = modUnknown as Partial<RawKVModule>;
-  if (!maybeModule.kv) return null;
-
-  const real: RawKVClient = maybeModule.kv;
+  // Prefer @vercel/kv if available
+  try {
+    // dynamic import so local dev works without the package
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const mod: any = await import('@vercel/kv');
+// inside getKV(), when @vercel/kv is detected
+if (mod?.kv) {
+  const real = mod.kv as {
+    get<T>(k: string): Promise<T | null>;
+    set(k: string, v: unknown, opts?: { ex?: number }): Promise<unknown>;
+    expire(k: string, seconds: number): Promise<unknown>;
+  };
 
   kvClient = {
+    backend: 'vercel-kv',  // ← add this
     async get<T>(k: string): Promise<T | null> {
       const raw = await real.get(k);
       if (raw === null || raw === undefined) return null;
-
-      // If value is a string, try to JSON.parse; otherwise return as-is
       if (typeof raw === 'string') {
-        try {
-          return JSON.parse(raw) as T;
-        } catch {
-          // It was a plain string; return as unknown T
-          return raw as unknown as T;
-        }
+        try { return JSON.parse(raw) as T; } catch { return raw as unknown as T; }
       }
-
       return raw as T;
     },
-
     async set(k: string, v: unknown): Promise<void> {
-      // Let @vercel/kv handle serialization. Do NOT double-stringify.
       await real.set(k, v);
     },
-
     async expire(k: string, seconds: number): Promise<void> {
       await real.expire(k, seconds);
     },
@@ -100,7 +85,45 @@ async function getKV(): Promise<KVLike | null> {
   return kvClient;
 }
 
-// ---------------- Public API ----------------
+  } catch {
+    // fall through to Upstash
+  }
+
+  // Try Upstash REST client
+  if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
+    const { Redis } = await import('@upstash/redis');
+    const client = new Redis({
+      url: process.env.UPSTASH_REDIS_REST_URL,
+      token: process.env.UPSTASH_REDIS_REST_TOKEN,
+    });
+
+    kvClient = {
+      backend: 'upstash-redis',
+      async get<T>(k: string): Promise<T | null> {
+        const raw = await client.get<unknown>(k);
+        if (raw == null) return null;
+        if (typeof raw === 'string') {
+          try { return JSON.parse(raw) as T; } catch { return raw as unknown as T; }
+        }
+        return raw as T;
+      },
+      async set(k: string, v: unknown): Promise<void> {
+        const payload = typeof v === 'string' ? v : JSON.stringify(v);
+        await client.set(k, payload);
+        await client.expire(k, JOB_TTL_SECONDS);
+      },
+      async expire(k: string, seconds: number): Promise<void> {
+        await client.expire(k, seconds);
+      },
+    };
+    
+    return kvClient;
+  }
+
+  return null;
+}
+
+/* ================= Public API ================= */
 
 export async function createJob(job: SpookifyJob): Promise<void> {
   const kv = await getKV();
@@ -115,8 +138,7 @@ export async function createJob(job: SpookifyJob): Promise<void> {
 export async function getJob(id: string): Promise<SpookifyJob | null> {
   const kv = await getKV();
   if (kv) {
-    const j = await kv.get<SpookifyJob>(key(id));
-    return j ?? null;
+    return (await kv.get<SpookifyJob>(key(id))) ?? null;
   }
   return mem.get(id) ?? null;
 }
@@ -150,40 +172,35 @@ function cryptoRandomId(): string {
   if (typeof globalThis.crypto !== 'undefined' && 'randomUUID' in globalThis.crypto) {
     return (globalThis.crypto as Crypto).randomUUID();
   }
+  // Node < 19 fallback
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
-/** Quick KV self-test: writes & reads back using whichever backend is active. */
+/* Optional: quick health check to verify which backend is active */
 export async function kvSelfTest() {
   const envs = {
-    KV_REST_API_URL: !!process.env.KV_REST_API_URL,
-    KV_REST_API_TOKEN: !!process.env.KV_REST_API_TOKEN,
-    UPSTASH_REDIS_REST_URL: !!process.env.UPSTASH_REDIS_REST_URL,
-    KV_URL: !!process.env.KV_URL,
+    VERCEL_KV: !!process.env.KV_REST_API_URL || !!process.env.KV_URL,
+    UPSTASH_REDIS: !!process.env.UPSTASH_REDIS_REST_URL,
   };
-
   const kv = await getKV();
-  const backend = kv ? 'vercel-kv' : 'memory';
+  const backend = kv?.backend ?? 'memory';
 
-  const keyName = `spookify:selftest:${Date.now()}`;
+  const testKey = `spookify:selftest:${Date.now()}`;
   const payload = { ok: true, ts: Date.now(), backend };
 
-  let roundtrip: unknown = null;
   if (kv) {
-    await kv.set(keyName, payload);
-    roundtrip = await kv.get<typeof payload>(keyName);
-    await kv.expire(keyName, 60); // clean up in a minute
+    await kv.set(testKey, payload);
+    const roundtrip = await kv.get<typeof payload>(testKey);
+    await kv.expire(testKey, 60);
+    return { backend, envs, wrote: payload, read: roundtrip };
   } else {
-    // prove the memory path also works
-    mem.set(keyName, {
-      id: keyName,
+    mem.set(testKey, {
+      id: testKey,
       status: 'queued',
       input: { imageId: 'selftest' },
       createdAt: Date.now(),
       updatedAt: Date.now(),
-    } as SpookifyJob);
-    roundtrip = mem.get(keyName) ? { ok: true, backend } : null;
+    });
+    return { backend, envs, wrote: payload, read: mem.get(testKey) ?? null };
   }
-
-  return { backend, envs, wrote: payload, read: roundtrip };
 }

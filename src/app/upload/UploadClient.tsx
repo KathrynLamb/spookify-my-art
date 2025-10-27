@@ -482,6 +482,7 @@ const generate = async () => {
     void poll();
     
   } catch (e: unknown) {
+    console.log("error line 485")
     setError(e instanceof Error ? e.message : String(e));
     setGenerating(false);
   }

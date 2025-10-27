@@ -1,20 +1,9 @@
+// src/app/api/spookify/worker/route.ts
 export const runtime = 'nodejs';
-
+export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { getJob, updateJob, type SpookifyJobInput } from '@/lib/jobs';
-// import sharp from 'sharp';
-
-console.log('[sharp] runtime', process.platform, process.arch);
-
-async function getSharp() {
-  const mod = await import('sharp');
-  return mod.default;
-}
-
-
-
-export const dynamic = 'force-dynamic';
 
 const DEFAULT_PROMPT =
   'Tasteful Halloween version while preserving the composition; moody fog, moonlit ambience, warm candle glow; 1–3 soft white friendly ghosts; no text; printable; no gore.';
@@ -44,17 +33,15 @@ function sanitizeTarget(
   input?: SpookifyJobInput['target'],
   orientation?: 'Horizontal' | 'Vertical' | 'Square'
 ) {
-  // If caller provided a numeric aspect, trust it (within reason). Else infer from orientation.
   let aspect = input?.aspect;
   if (!(typeof aspect === 'number' && isFinite(aspect) && aspect > 0.2 && aspect < 5)) {
     if (orientation === 'Square') aspect = 1;
-    else if (orientation === 'Horizontal') aspect = 1.4;        // tune to your catalog (e.g., 100x70 ≈ 1.43)
-    else if (orientation === 'Vertical') aspect = 1 / 1.4;      // inverse
-    else aspect = undefined;                                     // keep square if nothing known
+    else if (orientation === 'Horizontal') aspect = 1.4;
+    else if (orientation === 'Vertical') aspect = 1 / 1.4;
+    else aspect = undefined;
   }
 
-  // Bound minWidth
-const minWidth =
+  const minWidth =
     typeof input?.minWidth === 'number' && isFinite(input?.minWidth)
       ? Math.max(1024, Math.min(12000, Math.round(input!.minWidth!)))
       : undefined;
@@ -64,36 +51,123 @@ const minWidth =
   return { aspect, minWidth, mode };
 }
 
+/* ---------------- image adapter (Sharp → Jimp fallback) ---------------- */
+
+type ImageAdapter = {
+  name: 'sharp' | 'jimp';
+  conformTo(
+    pngBuffer: Buffer,
+    opts: { aspect?: number; minWidth?: number; mode: 'cover' | 'contain' }
+  ): Promise<Buffer>;
+};
+
+async function loadAdapter(): Promise<ImageAdapter> {
+  try {
+    const mod = await import('sharp');
+    const sharp = mod.default;
+
+    const conformTo = async (
+      pngBuffer: Buffer,
+      opts: { aspect?: number; minWidth?: number; mode: 'cover' | 'contain' }
+    ): Promise<Buffer> => {
+      const img = sharp(pngBuffer);
+      const meta = await img.metadata();
+
+      if (!opts.aspect) {
+        if (opts.minWidth && (meta.width ?? 0) < opts.minWidth) {
+          const w = opts.minWidth;
+          const h = Math.round(w * ((meta.height ?? 0) / (meta.width || 1)));
+          return await img.resize(w, h, { fit: 'inside', withoutEnlargement: false }).png().toBuffer();
+        }
+        return pngBuffer;
+      }
+
+      const targetW = Math.max(opts.minWidth ?? 2048, 1024);
+      const targetH = Math.max(1, Math.round(targetW / opts.aspect));
+
+      return await img
+        .resize(targetW, targetH, {
+          fit: opts.mode === 'contain' ? 'contain' : 'cover',
+          position: 'entropy',
+          background: opts.mode === 'contain' ? { r: 255, g: 255, b: 255, alpha: 1 } : undefined,
+          withoutEnlargement: false,
+        })
+        .png()
+        .toBuffer();
+    };
+
+    return { name: 'sharp', conformTo };
+  } catch (err) {
+    console.warn('[image] sharp unavailable, falling back to jimp:', (err as Error)?.message || err);
+  }
+
+  const Jimp = (await import('jimp')).default;
+
+  const conformTo = async (
+    pngBuffer: Buffer,
+    opts: { aspect?: number; minWidth?: number; mode: 'cover' | 'contain' }
+  ): Promise<Buffer> => {
+    const img = await Jimp.read(pngBuffer);
+    const srcW = img.bitmap.width;
+    const srcH = img.bitmap.height;
+
+    if (!opts.aspect) {
+      if (opts.minWidth && srcW < opts.minWidth) {
+        const w = opts.minWidth;
+        const h = Math.round(w * (srcH / srcW));
+        img.resize(w, h);
+      }
+      return await img.getBufferAsync(Jimp.MIME_PNG);
+    }
+
+    const targetW = Math.max(opts.minWidth ?? 2048, 1024);
+    const targetH = Math.max(1, Math.round(targetW / opts.aspect));
+    const srcAspect = srcW / srcH;
+    const tgtAspect = targetW / targetH;
+
+    if (opts.mode === 'contain') {
+      const clone = img.clone();
+      if (srcAspect > tgtAspect) {
+        const h = Math.round(targetW / srcAspect);
+        clone.resize(targetW, h);
+        const canvas = new Jimp(targetW, targetH, 0xffffffff);
+        const top = Math.round((targetH - h) / 2);
+        canvas.composite(clone, 0, top);
+        return await canvas.getBufferAsync(Jimp.MIME_PNG);
+      } else {
+        const w = Math.round(targetH * srcAspect);
+        clone.resize(w, targetH);
+        const canvas = new Jimp(targetW, targetH, 0xffffffff);
+        const left = Math.round((targetW - w) / 2);
+        canvas.composite(clone, left, 0);
+        return await canvas.getBufferAsync(Jimp.MIME_PNG);
+      }
+    } else {
+      let cropW = srcW;
+      let cropH = srcH;
+      if (srcAspect > tgtAspect) {
+        cropH = srcH;
+        cropW = Math.round(cropH * tgtAspect);
+      } else {
+        cropW = srcW;
+        cropH = Math.round(cropW / tgtAspect);
+      }
+      const left = Math.max(0, Math.round((srcW - cropW) / 2));
+      const top = Math.max(0, Math.round((srcH - cropH) / 2));
+      img.crop({ x: left, y: top, w: cropW, h: cropH }).resize(targetW, targetH);
+      return await img.getBufferAsync(Jimp.MIME_PNG);
+    }
+  };
+
+  return { name: 'jimp', conformTo };
+}
+
 async function conformImage(
   pngBuffer: Buffer,
   opts: { aspect?: number; minWidth?: number; mode: 'cover' | 'contain' }
-): Promise<Buffer> {
-  const sharp = await getSharp();
-  const img = sharp(pngBuffer);
-  const meta = await img.metadata();
-
-  // No aspect: optionally upscale to minWidth, otherwise return as-is.
-  if (!opts.aspect) {
-    if (opts.minWidth && (meta.width ?? 0) < opts.minWidth) {
-      const w = opts.minWidth;
-      const h = Math.round(w * ((meta.height ?? 0) / (meta.width || 1)));
-      return await img.resize(w, h, { fit: 'inside', withoutEnlargement: false }).png().toBuffer();
-    }
-    return pngBuffer;
-  }
-
-  const targetW = Math.max(opts.minWidth ?? 2048, 1024);
-  const targetH = Math.max(1, Math.round(targetW / opts.aspect));
-
-  return await img
-    .resize(targetW, targetH, {
-      fit: opts.mode === 'contain' ? 'contain' : 'cover',
-      position: 'entropy', // smarter crop when covering
-      background: opts.mode === 'contain' ? { r: 255, g: 255, b: 255, alpha: 1 } : undefined,
-      withoutEnlargement: false,
-    })
-    .png()
-    .toBuffer();
+) {
+  const adapter = await loadAdapter();
+  return adapter.conformTo(pngBuffer, opts);
 }
 
 /* ---------------- route ---------------- */
@@ -166,7 +240,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: msg }, { status: 503 });
     }
 
-    // 4) Generate edit (gpt-image-1 is square; we conform afterwards)
+    // 4) Generate edit
     const form = new FormData();
     form.append('model', 'gpt-image-1');
     form.append('prompt', prompt);
@@ -206,17 +280,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: msg }, { status: 500 });
     }
 
-    // 5) Conform to requested aspect / size (post-process with Sharp)
+    // 5) Conform to requested aspect / size
     const squarePng = Buffer.from(b64, 'base64');
     const fitted = await conformImage(squarePng, { aspect, minWidth, mode });
-
     const dataUrl = `data:image/png;base64,${fitted.toString('base64')}`;
 
     await updateJob(id, {
       status: 'done',
       resultUrl: dataUrl,
       error: null,
-      // (optional) echo back decisions for debugging
       input: {
         ...input,
         target: { aspect, minWidth, mode },

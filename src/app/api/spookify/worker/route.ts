@@ -8,6 +8,36 @@ import { getJob, updateJob, type SpookifyJobInput } from '@/lib/jobs';
 const DEFAULT_PROMPT =
   'Tasteful Halloween version while preserving the composition; moody fog, moonlit ambience, warm candle glow; 1–3 soft white friendly ghosts; no text; printable; no gore.';
 
+/* ---------------- logging helpers ---------------- */
+
+const TAG = '[spookify-worker]';
+
+function safePreview(v: unknown, max = 800): string {
+  try {
+    const s = JSON.stringify(
+      v,
+      (_, val) => (typeof val === 'string' && val.length > 200 ? `${val.slice(0, 200)}…(${val.length})` : val),
+      2
+    );
+    return s.length > max ? s.slice(0, max) + `…(${s.length})` : s;
+  } catch {
+    return String(v);
+  }
+}
+
+function log(...args: unknown[]) {
+  // eslint-disable-next-line no-console
+  console.log(TAG, ...args);
+}
+function warn(...args: unknown[]) {
+  // eslint-disable-next-line no-console
+  console.warn(TAG, ...args);
+}
+function errlog(...args: unknown[]) {
+  // eslint-disable-next-line no-console
+  console.error(TAG, ...args);
+}
+
 function metaUrlFrom(imageId: string): string | null {
   const base = process.env.NEXT_PUBLIC_BLOB_BASE_URL?.replace(/\/+$/, '');
   if (!base) return null;
@@ -33,6 +63,12 @@ function sanitizeTarget(
   input?: SpookifyJobInput['target'],
   orientation?: 'Horizontal' | 'Vertical' | 'Square'
 ) {
+  log('sanitizeTarget.INPUT', {
+    type: typeof input,
+    inputPreview: safePreview(input),
+    orientation,
+  });
+
   let aspect = input?.aspect;
   if (!(typeof aspect === 'number' && isFinite(aspect) && aspect > 0.2 && aspect < 5)) {
     if (orientation === 'Square') aspect = 1;
@@ -48,7 +84,9 @@ function sanitizeTarget(
 
   const mode: 'cover' | 'contain' = input?.mode === 'contain' ? 'contain' : 'cover';
 
-  return { aspect, minWidth, mode };
+  const out = { aspect, minWidth, mode };
+  log('sanitizeTarget.OUTPUT', out);
+  return out;
 }
 
 /* ---------------- image adapter (Sharp → Jimp fallback) ---------------- */
@@ -65,6 +103,7 @@ async function loadAdapter(): Promise<ImageAdapter> {
   try {
     const mod = await import('sharp');
     const sharp = mod.default;
+    log('adapter: using sharp');
 
     const conformTo = async (
       pngBuffer: Buffer,
@@ -72,11 +111,13 @@ async function loadAdapter(): Promise<ImageAdapter> {
     ): Promise<Buffer> => {
       const img = sharp(pngBuffer);
       const meta = await img.metadata();
+      log('sharp.meta', meta);
 
       if (!opts.aspect) {
         if (opts.minWidth && (meta.width ?? 0) < opts.minWidth) {
           const w = opts.minWidth;
           const h = Math.round(w * ((meta.height ?? 0) / (meta.width || 1)));
+          log('sharp.resize inside', { w, h });
           return await img.resize(w, h, { fit: 'inside', withoutEnlargement: false }).png().toBuffer();
         }
         return pngBuffer;
@@ -84,6 +125,7 @@ async function loadAdapter(): Promise<ImageAdapter> {
 
       const targetW = Math.max(opts.minWidth ?? 2048, 1024);
       const targetH = Math.max(1, Math.round(targetW / opts.aspect));
+      log('sharp.resize cover/contain', { targetW, targetH, fit: opts.mode });
 
       return await img
         .resize(targetW, targetH, {
@@ -97,34 +139,34 @@ async function loadAdapter(): Promise<ImageAdapter> {
     };
 
     return { name: 'sharp', conformTo };
-  } catch (err) {
-    console.warn('[image] sharp unavailable, falling back to jimp:', (err as Error)?.message || err);
+  } catch (e) {
+    warn('sharp unavailable, falling back to jimp:', (e as Error)?.message || e);
   }
 
-// ---- Jimp fallback (handles both named+default exports) ----
-// ---- Jimp fallback (handles both named+default exports) ----
-type JimpImage = {
-  bitmap: { width: number; height: number };
-  resize: (w: number, h: number) => JimpImage;
-  crop: (x: number, y: number, w: number, h: number) => JimpImage;
-  clone: () => JimpImage;
-  composite: (src: JimpImage, x: number, y: number) => JimpImage;
-  quality: (q: number) => JimpImage;
-  getBufferAsync: (mime: string) => Promise<Buffer>;
-};
-type JimpCtor = {
-  new (w: number, h: number, bg?: number | string): JimpImage; // ✅ constructor
-  read: (buf: Buffer | string) => Promise<JimpImage>;
-  MIME_PNG: string;
-  MIME_JPEG: string;
-};
+  // ---- Jimp fallback ----
+  type JimpImage = {
+    bitmap: { width: number; height: number };
+    resize: (w: number, h: number) => JimpImage;
+    crop: (x: number, y: number, w: number, h: number) => JimpImage;
+    clone: () => JimpImage;
+    composite: (src: JimpImage, x: number, y: number) => JimpImage;
+    quality: (q: number) => JimpImage;
+    getBufferAsync: (mime: string) => Promise<Buffer>;
+  };
+  type JimpCtor = {
+    new (w: number, h: number, bg?: number | string): JimpImage;
+    read: (buf: Buffer | string) => Promise<JimpImage>;
+    MIME_PNG: string;
+    MIME_JPEG: string;
+  };
 
-const jimpModUnknown: unknown = await import('jimp');
-const jimpNs = jimpModUnknown as Record<string, unknown>;
-const jimpDefault = (jimpNs.default ?? jimpNs) as unknown;
-const jimpNamed = jimpNs.Jimp as unknown;
-const Jimp: JimpCtor = (jimpNamed ?? jimpDefault) as JimpCtor;
+  const jimpModUnknown: unknown = await import('jimp');
+  const jimpNs = jimpModUnknown as Record<string, unknown>;
+  const jimpDefault = (jimpNs.default ?? jimpNs) as unknown;
+  const jimpNamed = jimpNs.Jimp as unknown;
+  const Jimp: JimpCtor = (jimpNamed ?? jimpDefault) as JimpCtor;
 
+  log('adapter: using jimp');
 
   const conformTo = async (
     pngBuffer: Buffer,
@@ -133,20 +175,25 @@ const Jimp: JimpCtor = (jimpNamed ?? jimpDefault) as JimpCtor;
     const img = await Jimp.read(pngBuffer);
     const srcW = img.bitmap.width;
     const srcH = img.bitmap.height;
+    log('jimp.src', { srcW, srcH, opts });
 
     if (!opts.aspect) {
       if (opts.minWidth && srcW < opts.minWidth) {
         const w = opts.minWidth;
         const h = Math.round(w * (srcH / srcW));
+        log('jimp.resize inside', { w, h });
         img.resize(w, h);
       }
-      return await img.getBufferAsync(Jimp.MIME_PNG);
+      const out = await img.getBufferAsync(Jimp.MIME_PNG);
+      log('jimp.output no-aspect bytes', out.byteLength);
+      return out;
     }
 
     const targetW = Math.max(opts.minWidth ?? 2048, 1024);
     const targetH = Math.max(1, Math.round(targetW / opts.aspect));
     const srcAspect = srcW / srcH;
     const tgtAspect = targetW / targetH;
+    log('jimp.tgt', { targetW, targetH, srcAspect, tgtAspect });
 
     if (opts.mode === 'contain') {
       const clone = img.clone();
@@ -156,14 +203,18 @@ const Jimp: JimpCtor = (jimpNamed ?? jimpDefault) as JimpCtor;
         const canvas = new Jimp(targetW, targetH, 0xffffffff);
         const top = Math.round((targetH - h) / 2);
         canvas.composite(clone, 0, top);
-        return await canvas.getBufferAsync(Jimp.MIME_PNG);
+        const out = await canvas.getBufferAsync(Jimp.MIME_PNG);
+        log('jimp.output contain bytes', out.byteLength);
+        return out;
       } else {
         const w = Math.round(targetH * srcAspect);
         clone.resize(w, targetH);
         const canvas = new Jimp(targetW, targetH, 0xffffffff);
         const left = Math.round((targetW - w) / 2);
         canvas.composite(clone, left, 0);
-        return await canvas.getBufferAsync(Jimp.MIME_PNG);
+        const out = await canvas.getBufferAsync(Jimp.MIME_PNG);
+        log('jimp.output contain bytes', out.byteLength);
+        return out;
       }
     } else {
       let cropW = srcW;
@@ -177,8 +228,11 @@ const Jimp: JimpCtor = (jimpNamed ?? jimpDefault) as JimpCtor;
       }
       const left = Math.max(0, Math.round((srcW - cropW) / 2));
       const top = Math.max(0, Math.round((srcH - cropH) / 2));
-      img.crop(left, top, cropW, cropH).resize(targetW, targetH);      
-      return await img.getBufferAsync(Jimp.MIME_PNG);
+      log('jimp.crop', { cropW, cropH, left, top });
+      img.crop(left, top, cropW, cropH).resize(targetW, targetH);
+      const out = await img.getBufferAsync(Jimp.MIME_PNG);
+      log('jimp.output cover bytes', out.byteLength);
+      return out;
     }
   };
 
@@ -190,27 +244,51 @@ async function conformImage(
   opts: { aspect?: number; minWidth?: number; mode: 'cover' | 'contain' }
 ) {
   const adapter = await loadAdapter();
+  log('conformImage.adapter', adapter.name, opts);
   return adapter.conformTo(pngBuffer, opts);
 }
 
 /* ---------------- route ---------------- */
 
 export async function POST(req: Request) {
-  const { id } = (await req.json()) as { id?: string };
-  if (!id) return NextResponse.json({ error: 'Missing job id' }, { status: 400 });
-
-  const job = await getJob(id);
-  if (!job) return NextResponse.json({ error: 'Job not found' }, { status: 404 });
-
+  const startTs = Date.now();
+  let jobId = '';
   try {
-    await updateJob(id, { status: 'processing' });
+    const bodyText = await req.text();
+    log('POST body raw', bodyText);
+    const body = bodyText ? JSON.parse(bodyText) : {};
+    jobId = body?.id ?? '';
+    if (!jobId) {
+      errlog('Missing job id in POST body');
+      return NextResponse.json({ error: 'Missing job id' }, { status: 400 });
+    }
 
-    const input = job.input;
-    if (!isSpookifyJobInput(input)) {
-      const msg = 'Job input missing imageId';
-      await updateJob(id, { status: 'error', error: msg });
+    const job = await getJob(jobId);
+    log('job.lookup', { found: !!job, id: jobId });
+    if (!job) return NextResponse.json({ error: 'Job not found' }, { status: 404 });
+
+    await updateJob(jobId, { status: 'processing' });
+
+    // --- Inspect job.input deeply
+    const ji = job.input as unknown;
+    log('job.input typeof', typeof ji);
+    log('job.input preview', safePreview(ji));
+    if (typeof ji !== 'object' || ji === null || Array.isArray(ji)) {
+      const msg = `Worker expected object for job.input, got: ${typeof ji}`;
+      errlog(msg, 'VALUE=', ji);
+      await updateJob(jobId, { status: 'error', error: msg });
       return NextResponse.json({ error: msg }, { status: 400 });
     }
+
+    if (!isSpookifyJobInput(ji)) {
+      const msg = 'Job input missing imageId';
+      errlog(msg, 'job.input=', safePreview(ji));
+      await updateJob(jobId, { status: 'error', error: msg });
+      return NextResponse.json({ error: msg }, { status: 400 });
+    }
+
+    const input = ji as SpookifyJobInput;
+    log('input.keys', Object.keys(input));
 
     const imageId = input.imageId;
     const promptOverride = input.promptOverride ?? null;
@@ -219,35 +297,50 @@ export async function POST(req: Request) {
 
     // 1) meta.json → original URL
     const metaUrl = metaUrlFrom(imageId);
+    log('meta.url', metaUrl);
     if (!metaUrl) {
       const msg = 'Missing NEXT_PUBLIC_BLOB_BASE_URL for meta lookup';
-      await updateJob(id, { status: 'error', error: msg });
+      errlog(msg);
+      await updateJob(jobId, { status: 'error', error: msg });
       return NextResponse.json({ error: msg }, { status: 500 });
     }
 
     const metaRes = await fetch(metaUrl, { cache: 'no-store' });
+    const metaText = await metaRes.clone().text().catch(() => '');
+    log('meta.fetch.status', metaRes.status, metaRes.statusText);
+    log('meta.fetch.bodyPreview', metaText.slice(0, 400));
+
     if (!metaRes.ok) {
       const msg = `Original not found (meta missing): ${metaRes.status}`;
-      await updateJob(id, { status: 'error', error: msg });
+      errlog(msg);
+      await updateJob(jobId, { status: 'error', error: msg });
       return NextResponse.json({ error: msg }, { status: 404 });
     }
     const meta = (await metaRes.json()) as Meta;
+    log('meta.parsed', safePreview(meta));
     const fileUrl = meta.fileUrl;
     if (!fileUrl) {
       const msg = 'Original not found (no fileUrl)';
-      await updateJob(id, { status: 'error', error: msg });
+      errlog(msg, 'meta=', safePreview(meta));
+      await updateJob(jobId, { status: 'error', error: msg });
       return NextResponse.json({ error: msg }, { status: 404 });
     }
 
     // 2) fetch original
     const imgRes = await fetch(fileUrl, { cache: 'no-store' });
+    const imgStatus = { status: imgRes.status, text: imgRes.statusText };
+    log('image.fetch.status', imgStatus);
+
     if (!imgRes.ok) {
       const raw = await imgRes.text().catch(() => '');
       const msg = `Could not fetch original: ${raw || imgRes.statusText}`;
-      await updateJob(id, { status: 'error', error: msg });
+      errlog(msg);
+      await updateJob(jobId, { status: 'error', error: msg });
       return NextResponse.json({ error: msg }, { status: 400 });
     }
+
     const srcArrayBuf = await imgRes.arrayBuffer();
+    log('image.bytes', srcArrayBuf.byteLength);
     const srcBlob = new Blob([srcArrayBuf], { type: 'image/png' });
 
     // 3) prompt
@@ -255,11 +348,14 @@ export async function POST(req: Request) {
       (promptOverride && promptOverride.trim()) ||
       (meta.finalizedPrompt && meta.finalizedPrompt.trim()) ||
       DEFAULT_PROMPT;
+    log('prompt.len', prompt.length);
+    log('prompt.preview', prompt.slice(0, 200));
 
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       const msg = 'Missing OPENAI_API_KEY';
-      await updateJob(id, { status: 'error', error: msg });
+      errlog(msg);
+      await updateJob(jobId, { status: 'error', error: msg });
       return NextResponse.json({ error: msg }, { status: 503 });
     }
 
@@ -271,11 +367,15 @@ export async function POST(req: Request) {
     form.append('quality', 'high');
     form.append('image', srcBlob, 'source.png');
 
+    log('openai.request', { model: 'gpt-image-1', size: '1024x1024', quality: 'high' });
+
     const resp = await fetch('https://api.openai.com/v1/images/edits', {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}` },
       body: form,
     });
+
+    log('openai.status', resp.status, resp.statusText);
 
     if (!resp.ok) {
       const text = await resp.text().catch(() => '');
@@ -291,24 +391,42 @@ export async function POST(req: Request) {
         ? 'Prompt rejected by safety system — try a gentler description (no gore/violence).'
         : `Image generation failed: ${text || resp.statusText}`;
 
-      await updateJob(id, { status: 'error', error: msg });
+      errlog('openai.error', { status: resp.status, preview: text.slice(0, 600) });
+      await updateJob(jobId, { status: 'error', error: msg });
       return NextResponse.json({ error: msg }, { status: 400 });
     }
 
-    const json = (await resp.json()) as { data?: Array<{ b64_json?: string }> };
-    const b64 = json?.data?.[0]?.b64_json;
-    if (!b64) {
-      const msg = 'Image edit returned no data';
-      await updateJob(id, { status: 'error', error: msg });
+    const textRaw = await resp.text();
+    log('openai.body.len', textRaw.length);
+    log('openai.body.preview', textRaw.slice(0, 300), '…', textRaw.slice(-120));
+    let json: { data?: Array<{ b64_json?: string }> };
+    try {
+      json = JSON.parse(textRaw);
+    } catch (e) {
+      const msg = `OpenAI returned non-JSON: ${(e as Error)?.message}`;
+      errlog(msg);
+      await updateJob(jobId, { status: 'error', error: msg });
       return NextResponse.json({ error: msg }, { status: 500 });
     }
 
+    const b64 = json?.data?.[0]?.b64_json;
+    if (!b64) {
+      const msg = 'Image edit returned no data';
+      errlog(msg, 'json=', safePreview(json));
+      await updateJob(jobId, { status: 'error', error: msg });
+      return NextResponse.json({ error: msg }, { status: 500 });
+    }
+    log('openai.image.b64.len', b64.length);
+
     // 5) Conform to requested aspect / size
     const squarePng = Buffer.from(b64, 'base64');
+    log('conform.input.bytes', squarePng.byteLength);
     const fitted = await conformImage(squarePng, { aspect, minWidth, mode });
+    log('conform.output.bytes', fitted.byteLength);
+
     const dataUrl = `data:image/png;base64,${fitted.toString('base64')}`;
 
-    await updateJob(id, {
+    await updateJob(jobId, {
       status: 'done',
       resultUrl: dataUrl,
       error: null,
@@ -318,10 +436,14 @@ export async function POST(req: Request) {
       } as SpookifyJobInput,
     });
 
+    log('DONE', { ms: Date.now() - startTs, jobId });
     return NextResponse.json({ ok: true });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    await updateJob(id, { status: 'error', error: msg });
+    errlog('FATAL', msg);
+    if (jobId) {
+      await updateJob(jobId, { status: 'error', error: msg });
+    }
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

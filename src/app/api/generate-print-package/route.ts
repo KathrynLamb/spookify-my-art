@@ -1,9 +1,24 @@
+// app/api/generate-print-package/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import JSZip from 'jszip';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import { getJob } from '@/lib/jobs'; // <-- new: to read by jobId
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+/* ---------------- helpers ---------------- */
+
+function parseDataUrl(u: string): { mime: string; buffer: Buffer } | null {
+  const m = /^data:([^;]+);base64,([A-Za-z0-9+/=]+)$/.exec(u);
+  if (!m) return null;
+  const [, mime, b64] = m;
+  return { mime, buffer: Buffer.from(b64, 'base64') };
+}
+
+function forceRange(n: number, lo: number, hi: number) {
+  return Math.max(lo, Math.min(hi, Math.round(n)));
+}
 
 /* ---------------- Image adapter: Sharp with Jimp fallback ---------------- */
 
@@ -20,8 +35,11 @@ async function loadAdapter(): Promise<ImageAdapter> {
     const mod = await import('sharp');
     const sharp = mod.default;
 
-    const toPNG = (buf: Buffer, quality = 100) => sharp(buf).png({ quality }).toBuffer();
-    const toJPG = (buf: Buffer, quality = 100) => sharp(buf).jpeg({ quality }).toBuffer();
+    const toPNG = (buf: Buffer, quality = 100) =>
+      sharp(buf).png({ quality: forceRange(quality, 1, 100) }).toBuffer();
+
+    const toJPG = (buf: Buffer, quality = 95) =>
+      sharp(buf).jpeg({ quality: forceRange(quality, 1, 100) }).toBuffer();
 
     const cropToAspect = async (buf: Buffer, targetW: number, targetH: number) => {
       const img = sharp(buf);
@@ -48,7 +66,7 @@ async function loadAdapter(): Promise<ImageAdapter> {
 
       return img
         .extract({ left, top, width: cropW, height: cropH })
-        .resize(targetW, targetH, { fit: 'cover', position: 'center' })
+        .resize(targetW, targetH, { fit: 'cover', position: 'centre' })
         .jpeg({ quality: 95 })
         .toBuffer();
     };
@@ -58,52 +76,48 @@ async function loadAdapter(): Promise<ImageAdapter> {
     console.warn('[print-package] sharp unavailable → falling back to jimp:', (err as Error)?.message || err);
   }
 
-  // ---- Fallback: Jimp v1 (object args + getBuffer compatibility) ----
+  // ---- Fallback: Jimp (pure JS) ----
   type JimpImage = {
     bitmap: { width: number; height: number };
-    resize: (opts: { w: number; h: number }) => JimpImage;
-    crop: (opts: { x: number; y: number; w: number; h: number }) => JimpImage;
+    resize: (w: number, h: number) => JimpImage;
+    crop: (x: number, y: number, w: number, h: number) => JimpImage; // numeric signature works on 0.22+
     clone: () => JimpImage;
     composite: (src: JimpImage, x: number, y: number) => JimpImage;
     quality: (q: number) => JimpImage;
-    getBuffer?: (mime: string) => Promise<Buffer>;
-    getBufferAsync?: (mime: string) => Promise<Buffer>;
+    getBuffer: (mime: string, cb: (err: Error | null, b?: Buffer) => void) => void;
   };
-  type JimpLike = {
+
+  type JimpNS = {
     read: (buf: Buffer | string) => Promise<JimpImage>;
-    MIME_PNG: string;
-    MIME_JPEG: string;
-    new (opts: { width: number; height: number; background?: number | string }): JimpImage;
+    MIME_PNG?: string;
+    MIME_JPEG?: string;
+    default?: unknown;
+    Jimp?: unknown;
   };
 
   const jimpModUnknown: unknown = await import('jimp');
-  const jimpNs = jimpModUnknown as Record<string, unknown>;
-  const jimpDefault = (jimpNs.default ?? jimpNs) as unknown;
-  const jimpNamed = jimpNs.Jimp as unknown;
-  const Jimp: JimpLike = (jimpNamed ?? jimpDefault) as unknown as JimpLike;
-
-  const hasFn = <T extends string>(o: unknown, name: T): o is Record<T, (...args: unknown[]) => unknown> =>
-    !!o && typeof (o as Record<string, unknown>)[name] === 'function';
-
-  const toBuf = async (img: JimpImage, mime: string): Promise<Buffer> => {
-    const anyImg = img as unknown;
-    if (hasFn(anyImg, 'getBufferAsync')) {
-      return (await (anyImg.getBufferAsync as (m: string) => Promise<unknown>).call(img, mime)) as Buffer;
-    }
-    if (hasFn(anyImg, 'getBuffer')) {
-      return (await (anyImg.getBuffer as (m: string) => Promise<unknown>).call(img, mime)) as Buffer;
-    }
-    throw new Error('Jimp: no getBuffer/getBufferAsync available');
+  const jimpNs = jimpModUnknown as JimpNS;
+  const Jimp: { read: JimpNS['read']; MIME_PNG: string; MIME_JPEG: string } = {
+    read: (jimpNs as JimpNS).read,
+    MIME_PNG: (jimpNs.MIME_PNG as string) || 'image/png',
+    MIME_JPEG: (jimpNs.MIME_JPEG as string) || 'image/jpeg',
   };
 
-  const toPNG = async (buf: Buffer) => {
+  const getBufferP = (img: JimpImage, mime: string) =>
+    new Promise<Buffer>((resolve, reject) => {
+      img.getBuffer(mime || 'image/png', (err, b) => (err ? reject(err) : resolve(b as Buffer)));
+    });
+
+  const toPNG = async (buf: Buffer, quality = 100) => {
     const img = await Jimp.read(buf);
-    return toBuf(img, (Jimp as unknown as { MIME_PNG: string }).MIME_PNG);
+    img.quality(forceRange(quality, 1, 100)); // mainly affects JPEG, harmless here
+    return getBufferP(img, Jimp.MIME_PNG);
   };
-  const toJPG = async (buf: Buffer, quality = 100) => {
+
+  const toJPG = async (buf: Buffer, quality = 95) => {
     const img = await Jimp.read(buf);
-    img.quality(Math.max(1, Math.min(100, quality)));
-    return toBuf(img, (Jimp as unknown as { MIME_JPEG: string }).MIME_JPEG);
+    img.quality(forceRange(quality, 1, 100));
+    return getBufferP(img, Jimp.MIME_JPEG);
   };
 
   const cropToAspect = async (buf: Buffer, targetW: number, targetH: number) => {
@@ -127,8 +141,8 @@ async function loadAdapter(): Promise<ImageAdapter> {
     const left = Math.max(0, Math.round((srcW - cropW) / 2));
     const top = Math.max(0, Math.round((srcH - cropH) / 2));
 
-    img.crop({ x: left, y: top, w: cropW, h: cropH }).resize({ w: targetW, h: targetH });
-    return toBuf(img, (Jimp as unknown as { MIME_JPEG: string }).MIME_JPEG);
+    img.crop(left, top, cropW, cropH).resize(targetW, targetH);
+    return getBufferP(img, Jimp.MIME_JPEG);
   };
 
   return { name: 'jimp', toPNG, toJPG, cropToAspect };
@@ -220,21 +234,53 @@ async function generatePrintGuidePDF(): Promise<Buffer> {
 
 /* ---------------- Route handler ---------------- */
 
+type Body =
+  | { jobId: string }                                   // preferred: tiny request body
+  | { fileUrl: string; imageId?: string };              // legacy: http(s) or data: URL
+
 export async function POST(req: NextRequest) {
   try {
-    const { fileUrl, imageId } = await req.json();
-    if (!fileUrl) return NextResponse.json({ error: 'Missing fileUrl' }, { status: 400 });
+    let body: Body;
+    try {
+      body = (await req.json()) as Body;
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
 
-    const src = await fetch(fileUrl, { cache: 'no-store' });
-    if (!src.ok) return NextResponse.json({ error: 'Failed to fetch image' }, { status: 400 });
-    const original = Buffer.from(await src.arrayBuffer());
+    // Resolve the source image bytes
+    let original: Buffer;
+    let imageIdForName: string | undefined;
+
+    if ('jobId' in body && body.jobId) {
+      const job = await getJob(body.jobId);
+      if (!job || job.status !== 'done' || !job.resultUrl) {
+        return NextResponse.json({ error: 'Job not found or not complete' }, { status: 404 });
+      }
+      const parsed = parseDataUrl(job.resultUrl);
+      if (!parsed) return NextResponse.json({ error: 'Bad job result data URL' }, { status: 500 });
+      original = parsed.buffer;
+      imageIdForName = job.input.imageId;
+    } else if ('fileUrl' in body && body.fileUrl) {
+      imageIdForName = body.imageId;
+      if (body.fileUrl.startsWith('data:')) {
+        const parsed = parseDataUrl(body.fileUrl);
+        if (!parsed) return NextResponse.json({ error: 'Bad data URL' }, { status: 400 });
+        original = parsed.buffer;
+      } else {
+        const src = await fetch(body.fileUrl, { cache: 'no-store' });
+        if (!src.ok) return NextResponse.json({ error: `Fetch failed: ${src.status} ${src.statusText}` }, { status: 400 });
+        original = Buffer.from(await src.arrayBuffer());
+      }
+    } else {
+      return NextResponse.json({ error: 'Provide jobId or fileUrl' }, { status: 400 });
+    }
 
     const adapter = await loadAdapter();
     const zip = new JSZip();
 
     // 1) MASTER files
     const masterPng = await adapter.toPNG(original, 100);
-    const masterJpg = await adapter.toJPG(original, 100);
+    const masterJpg = await adapter.toJPG(original, 95);
     zip.file('spookified-MASTER-full-resolution.png', masterPng);
     zip.file('spookified-MASTER-full-resolution.jpg', masterJpg);
 
@@ -258,14 +304,15 @@ export async function POST(req: NextRequest) {
     return new NextResponse(arrayBuffer as unknown as ArrayBuffer, {
       headers: {
         'Content-Type': 'application/zip',
-        'Content-Disposition': `attachment; filename="spookify-print-package-${imageId || 'download'}.zip"`,
+        'Content-Disposition': `attachment; filename="spookify-print-package-${imageIdForName || 'download'}.zip"`,
+        'Cache-Control': 'no-store',
       },
     });
   } catch (err) {
     console.error('Error generating print package:', err);
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Failed to generate package' },
-      { status: 500 }
+      { status: 500, headers: { 'Cache-Control': 'no-store' } }
     );
   }
 }

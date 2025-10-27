@@ -27,7 +27,9 @@ function Inner() {
   const [message, setMessage] = useState('Finalizing your order…');
   const [error, setError] = useState<string | null>(null);
 
-  console.log(phase)
+// in CheckoutClient()
+  const jobId = sp.get('jobId') || '';   // <-- add this
+
 
   useEffect(() => {
     let cancelled = false;
@@ -53,7 +55,7 @@ function Inner() {
         const meta = session.metadata || {};
         const sku = meta.sku || '';
         const imageId = meta.imageId || '';
-        const fileUrl = meta.fileUrl || '';
+        // const fileUrl = meta.fileUrl || '';
 
         // --- 2️⃣ Handle digital "print-at-home" products ---
         if (sku === 'print-at-home') {
@@ -63,7 +65,8 @@ function Inner() {
           const pkgRes = await fetch('/api/generate-print-package', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ imageId, fileUrl }),
+            // body: JSON.stringify({ imageId, fileUrl }),
+            body: JSON.stringify({ jobId }) 
           });
 
           if (!pkgRes.ok) throw new Error(`ZIP generation failed (${pkgRes.status})`);

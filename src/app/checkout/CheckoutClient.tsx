@@ -63,6 +63,10 @@ export default function CheckoutClient() {
   const productUid = sp.get('productUid') || ''; // optional, but useful
   const sku = sp.get('sku') || '';
 
+  // in CheckoutClient()
+ const jobId = sp.get('jobId') || '';   // <-- add this
+
+
   const [sdkReady, setSdkReady] = useState(false);
   const [sdkErr, setSdkErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);

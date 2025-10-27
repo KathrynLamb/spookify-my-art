@@ -6,21 +6,17 @@ import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/* ---------------- image adapter: Sharp with Jimp fallback ---------------- */
+/* ---------------- Image adapter: Sharp with Jimp fallback ---------------- */
 
 type ImageAdapter = {
   name: 'sharp' | 'jimp';
   toPNG(buf: Buffer, quality?: number): Promise<Buffer>;
   toJPG(buf: Buffer, quality?: number): Promise<Buffer>;
-  cropToAspect(
-    buf: Buffer,
-    targetW: number,
-    targetH: number
-  ): Promise<Buffer>;
+  cropToAspect(buf: Buffer, targetW: number, targetH: number): Promise<Buffer>;
 };
 
 async function loadAdapter(): Promise<ImageAdapter> {
-  // Try Sharp first (fastest, best quality)
+  // Try Sharp first (fast/best)
   try {
     const mod = await import('sharp');
     const sharp = mod.default;
@@ -42,13 +38,10 @@ async function loadAdapter(): Promise<ImageAdapter> {
 
       let cropW: number;
       let cropH: number;
-
       if (srcAspect > tgtAspect) {
-        // wider → crop width
         cropH = srcH;
         cropW = Math.round(cropH * tgtAspect);
       } else {
-        // taller → crop height
         cropW = srcW;
         cropH = Math.round(cropW / tgtAspect);
       }
@@ -102,14 +95,14 @@ async function loadAdapter(): Promise<ImageAdapter> {
     const left = Math.max(0, Math.round((srcW - cropW) / 2));
     const top = Math.max(0, Math.round((srcH - cropH) / 2));
 
-    img.crop({ x: left, y: top, w: cropW, h: cropH }).resize(targetW, targetH);
+    img.crop(left, top, cropW, cropH).resize(targetW, targetH);
     return img.getBufferAsync(Jimp.MIME_JPEG);
   };
 
   return { name: 'jimp', toPNG, toJPG, cropToAspect };
 }
 
-/* ---------------- ratios & helpers ---------------- */
+/* ---------------- Ratios & helpers ---------------- */
 
 type AspectRatio = {
   name: string;
@@ -151,31 +144,39 @@ async function generatePrintGuidePDF(): Promise<Buffer> {
 
   page.drawText('Your Spookify Print Guide', { x: 50, y, size: 24, font: bold, color: orange }); y -= 40;
   p('Congratulations! Your spooky masterpiece is ready to haunt your walls.');
-  p("Here’s everything you need to print at home or at your local print shop."); y -= 10;
+  p('Here’s everything you need to print at home or at your local print shop.'); y -= 10;
 
   h("What's in Your Package");
-  ['• MASTER file: Full resolution (for large prints at print shops)',
-   '• 2:3, 3:4, 4:5, 5:7 ratios: Portrait & Landscape',
-   '• A5, A4, A3: Perfect for standard frames',
-   '• All files are 300 DPI, print-ready!'].forEach(li); y -= 5;
+  [
+    '• MASTER file: Full resolution (for large prints at print shops)',
+    '• 2:3, 3:4, 4:5, 5:7 ratios: Portrait & Landscape',
+    '• A5, A4, A3: Perfect for standard frames',
+    '• All files are 300 DPI, print-ready!',
+  ].forEach(li); y -= 5;
 
   h('Printing at Home (A5 - A4 sizes)');
-  ['1. Use the A4 or A5 file',
-   '2. Glossy photo paper for best results (matte works too)',
-   '3. Printer settings: “Best/High Quality”, “Borderless” if available',
-   '4. Print a test on regular paper first'].forEach(li); y -= 5;
+  [
+    '1. Use the A4 or A5 file',
+    '2. Glossy photo paper for best results (matte works too)',
+    '3. Printer settings: “Best/High Quality”, “Borderless” if available',
+    '4. Print a test on regular paper first',
+  ].forEach(li); y -= 5;
 
   h('Taking to a Print Shop (A3 and larger)');
-  ['1. Bring the MASTER file on a USB or email it',
-   '2. Ask for: “High quality photo print on glossy or matte paper”',
-   '3. Most shops can print up to 24×36" or larger',
-   '4. Try: Staples, FedEx, local photo labs, or online'].forEach(li); y -= 5;
+  [
+    '1. Bring the MASTER file on a USB or email it',
+    '2. Ask for: “High quality photo print on glossy or matte paper”',
+    '3. Most shops can print up to 24×36" or larger',
+    '4. Try: Staples, FedEx, local photo labs, or online',
+  ].forEach(li); y -= 5;
 
   h('Quick Size Reference');
-  ['• Small frames (5×7", 8×10"): Use 5-7 or 4-5 files',
-   '• Medium frames (11×14", 12×18"): Use 3-4 or 2-3 files',
-   '• Large prints (16×20"+): Use MASTER file at print shop',
-   '• Standard frames: Use A5, A4, or A3 files'].forEach(li);
+  [
+    '• Small frames (5×7", 8×10"): Use 5-7 or 4-5 files',
+    '• Medium frames (11×14", 12×18"): Use 3-4 or 2-3 files',
+    '• Large prints (16×20"+): Use MASTER file at print shop',
+    '• Standard frames: Use A5, A4, or A3 files',
+  ].forEach(li);
 
   y = 50;
   page.drawText('Happy Haunting!', { x: width / 2 - 60, y, size: 14, font: bold, color: orange });
@@ -185,20 +186,16 @@ async function generatePrintGuidePDF(): Promise<Buffer> {
   return Buffer.from(await pdfDoc.save());
 }
 
-/* ---------------- route handler ---------------- */
+/* ---------------- Route handler ---------------- */
 
 export async function POST(req: NextRequest) {
   try {
     const { fileUrl, imageId } = await req.json();
+    if (!fileUrl) return NextResponse.json({ error: 'Missing fileUrl' }, { status: 400 });
 
-    if (!fileUrl) {
-      return NextResponse.json({ error: 'Missing fileUrl' }, { status: 400 });
-    }
-
-    // fetch original
-    const res = await fetch(fileUrl, { cache: 'no-store' });
-    if (!res.ok) return NextResponse.json({ error: 'Failed to fetch image' }, { status: 400 });
-    const original = Buffer.from(await res.arrayBuffer());
+    const src = await fetch(fileUrl, { cache: 'no-store' });
+    if (!src.ok) return NextResponse.json({ error: 'Failed to fetch image' }, { status: 400 });
+    const original = Buffer.from(await src.arrayBuffer());
 
     const adapter = await loadAdapter();
     const zip = new JSZip();
@@ -209,7 +206,7 @@ export async function POST(req: NextRequest) {
     zip.file('spookified-MASTER-full-resolution.png', masterPng);
     zip.file('spookified-MASTER-full-resolution.jpg', masterJpg);
 
-    // 2) Aspect crops (portrait + landscape)
+    // 2) Aspect ratio crops (portrait + landscape)
     for (const ratio of ASPECT_RATIOS) {
       const portrait = await adapter.cropToAspect(original, ratio.width, ratio.height);
       zip.file(`spookified-${ratio.name}-portrait.jpg`, portrait);
@@ -218,16 +215,13 @@ export async function POST(req: NextRequest) {
       zip.file(`spookified-${ratio.name}-landscape.jpg`, landscape);
     }
 
-    // 3) PDF guide
+    // 3) Print Guide PDF
     const guide = await generatePrintGuidePDF();
     zip.file('PRINT-GUIDE.pdf', guide);
 
-    // 4) zip -> response
-    const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
-    const arrayBuffer = zipBuffer.buffer.slice(
-      zipBuffer.byteOffset,
-      zipBuffer.byteOffset + zipBuffer.byteLength
-    );
+    // 4) ZIP → Response
+    const zipBuf = await zip.generateAsync({ type: 'nodebuffer' });
+    const arrayBuffer = zipBuf.buffer.slice(zipBuf.byteOffset, zipBuf.byteOffset + zipBuf.byteLength);
 
     return new NextResponse(arrayBuffer as unknown as ArrayBuffer, {
       headers: {

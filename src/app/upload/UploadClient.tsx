@@ -652,6 +652,7 @@ const generate = async () => {
         }
 
         if (j.status === 'error') {
+          console.log('[client] status error payload', j);
           setError(j.error || 'Spookify failed');
           console.log("ERR ====>", j, j.error)
           setGenerating(false);

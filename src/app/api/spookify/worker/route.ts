@@ -167,6 +167,15 @@ async function loadAdapter(): Promise<ImageAdapter> {
   const Jimp: JimpCtor = (jimpNamed ?? jimpDefault) as JimpCtor;
 
   log('adapter: using jimp');
+  const tmp = await Jimp.read(Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAucB9a2p5p0AAAAASUVORK5CYII=',
+    'base64'
+  ));
+  console.log('[jimp] methods', {
+    resizeType: typeof tmp.resize,
+    cropType: typeof tmp.crop,
+  });
+  
 
   const conformTo = async (
     pngBuffer: Buffer,
@@ -228,8 +237,12 @@ async function loadAdapter(): Promise<ImageAdapter> {
       }
       const left = Math.max(0, Math.round((srcW - cropW) / 2));
       const top = Math.max(0, Math.round((srcH - cropH) / 2));
-      log('jimp.crop', { cropW, cropH, left, top });
-      img.crop(left, top, cropW, cropH).resize(targetW, targetH);
+      console.log('[jimp] about to CROP', { left, top, cropW, cropH });
+      img.crop(left, top, cropW, cropH);
+      console.log('[jimp] about to RESIZE', { targetW, targetH });
+      img.resize(targetW, targetH); // keep as-is for now so we see where it fails
+      console.log('[jimp] about to BUFFER');
+      
       const out = await img.getBufferAsync(Jimp.MIME_PNG);
       log('jimp.output cover bytes', out.byteLength);
       return out;
@@ -257,6 +270,12 @@ export async function POST(req: Request) {
     const bodyText = await req.text();
     log('POST body raw', bodyText);
     const body = bodyText ? JSON.parse(bodyText) : {};
+    console.log('[jobs] KV envs', {
+      KV_URL: !!process.env.KV_URL,
+      UPSTASH_REDIS_REST_URL: !!process.env.UPSTASH_REDIS_REST_URL,
+      VERCEL_KV_URL: !!process.env.VERCEL_KV_URL,
+    });
+    
     jobId = body?.id ?? '';
     if (!jobId) {
       errlog('Missing job id in POST body');
@@ -441,6 +460,10 @@ export async function POST(req: Request) {
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     errlog('FATAL', msg);
+
+    console.error('[spookify-worker] FATAL full', err);
+ 
+  
     if (jobId) {
       await updateJob(jobId, { status: 'error', error: msg });
     }

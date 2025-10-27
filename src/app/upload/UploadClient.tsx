@@ -308,7 +308,7 @@ export default function UploadWithChatPage() {
       if (!f.type.startsWith('image/')) return;
 
       setError(null);
-      console.log("error line 311")
+
 
       setSpookified(null);
       setPlan(null);
@@ -391,7 +391,7 @@ export default function UploadWithChatPage() {
     setInput('');
     setChatBusy(true);
     setError(null);
-    console.log("error line 394")
+
 
 
     try {
@@ -420,7 +420,7 @@ export default function UploadWithChatPage() {
   // generate
 // const generate = async () => {
 //   if (!imageId) { setError('Please upload an image first'); return; }
-//   console.log("error line 423")
+
 
 //   if (!plan?.orientation) { setError
 //     console.log("error line 426")
@@ -586,6 +586,7 @@ export default function UploadWithChatPage() {
 // // };
 
 const generate = async () => {
+  console.log("IN GEN!!!!!!")
   if (!imageId) {
     setError('Please upload an image first');
     return;

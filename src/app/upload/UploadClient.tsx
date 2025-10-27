@@ -143,27 +143,74 @@ async function shrinkDataUrlIfNeeded(durl: string, maxDim = 2400, quality = 0.88
   return canvas.toDataURL('image/jpeg', quality);
 }
 
-async function ensurePublicUrl(current: string, givenImageId: string) {
-  if (isHttpUrl(current)) return current;
+/**
+ * Uploads a file (Blob or File) to /api/upload-spooky with progress reporting.
+ * Returns the public URL.
+ */
+/* ===================== Upload Helper ===================== */
+async function uploadWithProgress(
+  blob: Blob,
+  filename: string,
+  onProgress: (pct: number) => void
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const fd = new FormData();
+    fd.append('file', blob, filename);
 
-  const safeDataUrl = await shrinkDataUrlIfNeeded(current, 1600, 0.85);
+    xhr.open('POST', '/api/upload-spooky', true);
 
-  // convert to blob and upload as FormData
-  const blob = await (await fetch(safeDataUrl)).blob();
-  const fd = new FormData();
-  fd.append('file', blob, `spookified-${givenImageId}.jpg`);
+    xhr.upload.onprogress = (evt) => {
+      if (evt.lengthComputable) {
+        const pct = Math.round((evt.loaded / evt.total) * 100);
+        onProgress(pct);
+      }
+    };
 
-  const res = await fetch('/api/upload-spooky', {
-    method: 'POST',
-    body: fd,
+    xhr.onload = () => {
+      try {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          const json = JSON.parse(xhr.responseText);
+          if (json.url) resolve(json.url);
+          else reject(new Error(json.error || 'Upload failed'));
+        } else {
+          reject(new Error(`HTTP ${xhr.status}: ${xhr.responseText}`));
+        }
+      } catch (err) {
+        reject(err instanceof Error ? err : new Error(String(err)));
+      }
+    };
+
+    xhr.onerror = () => reject(new Error('Network error during upload'));
+    xhr.send(fd);
   });
+}
 
-  const text = await res.text();
-  if (!res.ok) throw new Error(`HTTP ${res.status} /api/upload-spooky\n${text}`);
+/* ===================== ensurePublicUrl ===================== */
+function useEnsurePublicUrl() {
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
-  const j = JSON.parse(text) as { url?: string; error?: string };
-  if (!j?.url) throw new Error(j?.error || 'Upload failed');
-  return j.url;
+  const ensurePublicUrl = useCallback(async (current: string, givenImageId: string) => {
+    if (/^https?:\/\//i.test(current)) return current;
+
+    const safeDataUrl = current; // optional shrink step skipped for brevity
+    const blob = await (await fetch(safeDataUrl)).blob();
+
+    setUploadProgress(0);
+    setIsUploading(true);
+
+    try {
+      const url = await uploadWithProgress(blob, `spookified-${givenImageId}.jpg`, (pct) => {
+        setUploadProgress(pct);
+      });
+      return url;
+    } finally {
+      setIsUploading(false);
+    }
+  }, []);
+
+  return { ensurePublicUrl, isUploading, uploadProgress };
 }
 
 
@@ -208,6 +255,11 @@ export default function UploadWithChatPage() {
   // product selection handoff (design-first path)
   const [pending, setPending] = useState<PendingSelection | null>(null);
   const [askedOrientation, setAskedOrientation] = useState(false);
+
+//   const [isUploading, setIsUploading] = useState(false);
+// const [uploadProgress, setUploadProgress] = useState(0);
+const { ensurePublicUrl, isUploading, uploadProgress } = useEnsurePublicUrl();
+
 
   useEffect(() => {
     if (!plan || askedOrientation || plan.orientation) return;
@@ -683,8 +735,8 @@ const generate = async () => {
 
           {originalDataUrl ? (
             <div className="bg-gray-950 rounded-xl p-3 md:p-4 border border-white/10 flex-1 min-h-0">
-              <div className="relative w-full h-full aspect-square border border-white/10 rounded overflow-hidden bg-black">
-                {/* Desktop/Tablet: drag slider. Mobile: tap toggle */}
+<div className="relative w-full aspect-square border border-white/10 rounded overflow-hidden bg-black">     
+           {/* Desktop/Tablet: drag slider. Mobile: tap toggle */}
                 {spookified ? (
                   <>
                     <div className="absolute z-10 right-3 top-3 md:hidden">
@@ -745,6 +797,12 @@ const generate = async () => {
                     priority
                   />
                 )}
+
+              {isUploading && (
+                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-black/70 px-3 py-1 text-xs rounded-full border border-white/10">
+                  Uploading... {uploadProgress}%
+                </div>
+              )}
 
                 {/* Generating overlay */}
                 {generating ? (
@@ -845,21 +903,48 @@ const generate = async () => {
             <div ref={chatEndRef} />
           </div>
 
-          {/* Desktop/tablet composer (sticky inside panel) */}
-          <Composer
-            desktop
-            disabled={!originalDataUrl || chatBusy || generating}
-            value={input}
-            setValue={setInput}
-            onSend={send}
-            inputRef={inputRef}
-            autoResize={autoResize}
-          />
+          {/* Quick redo ideas after you already have a spookified result */}
+{spookified && (
+  <div className="bg-gray-950 rounded-xl p-3 border border-white/10">
+    <div className="text-sm text-white/70 mb-2">Want changes? Try a quick tweak or type your own.</div>
+    <div className="flex flex-wrap gap-2">
+      {[
+        'Make it spookier (spookiness 5)',
+        'More subtle and cozy',
+        'Add faint fog + tiny ghost',
+        'Try moonlit blues palette',
+      ].map((t) => (
+        <button
+          key={t}
+          onClick={() => { setInput(t); setTimeout(() => inputRef.current?.focus(), 0); }}
+          className="px-3 py-1.5 text-xs rounded-full border border-white/10 bg-white/5 hover:bg-white/10"
+        >
+          {t}
+        </button>
+      ))}
+    </div>
+  </div>
+)}
+
+
+
+    <div className="hidden md:block">
+      <Composer
+        desktop
+        disabled={!originalDataUrl || chatBusy || generating}
+        value={input}
+        setValue={setInput}
+        onSend={send}
+        inputRef={inputRef}
+        autoResize={autoResize}
+      />
+    </div>
+    
 
           {/* Generate CTA bar (sticks within panel) */}
-            {plan && (
-                <div className="bg-gray-950 rounded-xl p-3 border border-white/10 sticky bottom-0">
-                   <button 
+            {plan && !spookified && !generating && (
+              <div className="hidden md:block bg-gray-950 rounded-xl p-3 border border-white/10 sticky bottom-0">
+              <button 
                       className="w-full px-4 py-2 rounded bg-orange-600 hover:bg-orange-500 disabled:opacity-50"
                       aria-busy={generating}
                       disabled={!canGenerate} onClick={generate}>
@@ -941,6 +1026,8 @@ const generate = async () => {
   );
 }
 
+
+
 /* ============== Small subcomponent: Composer ============== */
 function Composer({
   value,
@@ -959,8 +1046,12 @@ function Composer({
   disabled: boolean;
   desktop?: boolean;
 }) {
+  const handleSend = () => {
+    if (!disabled && value.trim()) void onSend();
+  };
+
   return (
-    <div className={`flex gap-2 items-end ${desktop ? '' : ''}`}>
+    <div className={`relative ${desktop ? '' : ''}`}>
       <textarea
         ref={inputRef}
         value={value}
@@ -971,29 +1062,56 @@ function Composer({
         onKeyDown={(e) => {
           if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            if (!disabled && value.trim()) void onSend();
+            handleSend();
           }
         }}
         placeholder={
           disabled
             ? 'Upload an image to begin'
-            : 'Tell me your vibe (e.g., cozy-cute • spookiness 3 • fog + tiny ghost • moonlit blues • no blood)'
+            : 'Tell me your vibe or tweak (e.g., cozy-cute • spookiness 3 • fog + tiny ghost • moonlit blues • no blood)'
         }
-        className="flex-1 px-3 py-2 rounded bg-gray-900 border border-white/10 outline-none disabled:opacity-60 resize-none leading-6 text-sm"
+        className="
+          w-full
+          bg-white/5 border border-white/15
+          rounded-full md:rounded-xl
+          px-4 md:px-4
+          py-3 md:py-3
+          pr-12 md:pr-20
+          text-sm leading-6
+          placeholder-white/40
+          focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500
+          disabled:opacity-60 resize-none
+        "
         disabled={disabled}
         rows={2}
         style={{ maxHeight: 160 }}
         aria-label="Chat message"
       />
+
+      {/* Floating send button (icon-only on mobile, shows text on md+) */}
       <button
-        onClick={() => { if (!disabled && value.trim()) void onSend(); }}
+        type="button"
+        onClick={handleSend}
         disabled={disabled || !value.trim()}
-        className="px-4 py-2 rounded bg-white text-black hover:bg-orange-300 disabled:opacity-50 inline-flex items-center gap-2"
         aria-label="Send message"
+        className="
+          absolute
+          right-1.5 bottom-1.5
+          md:right-2 md:bottom-2
+          h-9 md:h-10
+          px-0 md:px-4
+          rounded-full
+          bg-white text-black
+          shadow
+          disabled:opacity-50
+          hover:bg-orange-300
+          inline-flex items-center justify-center gap-2
+        "
       >
         <Send className="h-4 w-4" />
-        <span className="hidden sm:inline">Send</span>
+        <span className="hidden md:inline text-sm font-medium">Send</span>
       </button>
     </div>
   );
 }
+

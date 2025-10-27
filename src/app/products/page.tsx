@@ -19,7 +19,7 @@ const isHttpUrl = (s: string) => /^https?:\/\//i.test(s);
 const PRINT_AT_HOME = {
   title: 'Print at home',
   productUid: 'print-at-home',
-  prices: { GBP: 16.99, USD: 19.99, EUR: 18.99 },
+  prices: { GBP: 6.99, USD: 9.99, EUR: 8.99 },
 };
 
 /* ---------- Types ---------- */

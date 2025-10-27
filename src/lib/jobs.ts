@@ -54,8 +54,16 @@ async function getKV(): Promise<KVLike | null> {
   // Prefer @vercel/kv if available
   try {
     // dynamic import so local dev works without the package
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const mod: any = await import('@vercel/kv');
+    type VercelKVModule = {
+      kv?: {
+        get<T>(k: string): Promise<T | null>;
+        set(k: string, v: unknown, opts?: { ex?: number }): Promise<unknown>;
+        expire(k: string, seconds: number): Promise<unknown>;
+      };
+    };
+    
+    const mod = (await import('@vercel/kv').catch(() => ({}))) as VercelKVModule;
+    
 // inside getKV(), when @vercel/kv is detected
 if (mod?.kv) {
   const real = mod.kv as {

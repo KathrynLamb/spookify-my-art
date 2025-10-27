@@ -64,7 +64,7 @@ export default function CheckoutClient() {
   const sku = sp.get('sku') || '';
 
   // in CheckoutClient()
- const jobId = sp.get('jobId') || '';   // <-- add this
+//  const jobId = sp.get('jobId') || '';   // <-- add this
 
 
   const [sdkReady, setSdkReady] = useState(false);

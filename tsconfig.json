@@ -30,7 +30,7 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler", // ✅ Next.js default; works great with ESM pkgs like 'openai'
-    "jsx": "react-jsx",
+    "jsx": "preserve",
     "strict": true,
     "noEmit": true,
     "baseUrl": ".",

@@ -30,7 +30,7 @@ function Inner() {
 // in CheckoutClient()
   const jobId = sp.get('jobId') || '';   // <-- add this
 
-
+  console.log(phase)
   useEffect(() => {
     let cancelled = false;
 
@@ -121,7 +121,7 @@ function Inner() {
     return () => {
       cancelled = true;
     };
-  }, [sessionId, router]);
+  }, [sessionId, router, jobId]);
 
   // ---------------- UI ----------------
   if (status === 'error') {

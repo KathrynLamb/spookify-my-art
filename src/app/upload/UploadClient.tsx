@@ -643,6 +643,8 @@ const generate = async () => {
         const r = await fetch(`/api/spookify/status?id=${encodeURIComponent(jobId)}`, { cache: 'no-store' });
         const j = await r.json();
 
+        console.log("JJJJJ", j)
+
         if (j.status === 'done' && j.resultUrl) {
           setSpookified(j.resultUrl as string);
           setGenerating(false);
@@ -651,19 +653,20 @@ const generate = async () => {
           return;
         }
 
-        if (j.status === 'error') {
-          console.log('[client] status error payload', j);
-          setError(j.error || 'Spookify failed');
-          console.log("ERR ====>", j, j.error)
-          setGenerating(false);
-          stopped = true;
-          document.removeEventListener('visibilitychange', onVis);
-          return;
-        }
+        // if (j.status === 'error') {
+        //   console.log('[client] status error payload', j);
+        //   setError(j.error || 'Spookify failed');
+        //   console.log("ERR ====>", j, j.error)
+        //   setGenerating(false);
+        //   stopped = true;
+        //   document.removeEventListener('visibilitychange', onVis);
+        //   return;
+        // }
       } catch {
         // ignore transient network flakiness
+        console.log("RANDOM CATCH")
       }
-      setTimeout(poll, 2000);
+      // setTimeout(poll, 3000);
     };
 
     document.addEventListener('visibilitychange', onVis, { passive: true });

@@ -153,6 +153,9 @@ export type SpookifyJob = {
   updatedAt: number;
 };
 
+console.log('[jobs] KV enabled?', !!(process.env.KV_URL || process.env.UPSTASH_REDIS_REST_URL || process.env.VERCEL_KV_URL));
+
+
 const JOB_TTL_SECONDS = 60 * 60; // 1 hour
 const useKV =
   !!process.env.KV_URL ||

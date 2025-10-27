@@ -101,7 +101,31 @@ async function loadAdapter(): Promise<ImageAdapter> {
     console.warn('[image] sharp unavailable, falling back to jimp:', (err as Error)?.message || err);
   }
 
-  const Jimp = (await import('jimp')).default;
+// ---- Jimp fallback (handles both named+default exports) ----
+// ---- Jimp fallback (handles both named+default exports) ----
+type JimpImage = {
+  bitmap: { width: number; height: number };
+  resize: (w: number, h: number) => JimpImage;
+  crop: (x: number, y: number, w: number, h: number) => JimpImage;
+  clone: () => JimpImage;
+  composite: (src: JimpImage, x: number, y: number) => JimpImage;
+  quality: (q: number) => JimpImage;
+  getBufferAsync: (mime: string) => Promise<Buffer>;
+};
+type JimpCtor = {
+  new (w: number, h: number, bg?: number | string): JimpImage; // ✅ constructor
+  read: (buf: Buffer | string) => Promise<JimpImage>;
+  MIME_PNG: string;
+  MIME_JPEG: string;
+};
+
+const jimpModUnknown: unknown = await import('jimp');
+const jimpNs = jimpModUnknown as Record<string, unknown>;
+const jimpDefault = (jimpNs.default ?? jimpNs) as unknown;
+const jimpNamed = jimpNs.Jimp as unknown;
+// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+const Jimp: JimpCtor = (jimpNamed ?? jimpDefault) as JimpCtor;
+
 
   const conformTo = async (
     pngBuffer: Buffer,
@@ -154,7 +178,7 @@ async function loadAdapter(): Promise<ImageAdapter> {
       }
       const left = Math.max(0, Math.round((srcW - cropW) / 2));
       const top = Math.max(0, Math.round((srcH - cropH) / 2));
-      img.crop({ x: left, y: top, w: cropW, h: cropH }).resize(targetW, targetH);
+      img.crop(left, top, cropW, cropH).resize(targetW, targetH);      
       return await img.getBufferAsync(Jimp.MIME_PNG);
     }
   };

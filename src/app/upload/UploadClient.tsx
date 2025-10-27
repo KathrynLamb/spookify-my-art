@@ -134,6 +134,22 @@ async function ensurePublicUrl(current: string, givenImageId: string) {
   return upJson.url;
 }
 
+async function fetchJsonWithDebug<T = unknown>(input: RequestInfo | URL, init?: RequestInit) {
+  const res = await fetch(input, init);
+  let text = '';
+  try { text = await res.clone().text(); } catch {}
+  if (!res.ok) {
+    const url = typeof input === 'string' ? input : (input as URL).toString();
+    // Include URL + status + raw response so your red banner names the culprit
+    throw new Error(`HTTP ${res.status} ${url}\n${text}`);
+  }
+  try { return (await res.json()) as T; } catch {
+    const url = typeof input === 'string' ? input : (input as URL).toString();
+    throw new Error(`Bad JSON from ${url}\n${text}`);
+  }
+}
+
+
 /* ======================= Component ======================= */
 export default function UploadWithChatPage() {
   const router = useRouter();
@@ -222,23 +238,26 @@ export default function UploadWithChatPage() {
   // --- API helpers ---
   const refreshPlanFromServer = async (id: string) => {
     try {
-      const r = await fetch(`/api/get-plan?id=${encodeURIComponent(id)}`);
-      if (!r.ok) return;
-      const j = (await r.json()) as { plan?: Plan };
+      const j = await fetchJsonWithDebug<{ plan?: Plan }>(`/api/get-plan?id=${encodeURIComponent(id)}`);
       if (j?.plan) setPlan(j.plan);
-    } catch { /* noop */ }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
   };
+  
 
   const postChat = async (msgs: Msg[]): Promise<ChatResponse> => {
-    const res = await fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: imageId, messages: msgs }),
-    });
-    const data = (await res.json()) as ChatResponse & { error?: string };
-    if (!res.ok) throw new Error(data.error || 'Chat failed');
-    return data;
+    try {
+      return await fetchJsonWithDebug<ChatResponse>('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: imageId, messages: msgs }),
+      });
+    } catch (e) {
+      throw e; // caller already sets setError
+    }
   };
+  
 
   // scroll chat to bottom on changes
   const scrollToBottom = () => chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -413,14 +432,16 @@ const generate = async () => {
       body: JSON.stringify({
         id: imageId,
         promptOverride: finalizedPrompt || undefined,
-        orientation: plan.orientation,                 // for logging/safety
-        target: { aspect, minWidth: 2048, mode: 'cover' }, // worker will fit to this
+        orientation: plan.orientation,
+        target: { aspect, minWidth: 2048, mode: 'cover' },
       }),
     });
+    const sText = await start.text();
+    if (!start.ok) throw new Error(`HTTP ${start.status} /api/spookify/begin\n${sText}`);
+    const s = JSON.parse(sText);
+    
 
-    const s = await start.json();
-    if (!start.ok || !s?.jobId) throw new Error(s?.error || 'Failed to start');
-
+ 
     const jobId: string = s.jobId;
     let stopped = false;
 

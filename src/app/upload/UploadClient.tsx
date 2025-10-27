@@ -652,6 +652,7 @@ const generate = async () => {
 
         if (j.status === 'error') {
           setError(j.error || 'Spookify failed');
+          console.log("ERR ====>", j, j.error)
           setGenerating(false);
           stopped = true;
           document.removeEventListener('visibilitychange', onVis);
@@ -667,6 +668,7 @@ const generate = async () => {
     void poll();
   } catch (e: unknown) {
     setError(e instanceof Error ? e.message : String(e));
+    console.log("ERR CATCH ====>", e)
     setGenerating(false);
   }
 };

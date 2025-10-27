@@ -10,6 +10,9 @@ const DEFAULT_PROMPT =
 /* ---------------- logging helpers ---------------- */
 
 const TAG = '[spookify-worker]';
+const log = (...a: unknown[]) => console.log(TAG, ...a);
+const warn = (...a: unknown[]) => console.warn(TAG, ...a);
+const errlog = (...a: unknown[]) => console.error(TAG, ...a);
 
 function safePreview(v: unknown, max = 800): string {
   try {
@@ -22,16 +25,6 @@ function safePreview(v: unknown, max = 800): string {
   } catch {
     return String(v);
   }
-}
-
-function log(...args: unknown[]) {
-  console.log(TAG, ...args);
-}
-function warn(...args: unknown[]) {
-  console.warn(TAG, ...args);
-}
-function errlog(...args: unknown[]) {
-  console.error(TAG, ...args);
 }
 
 function metaUrlFrom(imageId: string): string | null {
@@ -59,11 +52,7 @@ function sanitizeTarget(
   input?: SpookifyJobInput['target'],
   orientation?: 'Horizontal' | 'Vertical' | 'Square'
 ) {
-  log('sanitizeTarget.INPUT', {
-    type: typeof input,
-    inputPreview: safePreview(input),
-    orientation,
-  });
+  log('sanitizeTarget.INPUT', { type: typeof input, inputPreview: safePreview(input), orientation });
 
   let aspect = input?.aspect;
   if (!(typeof aspect === 'number' && isFinite(aspect) && aspect > 0.2 && aspect < 5)) {
@@ -79,7 +68,6 @@ function sanitizeTarget(
       : undefined;
 
   const mode: 'cover' | 'contain' = input?.mode === 'contain' ? 'contain' : 'cover';
-
   const out = { aspect, minWidth, mode };
   log('sanitizeTarget.OUTPUT', out);
   return out;
@@ -96,6 +84,7 @@ type ImageAdapter = {
 };
 
 async function loadAdapter(): Promise<ImageAdapter> {
+  // Prefer Sharp (native, fast)
   try {
     const mod = await import('sharp');
     const sharp = mod.default;
@@ -139,42 +128,71 @@ async function loadAdapter(): Promise<ImageAdapter> {
     warn('sharp unavailable, falling back to jimp:', (e as Error)?.message || e);
   }
 
-  // ---- Jimp v1 fallback (object args + getBuffer compatibility) ----
+  // ---- Jimp fallback (support multiple API shapes without `any`) ----
   type JimpImage = {
     bitmap: { width: number; height: number };
-    resize: (opts: { w: number; h: number }) => JimpImage;
-    crop: (opts: { x: number; y: number; w: number; h: number }) => JimpImage;
+    resize:
+      | ((w: number, h: number) => JimpImage)
+      | ((opts: { w: number; h: number }) => JimpImage);
+    crop:
+      | ((x: number, y: number, w: number, h: number) => JimpImage)
+      | ((opts: { x: number; y: number; w: number; h: number }) => JimpImage);
     clone: () => JimpImage;
     composite: (src: JimpImage, x: number, y: number) => JimpImage;
-    // one of these exists depending on Jimp build
-    getBuffer?: (mime: string) => Promise<Buffer>;
+    getBuffer?: (mime: string, cb: (err: unknown, data: Buffer) => void) => unknown;
     getBufferAsync?: (mime: string) => Promise<Buffer>;
   };
   type JimpCtor = {
     new (opts: { width: number; height: number; background?: number | string }): JimpImage;
     read: (buf: Buffer | string) => Promise<JimpImage>;
-    MIME_PNG: string;
-    MIME_JPEG: string;
+    MIME_PNG?: string;
+    MIME_JPEG?: string;
   };
 
-  const jimpModUnknown: unknown = await import('jimp');
-  const jimpNs = jimpModUnknown as { default?: unknown; Jimp?: unknown };
-  const jimpDefault = (jimpNs.default ?? jimpNs) as unknown;
-  const jimpNamed = jimpNs.Jimp as unknown;
-  const Jimp: JimpCtor = (jimpNamed ?? jimpDefault) as unknown as JimpCtor;
+  const jimpMod: unknown = await import('jimp');
+  const ns = jimpMod as { default?: unknown; Jimp?: unknown };
+  const Jimp = (ns.Jimp ?? ns.default ?? ns) as JimpCtor;
 
-  const hasFn = <T extends string>(o: unknown, name: T): o is Record<T, (...args: unknown[]) => unknown> =>
-    !!o && typeof (o as Record<string, unknown>)[name] === 'function';
+  const PNG_MIME = (Jimp?.MIME_PNG as string | undefined) ?? 'image/png';
 
-  const toBuf = async (img: JimpImage, mime: string): Promise<Buffer> => {
-    const anyImg = img as unknown;
-    if (hasFn(anyImg, 'getBufferAsync')) {
-      return (await (anyImg.getBufferAsync as (m: string) => Promise<unknown>).call(img, mime)) as Buffer;
+  const isPromise = <T,>(v: unknown): v is Promise<T> =>
+    typeof v === 'object' && v !== null && 'then' in v && typeof (v as { then: unknown }).then === 'function';
+
+  const getBufferCompat = async (img: JimpImage, mime: string) => {
+    if (typeof img.getBufferAsync === 'function') return img.getBufferAsync(mime);
+
+    if (typeof img.getBuffer === 'function') {
+      return new Promise<Buffer>((resolve, reject) => {
+        try {
+          const maybe = img.getBuffer!(mime, (err, data) => (err ? reject(err) : resolve(data)));
+          if (isPromise<Buffer>(maybe)) maybe.then(resolve).catch(reject);
+        } catch (err) {
+          reject(err);
+        }
+      });
     }
-    if (hasFn(anyImg, 'getBuffer')) {
-      return (await (anyImg.getBuffer as (m: string) => Promise<unknown>).call(img, mime)) as Buffer;
+    throw new Error('Jimp: no getBuffer{Async} method available');
+  };
+
+  const resizeCompat = (img: JimpImage, w: number, h: number): JimpImage => {
+    try {
+      return (img.resize as (opts: { w: number; h: number }) => JimpImage)({ w, h });
+    } catch {
+      return (img.resize as (w: number, h: number) => JimpImage)(w, h);
     }
-    throw new Error('Jimp: no getBuffer/getBufferAsync available');
+  };
+
+  const cropCompat = (img: JimpImage, x: number, y: number, w: number, h: number): JimpImage => {
+    try {
+      return (img.crop as (opts: { x: number; y: number; w: number; h: number }) => JimpImage)({
+        x,
+        y,
+        w,
+        h,
+      });
+    } catch {
+      return (img.crop as (x: number, y: number, w: number, h: number) => JimpImage)(x, y, w, h);
+    }
   };
 
   log('adapter: using jimp');
@@ -193,9 +211,9 @@ async function loadAdapter(): Promise<ImageAdapter> {
         const w = opts.minWidth;
         const h = Math.round(w * (srcH / srcW));
         log('jimp.resize inside', { w, h });
-        img.resize({ w, h });
+        resizeCompat(img, w, h);
       }
-      const out = await toBuf(img, Jimp.MIME_PNG);
+      const out = await getBufferCompat(img, PNG_MIME);
       log('jimp.output no-aspect bytes', out.byteLength);
       return out;
     }
@@ -210,20 +228,20 @@ async function loadAdapter(): Promise<ImageAdapter> {
       const clone = img.clone();
       if (srcAspect > tgtAspect) {
         const h = Math.round(targetW / srcAspect);
-        clone.resize({ w: targetW, h });
+        resizeCompat(clone, targetW, h);
         const canvas = new Jimp({ width: targetW, height: targetH, background: 0xffffffff });
         const top = Math.round((targetH - h) / 2);
         canvas.composite(clone, 0, top);
-        const out = await toBuf(canvas, Jimp.MIME_PNG);
+        const out = await getBufferCompat(canvas, PNG_MIME);
         log('jimp.output contain bytes', out.byteLength);
         return out;
       } else {
         const w = Math.round(targetH * srcAspect);
-        clone.resize({ w, h: targetH });
+        resizeCompat(clone, w, targetH);
         const canvas = new Jimp({ width: targetW, height: targetH, background: 0xffffffff });
         const left = Math.round((targetW - w) / 2);
         canvas.composite(clone, left, 0);
-        const out = await toBuf(canvas, Jimp.MIME_PNG);
+        const out = await getBufferCompat(canvas, PNG_MIME);
         log('jimp.output contain bytes', out.byteLength);
         return out;
       }
@@ -240,8 +258,9 @@ async function loadAdapter(): Promise<ImageAdapter> {
       const left = Math.max(0, Math.round((srcW - cropW) / 2));
       const top = Math.max(0, Math.round((srcH - cropH) / 2));
       log('jimp.crop', { cropW, cropH, left, top });
-      img.crop({ x: left, y: top, w: cropW, h: cropH }).resize({ w: targetW, h: targetH });
-      const out = await toBuf(img, Jimp.MIME_PNG);
+      cropCompat(img, left, top, cropW, cropH);
+      resizeCompat(img, targetW, targetH);
+      const out = await getBufferCompat(img, PNG_MIME);
       log('jimp.output cover bytes', out.byteLength);
       return out;
     }
@@ -267,7 +286,7 @@ export async function POST(req: Request) {
   try {
     const bodyText = await req.text();
     log('POST body raw', bodyText);
-    const body = bodyText ? JSON.parse(bodyText) : {};
+    const body = bodyText ? JSON.parse(bodyText) as { id?: string } : {};
 
     jobId = body?.id ?? '';
     if (!jobId) {
@@ -441,10 +460,7 @@ export async function POST(req: Request) {
       status: 'done',
       resultUrl: dataUrl,
       error: null,
-      input: {
-        ...input,
-        target: { aspect, minWidth, mode },
-      } as SpookifyJobInput,
+      input: { ...input, target: { aspect, minWidth, mode } } as SpookifyJobInput,
     });
 
     log('DONE', { ms: Date.now() - startTs, jobId });
@@ -453,9 +469,7 @@ export async function POST(req: Request) {
     const msg = err instanceof Error ? err.message : String(err);
     errlog('FATAL', msg);
     console.error('[spookify-worker] FATAL full', err);
-    if (jobId) {
-      await updateJob(jobId, { status: 'error', error: msg });
-    }
+    if (jobId) await updateJob(jobId, { status: 'error', error: msg });
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

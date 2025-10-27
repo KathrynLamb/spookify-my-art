@@ -62,7 +62,10 @@ async function loadAdapter(): Promise<ImageAdapter> {
   }
 
   // Fallback: Jimp (pure JS)
-  const Jimp = (await import('jimp')).default;
+// Fallback: Jimp (pure JS)
+const jimpMod = await import('jimp');
+// Jimp can be a named export (Jimp) or default depending on version/bundler.
+const Jimp: any = (jimpMod as any).Jimp ?? (jimpMod as any).default ?? jimpMod;
 
   const toPNG = async (buf: Buffer) => {
     const img = await Jimp.read(buf);

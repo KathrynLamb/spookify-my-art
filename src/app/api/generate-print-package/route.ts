@@ -70,6 +70,7 @@ type JimpImage = {
   crop: (x: number, y: number, w: number, h: number) => JimpImage;
   clone: () => JimpImage;
   composite: (src: JimpImage, x: number, y: number) => JimpImage;
+  quality: (q: number) => JimpImage;   
   getBufferAsync: (mime: string) => Promise<Buffer>;
 };
 type JimpLike = {

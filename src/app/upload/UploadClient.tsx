@@ -639,6 +639,7 @@ const generate = async () => {
     const poll = async (): Promise<void> => {
       if (stopped) return;
       try {
+        console.log(encodeURIComponent(jobId))
         const r = await fetch(`/api/spookify/status?id=${encodeURIComponent(jobId)}`, { cache: 'no-store' });
         const j = await r.json();
 

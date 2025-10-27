@@ -1,4 +1,5 @@
 // src/lib/jobs.ts
+
 export type SpookifyJobInput = {
   imageId: string;
   promptOverride?: string | null;
@@ -21,12 +22,17 @@ export type SpookifyJob = {
 };
 
 const JOB_TTL_SECONDS = 60 * 60; // 1 hour
-const useKV =
-  !!process.env.KV_URL ||
-  !!process.env.UPSTASH_REDIS_REST_URL ||
-  !!process.env.VERCEL_KV_URL;
 
-// Dev/local fallback (not shared across lambdas)
+// Detect whether a KV backend is configured.
+// Support both the Upstash/Vercel KV env names.
+const useKV =
+  !!process.env.KV_REST_API_URL ||
+  !!process.env.KV_REST_API_TOKEN ||
+  !!process.env.KV_URL ||
+  !!process.env.VERCEL_KV_URL ||
+  !!process.env.UPSTASH_REDIS_REST_URL;
+
+// Dev/local fallback (NOT shared across lambdas)
 const mem = new Map<string, SpookifyJob>();
 
 function key(id: string) {
@@ -35,13 +41,13 @@ function key(id: string) {
 
 /** Minimal KV client surface we use directly from @vercel/kv */
 type RawKVClient = {
-  get<T = string>(k: string): Promise<T | null>;
-  set(k: string, v: string): Promise<unknown>;
+  get(k: string): Promise<unknown>;
+  set(k: string, v: unknown): Promise<unknown>;
   expire(k: string, seconds: number): Promise<unknown>;
 };
 type RawKVModule = { kv: RawKVClient };
 
-/** Our wrapper interface (parses/serializes JSON so Zod never validates nested shapes). */
+/** Our wrapper interface */
 type KVLike = {
   get<T>(k: string): Promise<T | null>;
   set(k: string, v: unknown): Promise<void>;
@@ -65,17 +71,27 @@ async function getKV(): Promise<KVLike | null> {
 
   kvClient = {
     async get<T>(k: string): Promise<T | null> {
-      const raw = await real.get<string>(k);
-      if (!raw) return null;
-      try {
-        return JSON.parse(raw) as T;
-      } catch {
-        return null;
+      const raw = await real.get(k);
+      if (raw === null || raw === undefined) return null;
+
+      // If value is a string, try to JSON.parse; otherwise return as-is
+      if (typeof raw === 'string') {
+        try {
+          return JSON.parse(raw) as T;
+        } catch {
+          // It was a plain string; return as unknown T
+          return raw as unknown as T;
+        }
       }
+
+      return raw as T;
     },
+
     async set(k: string, v: unknown): Promise<void> {
-      await real.set(k, JSON.stringify(v));
+      // Let @vercel/kv handle serialization. Do NOT double-stringify.
+      await real.set(k, v);
     },
+
     async expire(k: string, seconds: number): Promise<void> {
       await real.expire(k, seconds);
     },
@@ -127,13 +143,7 @@ export async function updateJob(
 export function newJob(input: SpookifyJobInput): SpookifyJob {
   const id = cryptoRandomId();
   const now = Date.now();
-  return {
-    id,
-    status: 'queued',
-    input,
-    createdAt: now,
-    updatedAt: now,
-  };
+  return { id, status: 'queued', input, createdAt: now, updatedAt: now };
 }
 
 function cryptoRandomId(): string {
@@ -142,7 +152,8 @@ function cryptoRandomId(): string {
   }
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
-// src/lib/jobs.ts (add at bottom)
+
+/** Quick KV self-test: writes & reads back using whichever backend is active. */
 export async function kvSelfTest() {
   const envs = {
     KV_REST_API_URL: !!process.env.KV_REST_API_URL,
@@ -165,8 +176,11 @@ export async function kvSelfTest() {
   } else {
     // prove the memory path also works
     mem.set(keyName, {
-      id: keyName, status: 'queued', input: { imageId: 'selftest' },
-      createdAt: Date.now(), updatedAt: Date.now(),
+      id: keyName,
+      status: 'queued',
+      input: { imageId: 'selftest' },
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
     } as SpookifyJob);
     roundtrip = mem.get(keyName) ? { ok: true, backend } : null;
   }

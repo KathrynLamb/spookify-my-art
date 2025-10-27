@@ -242,6 +242,8 @@ export default function UploadWithChatPage() {
       if (j?.plan) setPlan(j.plan);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+      console.log("error line 246")
+
     }
   };
   
@@ -306,6 +308,8 @@ export default function UploadWithChatPage() {
       if (!f.type.startsWith('image/')) return;
 
       setError(null);
+      console.log("error line 311")
+
       setSpookified(null);
       setPlan(null);
       setMessages([]);
@@ -354,6 +358,8 @@ export default function UploadWithChatPage() {
       await refreshPlanFromServer(newId);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+      console.log("error line 361")
+
     } finally {
       setChatBusy(false);
     }
@@ -385,6 +391,8 @@ export default function UploadWithChatPage() {
     setInput('');
     setChatBusy(true);
     setError(null);
+    console.log("error line 394")
+
 
     try {
       const data = await postChat(newMsgs);
@@ -401,6 +409,8 @@ export default function UploadWithChatPage() {
       await refreshPlanFromServer(imageId);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+      console.log("error line 412")
+
     } finally {
       setChatBusy(false);
     }
@@ -410,10 +420,17 @@ export default function UploadWithChatPage() {
   // generate
 const generate = async () => {
   if (!imageId) { setError('Please upload an image first'); return; }
-  if (!plan?.orientation) { setError('Pick an orientation (Horizontal / Vertical / Square) before generating.'); return; }
+  console.log("error line 423")
+
+  if (!plan?.orientation) { setError
+    console.log("error line 426")
+
+    return; }
 
   setGenerating(true);
   setError(null);
+  console.log("error line 431")
+
 
   // Map orientation → aspect if plan.targetAspect isn't already set
   const aspect =
@@ -459,6 +476,8 @@ const generate = async () => {
         }
         if (j.status === 'error') {
           setError(j.error || 'Spookify failed');
+          console.log("error line 479")
+
           setGenerating(false);
           stopped = true;
           document.addEventListener('visibilitychange', onVis, { passive: true });
@@ -484,6 +503,8 @@ const generate = async () => {
   } catch (e: unknown) {
     console.log("error line 485")
     setError(e instanceof Error ? e.message : String(e));
+    console.log("error line 506")
+
     setGenerating(false);
   }
 };
@@ -561,7 +582,7 @@ const generate = async () => {
 //   } catch (e: unknown) {
 //     setError(e instanceof Error ? e.message : String(e));
 //     setGenerating(false);
-//   }
+//   }s
 // };
 
 
@@ -570,7 +591,11 @@ const generate = async () => {
   const goChooseProduct = async () => {
     try {
       if (!spookified) { setError('No spookified image found. Generate first.'); return; }
+      console.log("error line 573")
+
       if (!imageId) { setError('Missing image id.'); return; }
+      console.log("error line 576")
+
       let fileUrl = spookified;
       if (!isHttpUrl(spookified)) fileUrl = await ensurePublicUrl(spookified, imageId);
       const qp = new URLSearchParams({ fileUrl, imageId });
@@ -587,6 +612,8 @@ const generate = async () => {
       router.push(`/products?${qp.toString()}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+      console.log("error line 594")
+
     }
   };
 
@@ -633,6 +660,8 @@ const generate = async () => {
       router.push(`/checkout?${qp.toString()}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+      console.log("error line 642")
+
     }
   };
 

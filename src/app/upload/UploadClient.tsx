@@ -143,39 +143,28 @@ async function shrinkDataUrlIfNeeded(durl: string, maxDim = 2400, quality = 0.88
   return canvas.toDataURL('image/jpeg', quality);
 }
 
-
 async function ensurePublicUrl(current: string, givenImageId: string) {
   if (isHttpUrl(current)) return current;
 
-  // ↓↓↓ this line is the fix — keep uploads below the 4–5 MB request cap
-  const safeDataUrl = await shrinkDataUrlIfNeeded(current, 2400, 0.88);
+  const safeDataUrl = await shrinkDataUrlIfNeeded(current, 1600, 0.85);
+
+  // convert to blob and upload as FormData
+  const blob = await (await fetch(safeDataUrl)).blob();
+  const fd = new FormData();
+  fd.append('file', blob, `spookified-${givenImageId}.jpg`);
 
   const res = await fetch('/api/upload-spooky', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      // Prefer .jpg once we re-encode; PNG is what makes it huge.
-      filename: `spookified-${givenImageId}.jpg`,
-      dataUrl: safeDataUrl,
-    }),
+    body: fd,
   });
 
   const text = await res.text();
-  if (!res.ok) {
-    // Surface the *real* cause in your red banner
-    throw new Error(`HTTP ${res.status} /api/upload-spooky\n${text}`);
-  }
+  if (!res.ok) throw new Error(`HTTP ${res.status} /api/upload-spooky\n${text}`);
 
-  try {
-    const j = JSON.parse(text) as { url?: string; error?: string };
-    if (!j?.url) throw new Error(j?.error || 'Upload failed');
-    return j.url;
-  } catch {
-    throw new Error(`Bad JSON from /api/upload-spooky\n${text}`);
-  }
+  const j = JSON.parse(text) as { url?: string; error?: string };
+  if (!j?.url) throw new Error(j?.error || 'Upload failed');
+  return j.url;
 }
-
-
 
 
 async function fetchJsonWithDebug<T = unknown>(input: RequestInfo | URL, init?: RequestInit) {

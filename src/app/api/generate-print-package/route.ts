@@ -67,12 +67,13 @@ async function loadAdapter(): Promise<ImageAdapter> {
 type JimpImage = {
   bitmap: { width: number; height: number };
   resize: (w: number, h: number) => JimpImage;
-  crop: (x: number, y: number, w: number, h: number) => JimpImage;
+  crop: (rect: { x: number; y: number; w: number; h: number }) => JimpImage; // <-- object
   clone: () => JimpImage;
   composite: (src: JimpImage, x: number, y: number) => JimpImage;
-  quality: (q: number) => JimpImage;   
+  quality: (q: number) => JimpImage;
   getBufferAsync: (mime: string) => Promise<Buffer>;
 };
+
 type JimpLike = {
   read: (buf: Buffer | string) => Promise<JimpImage>;
   MIME_PNG: string;
@@ -117,7 +118,7 @@ const Jimp: JimpLike = (jimpNamed ?? jimpDefault) as JimpLike;
     const left = Math.max(0, Math.round((srcW - cropW) / 2));
     const top = Math.max(0, Math.round((srcH - cropH) / 2));
 
-    img.crop(left, top, cropW, cropH).resize(targetW, targetH);
+    img.crop({ x: left, y: top, w: cropW, h: cropH }).resize(targetW, targetH);
     return img.getBufferAsync(Jimp.MIME_JPEG);
   };
 

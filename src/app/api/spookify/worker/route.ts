@@ -141,14 +141,17 @@ async function loadAdapter(): Promise<ImageAdapter> {
   }
 
   // ---- Jimp v1 fallback (object constructor) ----
+// type JimpImage = {
   type JimpImage = {
     bitmap: { width: number; height: number };
     resize: (w: number, h: number) => JimpImage;
-    crop: (x: number, y: number, w: number, h: number) => JimpImage;
+    // v1 crop signature:
+    crop: (rect: { x: number; y: number; w: number; h: number }) => JimpImage;
     clone: () => JimpImage;
     composite: (src: JimpImage, x: number, y: number) => JimpImage;
     getBufferAsync: (mime: string) => Promise<Buffer>;
   };
+  
   type JimpCtor = {
     new (opts: { width: number; height: number; background?: number | string }): JimpImage; // v1 shape
     read: (buf: Buffer | string) => Promise<JimpImage>;
@@ -197,6 +200,8 @@ async function loadAdapter(): Promise<ImageAdapter> {
         const h = Math.round(targetW / srcAspect);
         clone.resize(targetW, h);
         const canvas = new Jimp({ width: targetW, height: targetH, background: 0xffffffff });
+
+
         const top = Math.round((targetH - h) / 2);
         canvas.composite(clone as unknown as JimpImage, 0, top);
         const out = await canvas.getBufferAsync(Jimp.MIME_PNG);
@@ -225,8 +230,8 @@ async function loadAdapter(): Promise<ImageAdapter> {
       const left = Math.max(0, Math.round((srcW - cropW) / 2));
       const top = Math.max(0, Math.round((srcH - cropH) / 2));
       log('jimp.crop', { cropW, cropH, left, top });
-      img.crop(left, top, cropW, cropH).resize(targetW, targetH);
-      const out = await img.getBufferAsync(Jimp.MIME_PNG);
+      img.crop({ x: left, y: top, w: cropW, h: cropH }).resize(targetW, targetH);
+            const out = await img.getBufferAsync(Jimp.MIME_PNG);
       log('jimp.output cover bytes', out.byteLength);
       return out;
     }

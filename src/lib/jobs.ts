@@ -1,4 +1,136 @@
-// src/lib/jobs.ts
+// // src/lib/jobs.ts
+// export type Orientation = 'Horizontal' | 'Vertical' | 'Square';
+
+// export type SpookifyJobInput = {
+//   imageId: string;
+//   promptOverride?: string | null;
+//   orientation?: Orientation;
+//   target?: {
+//     aspect?: number;
+//     minWidth?: number;
+//     mode?: 'cover' | 'contain';
+//   };
+// };
+
+// export type SpookifyJob = {
+//   id: string;
+//   status: 'queued' | 'processing' | 'done' | 'error';
+//   resultUrl?: string | null;
+//   error?: string | null;
+//   input: SpookifyJobInput;
+//   createdAt: number;
+//   updatedAt: number;
+// };
+
+// const JOB_TTL_SECONDS = 60 * 60; // 1h
+// const useKV = !!process.env.KV_URL || !!process.env.UPSTASH_REDIS_REST_URL;
+
+// // In-memory fallback for dev / no-KV
+// const mem = new Map<string, SpookifyJob>();
+
+// function key(id: string) {
+//   return `spookify:job:${id}`;
+// }
+
+// type KVLike = {
+//   get<T>(k: string): Promise<T | null>;
+//   set(k: string, v: unknown): Promise<void>;
+//   expire(k: string, seconds: number): Promise<void>;
+// };
+
+// let kvClient: KVLike | null = null;
+
+// async function getKV(): Promise<KVLike | null> {
+//   if (!useKV) return null;
+//   if (kvClient) return kvClient;
+
+//   // Use official client; wrap as KVLike
+//   const mod = await import('@vercel/kv').catch(() => null);
+//   if (!mod || !('kv' in mod)) return null;
+
+//   const real = (mod as unknown as { kv: any }).kv; // runtime value from lib
+//   kvClient = {
+//     async get<T>(k: string): Promise<T | null> {
+//       // We store JSON strings; parse on read
+//       const raw = await real.get<string>(k);
+//       if (!raw) return null;
+//       try {
+//         return JSON.parse(raw) as T;
+//       } catch {
+//         return null;
+//       }
+//     },
+//     async set(k: string, v: unknown): Promise<void> {
+//       // Always stringify once; avoids zod arg shape issues
+//       await real.set(k, JSON.stringify(v));
+//     },
+//     async expire(k: string, seconds: number): Promise<void> {
+//       await real.expire(k, seconds);
+//     },
+//   };
+//   return kvClient;
+// }
+
+// /* ---------- Public API ---------- */
+
+// export async function createJob(job: SpookifyJob): Promise<void> {
+//   const kv = await getKV();
+//   if (kv) {
+//     await kv.set(key(job.id), job);
+//     await kv.expire(key(job.id), JOB_TTL_SECONDS);
+//     return;
+//   }
+//   mem.set(job.id, job);
+// }
+
+// export async function getJob(id: string): Promise<SpookifyJob | null> {
+//   const kv = await getKV();
+//   if (kv) {
+//     const j = await kv.get<SpookifyJob>(key(id));
+//     return j ?? null;
+//   }
+//   return mem.get(id) ?? null;
+// }
+
+// export async function updateJob(
+//   id: string,
+//   patch: Partial<SpookifyJob>
+// ): Promise<SpookifyJob | null> {
+//   const existing = await getJob(id);
+//   if (!existing) return null;
+
+//   const updated: SpookifyJob = { ...existing, ...patch, updatedAt: Date.now() };
+
+//   const kv = await getKV();
+//   if (kv) {
+//     await kv.set(key(id), updated);
+//     await kv.expire(key(id), JOB_TTL_SECONDS);
+//   } else {
+//     mem.set(id, updated);
+//   }
+//   return updated;
+// }
+
+// export function newJob(input: SpookifyJobInput): SpookifyJob {
+//   const id = cryptoRandomId();
+//   const now = Date.now();
+//   return {
+//     id,
+//     status: 'queued',
+//     input,
+//     createdAt: now,
+//     updatedAt: now,
+//   };
+// }
+
+// function cryptoRandomId(): string {
+//   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+
+//     return crypto.randomUUID();
+//   }
+//   return Math.random().toString(36).slice(2) + Date.now().toString(36);
+// }
+// /src/lib/jobs.ts
 
 export type SpookifyJobInput = {
   imageId: string;
@@ -14,7 +146,6 @@ export type SpookifyJobInput = {
 export type SpookifyJob = {
   id: string;
   status: 'queued' | 'processing' | 'done' | 'error';
-  imageId?: string;               // optional legacy echo
   resultUrl?: string | null;
   error?: string | null;
   input: SpookifyJobInput;
@@ -22,99 +153,57 @@ export type SpookifyJob = {
   updatedAt: number;
 };
 
-const JOB_TTL_SECONDS = 60 * 60;
-const useKV = !!process.env.KV_URL || !!process.env.UPSTASH_REDIS_REST_URL;
+const JOB_TTL_SECONDS = 60 * 60; // 1 hour
+const useKV =
+  !!process.env.KV_URL ||
+  !!process.env.UPSTASH_REDIS_REST_URL ||
+  !!process.env.VERCEL_KV_URL; // any signal that KV is configured
 
-const mem = new Map<string, SpookifyJob>();
+const mem = new Map<string, SpookifyJob>(); // dev / local fallback
 
 function key(id: string) {
   return `spookify:job:${id}`;
 }
 
-/* ---------------- KV client (lazy, typed) ---------------- */
-
-type KVLike = {
-  get?<T = unknown>(k: string): Promise<T | null>;
-  set?(k: string, v: unknown, opts?: { ex?: number }): Promise<void>;
-  hgetall?<T = Record<string, unknown>>(k: string): Promise<T | null>;
-  hset?(k: string, v: Record<string, unknown>): Promise<void>;
-  expire?(k: string, seconds: number): Promise<void>;
+/** Minimal typed surface we actually use from @vercel/kv */
+type VercelKV = {
+  hgetall<T>(k: string): Promise<T | null>;
+  hset(k: string, v: Record<string, unknown>): Promise<number | void>;
+  expire(k: string, seconds: number): Promise<number | void>;
 };
 
-type VercelKVModule = { kv?: KVLike };
+type KVModule = { kv: VercelKV };
 
-let kv: KVLike | null = null;
+let kvClient: VercelKV | null = null;
 
-async function getKV(): Promise<KVLike | null> {
+async function getKV(): Promise<VercelKV | null> {
   if (!useKV) return null;
-  if (kv) return kv;
+  if (kvClient) return kvClient;
 
-  const modUnknown = await import('@vercel/kv').catch(() => null);
-  const mod = (modUnknown ?? null) as VercelKVModule | null;
+  const mod = (await import('@vercel/kv').catch(() => null)) as KVModule | null;
+  if (!mod || !mod.kv) return null;
 
-  if (!mod || !mod.kv) {
-    console.warn('[jobs] No @vercel/kv available, using memory store.');
-    return null;
-  }
-  kv = mod.kv;
-  return kv;
+  kvClient = mod.kv;
+  return kvClient;
 }
 
-/* -------------- JSON encode/decode for hash mode -------------- */
+// ---------------- Public API ----------------
 
-function encodeJobForHash(job: SpookifyJob): Record<string, unknown> {
-  return { json: JSON.stringify(job) };
-}
-
-function decodeJobFromHash<T = SpookifyJob>(
-  rec: Record<string, unknown> | null
-): T | null {
-  if (!rec) return null;
-  const raw = rec.json;
-  if (typeof raw === 'string') {
-    try {
-      return JSON.parse(raw) as T;
-    } catch (e) {
-      console.error('[jobs] Failed to parse job.json from KV hash:', e);
-      return null;
-    }
-  }
-  return rec as unknown as T;
-}
-
-/* --------------------------- Public API --------------------------- */
-
-export async function createJob(job: SpookifyJob) {
+export async function createJob(job: SpookifyJob): Promise<void> {
   const client = await getKV();
-
-  if (client?.set) {
-    console.info('[jobs] KV.set create', key(job.id));
-    await client.set(key(job.id), job, { ex: JOB_TTL_SECONDS });
-    return;
-  }
-  if (client?.hset && client?.expire) {
-    console.info('[jobs] KV.hset(create)+expire', key(job.id));
-    await client.hset(key(job.id), encodeJobForHash(job));
+  if (client) {
+    await client.hset(key(job.id), job as unknown as Record<string, unknown>);
     await client.expire(key(job.id), JOB_TTL_SECONDS);
     return;
   }
-
-  console.info('[jobs] MEM.create', job.id);
   mem.set(job.id, job);
 }
 
 export async function getJob(id: string): Promise<SpookifyJob | null> {
   const client = await getKV();
-
-  if (client?.get) {
-    const k = key(id);
-    const found = await client.get<SpookifyJob>(k);
-    if (found && client.expire) await client.expire(k, JOB_TTL_SECONDS);
-    return found ?? null;
-  }
-  if (client?.hgetall) {
-    const rec = await client.hgetall<Record<string, unknown>>(key(id));
-    return decodeJobFromHash<SpookifyJob>(rec);
+  if (client) {
+    const j = await client.hgetall<SpookifyJob>(key(id));
+    return j ?? null;
   }
   return mem.get(id) ?? null;
 }
@@ -124,34 +213,22 @@ export async function updateJob(
   patch: Partial<SpookifyJob>
 ): Promise<SpookifyJob | null> {
   const existing = await getJob(id);
-  if (!existing) {
-    console.warn('[jobs] updateJob: not found', id);
-    return null;
-  }
+  if (!existing) return null;
 
   const updated: SpookifyJob = {
     ...existing,
     ...patch,
-    input: { ...(existing.input ?? {}), ...(patch.input ?? {}) },
     updatedAt: Date.now(),
   };
 
   const client = await getKV();
-
-  if (client?.set) {
-    console.info('[jobs] KV.set update', key(id));
-    await client.set(key(id), updated, { ex: JOB_TTL_SECONDS });
-    return updated;
-  }
-  if (client?.hset && client?.expire) {
-    console.info('[jobs] KV.hset(update)+expire', key(id));
-    await client.hset(key(id), encodeJobForHash(updated));
+  if (client) {
+    await client.hset(key(id), updated as unknown as Record<string, unknown>);
     await client.expire(key(id), JOB_TTL_SECONDS);
-    return updated;
+  } else {
+    mem.set(id, updated);
   }
 
-  console.info('[jobs] MEM.update', id);
-  mem.set(id, updated);
   return updated;
 }
 
@@ -161,14 +238,15 @@ export function newJob(input: SpookifyJobInput): SpookifyJob {
   return {
     id,
     status: 'queued',
-    imageId: input.imageId,
     input,
     createdAt: now,
     updatedAt: now,
   };
 }
 
-function cryptoRandomId() {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
+function cryptoRandomId(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return (crypto as Crypto).randomUUID();
+  }
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }

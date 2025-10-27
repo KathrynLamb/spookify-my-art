@@ -142,3 +142,34 @@ function cryptoRandomId(): string {
   }
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
+// src/lib/jobs.ts (add at bottom)
+export async function kvSelfTest() {
+  const envs = {
+    KV_REST_API_URL: !!process.env.KV_REST_API_URL,
+    KV_REST_API_TOKEN: !!process.env.KV_REST_API_TOKEN,
+    UPSTASH_REDIS_REST_URL: !!process.env.UPSTASH_REDIS_REST_URL,
+    KV_URL: !!process.env.KV_URL,
+  };
+
+  const kv = await getKV();
+  const backend = kv ? 'vercel-kv' : 'memory';
+
+  const keyName = `spookify:selftest:${Date.now()}`;
+  const payload = { ok: true, ts: Date.now(), backend };
+
+  let roundtrip: unknown = null;
+  if (kv) {
+    await kv.set(keyName, payload);
+    roundtrip = await kv.get<typeof payload>(keyName);
+    await kv.expire(keyName, 60); // clean up in a minute
+  } else {
+    // prove the memory path also works
+    mem.set(keyName, {
+      id: keyName, status: 'queued', input: { imageId: 'selftest' },
+      createdAt: Date.now(), updatedAt: Date.now(),
+    } as SpookifyJob);
+    roundtrip = mem.get(keyName) ? { ok: true, backend } : null;
+  }
+
+  return { backend, envs, wrote: payload, read: roundtrip };
+}

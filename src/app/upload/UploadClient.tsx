@@ -121,27 +121,7 @@ async function fileToResizedDataUrl(file: File, maxDim = 1280, quality = 0.9): P
 }
 
 const isHttpUrl = (s: string) => /^https?:\/\//i.test(s);
-// async function shrinkDataUrlIfNeeded(durl: string, maxDim = 2400, quality = 0.88): Promise<string> {
-//   const b64 = durl.split(',')[1] ?? '';
-//   const approxBytes = Math.floor((b64.length * 3) / 4); // base64 → bytes
 
-//   // If already small enough, keep it
-//   if (approxBytes < 3_500_000) return durl;
-
-//   // Re-encode as JPEG and downscale
-//   const blob = await (await fetch(durl)).blob();
-//   const bmp = await createImageBitmap(blob);
-//   const scale = Math.min(maxDim / bmp.width, maxDim / bmp.height, 1);
-//   const w = Math.round(bmp.width * scale);
-//   const h = Math.round(bmp.height * scale);
-
-//   const canvas = document.createElement('canvas');
-//   canvas.width = w; canvas.height = h;
-//   const ctx = canvas.getContext('2d')!;
-//   ctx.drawImage(bmp, 0, 0, w, h);
-
-//   return canvas.toDataURL('image/jpeg', quality);
-// }
 
 /**
  * Uploads a file (Blob or File) to /api/upload-spooky with progress reporting.
@@ -942,7 +922,7 @@ const generate = async () => {
     
 
           {/* Generate CTA bar (sticks within panel) */}
-            {plan && !spookified && !generating && (
+            {plan && !generating && (
               <div className="hidden md:block bg-gray-950 rounded-xl p-3 border border-white/10 sticky bottom-0">
               <button 
                       className="w-full px-4 py-2 rounded bg-orange-600 hover:bg-orange-500 disabled:opacity-50"

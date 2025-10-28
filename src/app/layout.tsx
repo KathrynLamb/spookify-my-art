@@ -4,6 +4,7 @@ import "./globals.css";
 
 import Footer from "./components/footer";
 import SiteHeader from "./components/site-header";
+import { Providers } from "./components/Providers";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,11 +31,13 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-zinc-900`}
       >
+      <Providers>
       <SiteHeader />
       <main className="flex-grow">
         {children}
         </main>
         <Footer />
+        </Providers>
       </body>
     </html>
   );

@@ -1,5 +1,9 @@
 import Image from "next/image";
 import Link from "next/link";
+
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+
 // import FogWipe from "./components/fogwipe";
 import LanternSlider from "./components/lantern-slider";
 import { HeroSpooky } from "./components/hero-spooky";
@@ -10,7 +14,10 @@ export const metadata = {
     "Upload your photo, pick a vibe, and get museum-grade prints delivered. Framed or matte poster — fast, simple, spooky.",
 };
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const session = await getServerSession(authOptions);
+
+  console.log("Session", session)
   return (
     <main className="relative min-h-screen bg-black text-white">
       {/* --- HERO --- */}
@@ -48,19 +55,7 @@ export default function LandingPage() {
   ))}
 </div>
 
-{/* <div className="mt-6 flex flex-wrap gap-3">
-  <Link href="/upload" className="rounded-full bg-orange-600 px-5 py-3 text-sm font-medium shadow-lg shadow-orange-600/20 hover:bg-orange-500">
-    Start with “spookify”
-  </Link>
-  <Link href="/products" className="rounded-full border border-white/15 bg-white/5 px-5 py-3 text-sm font-medium hover:border-white/25">
-    See frames & posters
-  </Link>
-</div> */}
-
-
-
-
-              <div className="mt-6 flex flex-wrap gap-3">
+          <div className="mt-6 flex flex-wrap gap-3">
                 <Link
                   href="/upload"
                   className="rounded-full bg-orange-600 px-5 py-3 text-sm font-medium hover:bg-orange-500"

@@ -1,8 +1,13 @@
 // app/projects/[userId]/page.tsx
-import { auth } from "@/auth";
+// import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { adminDb } from "@/lib/firebase/admin";
+// import { adminDb } from "@/lib/firebase/admin";
 import Image from "next/image";
+
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+// import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+
 
 type Project = {
   id: string;
@@ -22,8 +27,8 @@ type Order = {
 };
 
 export default async function UserProjectsPage({ params }: { params: { userId: string } }) {
-  const session = await auth();
-
+  // const session = await auth();
+  const session = await getServerSession(authOptions);
   // Redirect unauthenticated users
   if (!session?.user) {
     redirect("/login");

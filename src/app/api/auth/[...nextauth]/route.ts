@@ -4,12 +4,10 @@ export const dynamic = "force-dynamic";
 
 import NextAuth, { type NextAuthOptions, type DefaultSession } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
-// import type { JWT } from "next-auth/jwt";
 
 /* -------------------------------------------------------------------------- */
 /*                               Type Extension                               */
 /* -------------------------------------------------------------------------- */
-
 declare module "next-auth" {
   interface Session extends DefaultSession {
     user: {
@@ -30,7 +28,6 @@ declare module "next-auth/jwt" {
 /* -------------------------------------------------------------------------- */
 /*                              Auth Configuration                            */
 /* -------------------------------------------------------------------------- */
-
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
 
@@ -42,54 +39,50 @@ export const authOptions: NextAuthOptions = {
   ],
 
   callbacks: {
-    /* ---------------------- JWT: add UID to the token ---------------------- */
+    /** Ensure a stable uid is always present on the JWT */
     async jwt({ token, account }) {
-      if (account) {
-        token.uid = account.providerAccountId; // Google’s unique user ID
-      }
+      // token.sub is the provider user id; persist it as uid
+      token.uid ??= token.sub ?? account?.providerAccountId;
       return token;
     },
 
-    /* ---------------------- Session: expose UID to client ---------------------- */
+    /** Expose uid on the session */
     async session({ session, token }) {
       if (token?.uid) {
+        // make sure session.user exists (it does for OAuth)
         session.user.id = token.uid;
       }
       return session;
     },
 
-    /* ---------------------- Sync to Firestore on sign-in ---------------------- */
+    /** Best-effort Firestore sync (don't block sign-in on failure) */
     async signIn({ user, account }) {
       try {
         const { adminDb } = await import("@/lib/firebase/admin");
 
-        // Use UID if available, fallback to sanitized email
-        const uid = account?.providerAccountId || user.email?.replace(/\W+/g, "_");
-        if (!uid) return false;
+        const uid = account?.providerAccountId ?? user.email?.replace(/\W+/g, "_");
+        if (!uid) return true; // allow sign-in even if we can't compute an id
 
-        const ref = adminDb.collection("users").doc(uid);
-        const snap = await ref.get();
-
-        if (!snap.exists) {
-          await ref.set({
-            name: user.name || "",
-            email: user.email,
-            image: user.image || null,
-            createdAt: new Date().toISOString(),
-          });
-        } else {
-          // Update if profile changed
-          await ref.update({
-            name: user.name || "",
-            image: user.image || null,
-            lastLoginAt: new Date().toISOString(),
-          });
-        }
+        await adminDb
+          .collection("users")
+          .doc(uid)
+          .set(
+            {
+              name: user.name || "",
+              email: user.email ?? null,
+              image: user.image ?? null,
+              lastLoginAt: new Date().toISOString(),
+              // createdAt will be preserved if present
+              createdAt: new Date().toISOString(),
+            },
+            { merge: true }
+          );
 
         return true;
       } catch (err) {
         console.error("🔥 Firestore user sync error:", err);
-        return false;
+        // Do not block sign-in because of a DB hiccup
+        return true;
       }
     },
   },
@@ -105,6 +98,5 @@ export const authOptions: NextAuthOptions = {
 /* -------------------------------------------------------------------------- */
 /*                                 Export Handlers                            */
 /* -------------------------------------------------------------------------- */
-
 const handler = NextAuth(authOptions);
 export { handler as GET, handler as POST };

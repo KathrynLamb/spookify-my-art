@@ -1,11 +1,16 @@
-// /app/api/spookify/worker/route.ts
+// app/api/spookify/worker/route.ts
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { put } from "@vercel/blob";
 import { NextResponse } from "next/server";
 import { getJob, updateJob, type SpookifyJobInput } from "@/lib/jobs";
-import { adminDb } from "@/lib/firebase/admin";
+
+/* ---------------- Types ---------------- */
+type JobInput = SpookifyJobInput & {
+  userId?: string | null;
+  title?: string | null;
+};
 
 /* ---------------- Constants ---------------- */
 const DEFAULT_PROMPT =
@@ -38,11 +43,12 @@ function pickImageSize(
 export async function POST(req: Request) {
   const start = Date.now();
   const mark = (label: string) => log(`${label.padEnd(20)} +${Date.now() - start}ms`);
-  mark("worker.start");
 
+  mark("worker.start");
   let jobId = "";
 
   try {
+    // Heavy deps – load only when invoked
     const { Jimp } = await import("jimp");
 
     const body = await req.json().catch(() => ({}));
@@ -55,42 +61,48 @@ export async function POST(req: Request) {
 
     await updateJob(jobId, { status: "processing" });
 
-    const input = job.input as unknown;
-    if (!isSpookifyJobInput(input)) {
+    const rawInput = job.input as unknown;
+    if (!isSpookifyJobInput(rawInput)) {
       await updateJob(jobId, { status: "error", error: "Invalid job input" });
       return NextResponse.json({ error: "Invalid job input" }, { status: 400 });
     }
-
+    const input = rawInput as JobInput;
     const { imageId, promptOverride, orientation, userId, title } = input;
 
-    /* ------------- Step 1: Create Firestore project (if user signed in) ------------- */
+    /* ------------- Step 1: (Lazy) Firestore project create ------------- */
+    // Avoid initializing Admin SDK at build time: import only when needed.
+    let adminDb: import("firebase-admin/firestore").Firestore | null = null;
     if (userId) {
-      const projectRef = adminDb
-        .collection("users")
-        .doc(userId)
-        .collection("projects")
-        .doc(jobId);
-
-      await projectRef.set(
-        {
-          title: title || "Untitled Spookify Project",
-          status: "processing",
-          imageId,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-        { merge: true }
-      );
+      try {
+        const m = await import("@/lib/firebase/admin");
+        adminDb = m.adminDb;
+        await adminDb
+          .collection("users")
+          .doc(userId)
+          .collection("projects")
+          .doc(jobId)
+          .set(
+            {
+              title: title || "Untitled Spookify Project",
+              status: "processing",
+              imageId,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            },
+            { merge: true }
+          );
+      } catch (e) {
+        // Don’t fail the job just because Firestore isn’t available
+        console.warn(`${TAG} Firestore init/set failed (non-blocking)`, e);
+      }
     }
 
     /* ------------- Step 2: Fetch meta ------------- */
     const metaUrl = metaUrlFrom(imageId);
-    if (!metaUrl)
-      throw new Error("Missing NEXT_PUBLIC_BLOB_BASE_URL for meta lookup");
+    if (!metaUrl) throw new Error("Missing NEXT_PUBLIC_BLOB_BASE_URL for meta lookup");
 
     const metaRes = await fetch(metaUrl, { cache: "no-store" });
-    if (!metaRes.ok)
-      throw new Error(`Meta not found: ${metaRes.status} ${metaRes.statusText}`);
+    if (!metaRes.ok) throw new Error(`Meta not found: ${metaRes.status} ${metaRes.statusText}`);
     const meta = await metaRes.json();
     mark("meta.fetched");
 
@@ -99,8 +111,7 @@ export async function POST(req: Request) {
 
     /* ------------- Step 3: Fetch original image ------------- */
     const imgRes = await fetch(fileUrl, { cache: "no-store" });
-    if (!imgRes.ok)
-      throw new Error(`Could not fetch original: ${imgRes.statusText}`);
+    if (!imgRes.ok) throw new Error(`Could not fetch original: ${imgRes.statusText}`);
     const imgArrayBuf = await imgRes.arrayBuffer();
     mark(`original.fetched (${(imgArrayBuf.byteLength / 1024).toFixed(1)}KB)`);
 
@@ -115,8 +126,7 @@ export async function POST(req: Request) {
 
     const apiKey = process.env.OPENAI_API_KEY;
     const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
-    if (!apiKey || !blobToken)
-      throw new Error("Missing OPENAI_API_KEY or BLOB_READ_WRITE_TOKEN");
+    if (!apiKey || !blobToken) throw new Error("Missing OPENAI_API_KEY or BLOB_READ_WRITE_TOKEN");
 
     /* ------------- Step 5: Generate via OpenAI ------------- */
     const size = pickImageSize(orientation ?? undefined);
@@ -128,7 +138,7 @@ export async function POST(req: Request) {
     form.append("image", srcBlob, "source.jpg");
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 45000);
+    const timeout = setTimeout(() => controller.abort(), 45_000);
 
     mark("openai.begin");
     const resp = await fetch("https://api.openai.com/v1/images/edits", {
@@ -148,10 +158,7 @@ export async function POST(req: Request) {
       const text = await resp.text().catch(() => "");
       const lower = text.toLowerCase();
       const maybeSafety =
-        lower.includes("safety") ||
-        lower.includes("violence") ||
-        lower.includes("policy") ||
-        lower.includes("content");
+        lower.includes("safety") || lower.includes("violence") || lower.includes("policy") || lower.includes("content");
       const msg = maybeSafety
         ? "Prompt rejected by safety system — try a gentler description (no gore/violence)."
         : `Image generation failed: ${text || resp.statusText}`;
@@ -211,19 +218,25 @@ export async function POST(req: Request) {
       input: { ...input },
     });
 
-    if (userId) {
-      const projectRef = adminDb
-        .collection("users")
-        .doc(userId)
-        .collection("projects")
-        .doc(jobId);
-
-      await projectRef.update({
-        status: "done",
-        resultUrl: cleanUpload.url,
-        previewUrl: previewUpload.url,
-        updatedAt: new Date().toISOString(),
-      });
+    if (userId && adminDb) {
+      try {
+        await adminDb
+          .collection("users")
+          .doc(userId)
+          .collection("projects")
+          .doc(jobId)
+          .set(
+            {
+              status: "done",
+              resultUrl: cleanUpload.url,
+              previewUrl: previewUpload.url,
+              updatedAt: new Date().toISOString(),
+            },
+            { merge: true }
+          );
+      } catch (e) {
+        console.warn(`${TAG} Firestore project update failed (non-blocking)`, e);
+      }
     }
 
     mark("job.updated");
@@ -239,30 +252,39 @@ export async function POST(req: Request) {
     const msg = err instanceof Error ? err.message : String(err);
     errlog("FATAL", msg);
 
-    // Firestore error update if applicable
-    try {
-      if (jobId) {
-        const job = await getJob(jobId);
-        const userId = job?.input?.userId;
-        if (userId) {
-          await adminDb
-            .collection("users")
-            .doc(userId)
-            .collection("projects")
-            .doc(jobId)
-            .set(
-              {
-                status: "error",
-                error: msg,
-                updatedAt: new Date().toISOString(),
-              },
-              { merge: true }
-            );
-        }
+    // Best-effort Firestore error reflection
+// Best-effort Firestore error reflection (typed, no `any`)
+try {
+  if (jobId) {
+    const job = await getJob(jobId);
+    const maybe = job?.input as Partial<JobInput> | undefined;
+
+    if (maybe?.userId) {
+      // Optional, typed dynamic import of admin Firestore
+      let adminDbFallback: import("firebase-admin/firestore").Firestore | null = null;
+      try {
+        adminDbFallback = (await import("@/lib/firebase/admin")).adminDb;
+      } catch {
+        adminDbFallback = null;
       }
-    } catch (inner) {
-      console.error("Failed to update Firestore error status", inner);
+
+      if (adminDbFallback) {
+        await adminDbFallback
+          .collection("users")
+          .doc(maybe.userId)
+          .collection("projects")
+          .doc(jobId)
+          .set(
+            { status: "error", error: msg, updatedAt: new Date().toISOString() },
+            { merge: true }
+          );
+      }
     }
+  }
+} catch (inner) {
+  console.error(`${TAG} Firestore error-status update failed`, inner);
+}
+
 
     if (jobId) await updateJob(jobId, { status: "error", error: msg });
     return NextResponse.json({ error: msg }, { status: 500 });

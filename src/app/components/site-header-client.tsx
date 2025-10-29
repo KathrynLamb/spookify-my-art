@@ -1,11 +1,13 @@
 "use client";
+
 import { useState, useEffect } from "react";
 import { AuthDialog } from "./auth-dialog";
 import Link from "next/link";
 import Image from "next/image";
 import { UserButton } from "./user-button";
+import type { Session } from "next-auth";
 
-export default function SiteHeaderClient({ session }: { session: any }) {
+export default function SiteHeaderClient({ session }: { session: Session | null }) {
   const [scrolled, setScrolled] = useState(false);
   const [showDialog, setShowDialog] = useState(false);
 
@@ -15,7 +17,7 @@ export default function SiteHeaderClient({ session }: { session: any }) {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  const isActive = (href: string) => "text-white/70 hover:text-white";
+  const isActive = () => "text-white/70 hover:text-white";
 
   return (
     <>
@@ -29,7 +31,6 @@ export default function SiteHeaderClient({ session }: { session: any }) {
         <div className="h-[3px] w-full bg-[linear-gradient(90deg,#8B73FF,transparent_18%,#FF6A2B_55%,transparent_82%)] opacity-60" />
 
         <div className="mx-auto max-w-7xl px-4 md:px-6 py-3 flex items-center justify-between gap-4">
-          {/* Brand */}
           <Link href="/" className="flex items-center gap-2 group">
             <div className="relative h-7 w-7 rounded-lg overflow-hidden ring-1 ring-white/15">
               <Image src="/favicon.ico" alt="" fill className="object-cover" />
@@ -41,20 +42,12 @@ export default function SiteHeaderClient({ session }: { session: any }) {
             </span>
           </Link>
 
-          {/* Nav */}
           <nav className="hidden md:flex items-center gap-6 text-sm">
-            <Link href="/upload" className={isActive("/upload")}>
-              Upload
-            </Link>
-            <Link href="/products" className={isActive("/products")}>
-              Products
-            </Link>
-            <Link href="/help" className={isActive("/help")}>
-              Help
-            </Link>
+            <Link href="/upload" className={isActive()}>Upload</Link>
+            <Link href="/products" className={isActive()}>Products</Link>
+            <Link href="/help" className={isActive()}>Help</Link>
           </nav>
 
-          {/* Right side actions */}
           <div className="flex items-center gap-2">
             <Link
               href="/products"
@@ -77,7 +70,6 @@ export default function SiteHeaderClient({ session }: { session: any }) {
         </div>
       </header>
 
-      {/* Dialog overlay */}
       <AuthDialog open={showDialog} onClose={() => setShowDialog(false)} />
     </>
   );

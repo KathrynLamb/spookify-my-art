@@ -9,12 +9,18 @@ export type SpookifyJobInput = {
     minWidth?: number;
     mode?: 'cover' | 'contain';
   };
+
+  // 🔽 NEW:
+  userId?: string | null;      // who kicked this off (if signed in)
+  title?: string | null;       // optional project title
 };
+
 
 export type SpookifyJob = {
   id: string;
   status: 'queued' | 'processing' | 'done' | 'error';
   resultUrl?: string | null;
+  previewUrl?: string | null;
   resultFullUrl?: string | null; // used by worker for full-res URL
   error?: string | null;
   input: SpookifyJobInput;

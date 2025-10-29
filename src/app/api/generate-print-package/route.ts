@@ -1,318 +1,133 @@
 // app/api/generate-print-package/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-import JSZip from 'jszip';
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
-import { getJob } from '@/lib/jobs'; // <-- new: to read by jobId
+import { NextResponse } from "next/server";
+import JSZip from "jszip";
+import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
+import { Jimp } from "jimp";
 
-export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-/* ---------------- helpers ---------------- */
+// Use one Buffer alias everywhere to avoid generic mismatches
+type NodeBuf = Buffer<ArrayBufferLike>;
 
-function parseDataUrl(u: string): { mime: string; buffer: Buffer } | null {
-  const m = /^data:([^;]+);base64,([A-Za-z0-9+/=]+)$/.exec(u);
-  if (!m) return null;
-  const [, mime, b64] = m;
-  return { mime, buffer: Buffer.from(b64, 'base64') };
-}
-
-function forceRange(n: number, lo: number, hi: number) {
-  return Math.max(lo, Math.min(hi, Math.round(n)));
-}
-
-/* ---------------- Image adapter: Sharp with Jimp fallback ---------------- */
-
-type ImageAdapter = {
-  name: 'sharp' | 'jimp';
-  toPNG(buf: Buffer, quality?: number): Promise<Buffer>;
-  toJPG(buf: Buffer, quality?: number): Promise<Buffer>;
-  cropToAspect(buf: Buffer, targetW: number, targetH: number): Promise<Buffer>;
-};
-
-async function loadAdapter(): Promise<ImageAdapter> {
-  // Try Sharp first (fast/best)
-  try {
-    const mod = await import('sharp');
-    const sharp = mod.default;
-
-    const toPNG = (buf: Buffer, quality = 100) =>
-      sharp(buf).png({ quality: forceRange(quality, 1, 100) }).toBuffer();
-
-    const toJPG = (buf: Buffer, quality = 95) =>
-      sharp(buf).jpeg({ quality: forceRange(quality, 1, 100) }).toBuffer();
-
-    const cropToAspect = async (buf: Buffer, targetW: number, targetH: number) => {
-      const img = sharp(buf);
-      const meta = await img.metadata();
-      if (!meta.width || !meta.height) throw new Error('Unable to read image dimensions');
-
-      const srcW = meta.width;
-      const srcH = meta.height;
-      const srcAspect = srcW / srcH;
-      const tgtAspect = targetW / targetH;
-
-      let cropW: number;
-      let cropH: number;
-      if (srcAspect > tgtAspect) {
-        cropH = srcH;
-        cropW = Math.round(cropH * tgtAspect);
-      } else {
-        cropW = srcW;
-        cropH = Math.round(cropW / tgtAspect);
-      }
-
-      const left = Math.max(0, Math.round((srcW - cropW) / 2));
-      const top = Math.max(0, Math.round((srcH - cropH) / 2));
-
-      return img
-        .extract({ left, top, width: cropW, height: cropH })
-        .resize(targetW, targetH, { fit: 'cover', position: 'centre' })
-        .jpeg({ quality: 95 })
-        .toBuffer();
-    };
-
-    return { name: 'sharp', toPNG, toJPG, cropToAspect };
-  } catch (err) {
-    console.warn('[print-package] sharp unavailable → falling back to jimp:', (err as Error)?.message || err);
-  }
-
-  // ---- Fallback: Jimp (pure JS) ----
-  type JimpImage = {
-    bitmap: { width: number; height: number };
-    resize: (w: number, h: number) => JimpImage;
-    crop: (x: number, y: number, w: number, h: number) => JimpImage; // numeric signature works on 0.22+
-    clone: () => JimpImage;
-    composite: (src: JimpImage, x: number, y: number) => JimpImage;
-    quality: (q: number) => JimpImage;
-    getBuffer: (mime: string, cb: (err: Error | null, b?: Buffer) => void) => void;
-  };
-
-  type JimpNS = {
-    read: (buf: Buffer | string) => Promise<JimpImage>;
-    MIME_PNG?: string;
-    MIME_JPEG?: string;
-    default?: unknown;
-    Jimp?: unknown;
-  };
-
-  const jimpModUnknown: unknown = await import('jimp');
-  const jimpNs = jimpModUnknown as JimpNS;
-  const Jimp: { read: JimpNS['read']; MIME_PNG: string; MIME_JPEG: string } = {
-    read: (jimpNs as JimpNS).read,
-    MIME_PNG: (jimpNs.MIME_PNG as string) || 'image/png',
-    MIME_JPEG: (jimpNs.MIME_JPEG as string) || 'image/jpeg',
-  };
-
-  const getBufferP = (img: JimpImage, mime: string) =>
-    new Promise<Buffer>((resolve, reject) => {
-      img.getBuffer(mime || 'image/png', (err, b) => (err ? reject(err) : resolve(b as Buffer)));
-    });
-
-  const toPNG = async (buf: Buffer, quality = 100) => {
-    const img = await Jimp.read(buf);
-    img.quality(forceRange(quality, 1, 100)); // mainly affects JPEG, harmless here
-    return getBufferP(img, Jimp.MIME_PNG);
-  };
-
-  const toJPG = async (buf: Buffer, quality = 95) => {
-    const img = await Jimp.read(buf);
-    img.quality(forceRange(quality, 1, 100));
-    return getBufferP(img, Jimp.MIME_JPEG);
-  };
-
-  const cropToAspect = async (buf: Buffer, targetW: number, targetH: number) => {
-    const img = await Jimp.read(buf);
-    const srcW = img.bitmap.width;
-    const srcH = img.bitmap.height;
-
-    const srcAspect = srcW / srcH;
-    const tgtAspect = targetW / targetH;
-
-    let cropW = srcW;
-    let cropH = srcH;
-    if (srcAspect > tgtAspect) {
-      cropH = srcH;
-      cropW = Math.round(cropH * tgtAspect);
-    } else {
-      cropW = srcW;
-      cropH = Math.round(cropW / tgtAspect);
-    }
-
-    const left = Math.max(0, Math.round((srcW - cropW) / 2));
-    const top = Math.max(0, Math.round((srcH - cropH) / 2));
-
-    img.crop(left, top, cropW, cropH).resize(targetW, targetH);
-    return getBufferP(img, Jimp.MIME_JPEG);
-  };
-
-  return { name: 'jimp', toPNG, toJPG, cropToAspect };
-}
-
-/* ---------------- Ratios & helpers ---------------- */
-
-type AspectRatio = {
-  name: string;
-  width: number;
-  height: number;
-  label: string;
-};
-
-const ASPECT_RATIOS: AspectRatio[] = [
-  { name: '2-3', width: 3000, height: 4500, label: '2:3 (10×15" to 20×30")' },
-  { name: '3-4', width: 3000, height: 4000, label: '3:4 (9×12" to 18×24")' },
-  { name: '4-5', width: 3200, height: 4000, label: '4:5 (8×10" to 16×20")' },
-  { name: '5-7', width: 2500, height: 3500, label: '5:7 (5×7" to 10×14")' },
-  { name: 'A5',  width: 1748, height: 2480, label: 'A5 (5.8×8.3")' },
-  { name: 'A4',  width: 2480, height: 3508, label: 'A4 (8.3×11.7")' },
-  { name: 'A3',  width: 3508, height: 4961, label: 'A3 (11.7×16.5")' },
-];
-
-/* ---------------- PDF guide ---------------- */
-
-async function generatePrintGuidePDF(): Promise<Buffer> {
+/* -------- PDF guide -------- */
+async function generatePrintGuidePDF(): Promise<NodeBuf> {
   const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage([595, 842]); // A4
+  const page = pdfDoc.addPage([595, 842]);
   const { width, height } = page.getSize();
-
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-
   const orange = rgb(0.96, 0.49, 0.2);
-  const purple = rgb(0.51, 0.29, 0.58);
-  const black  = rgb(0, 0, 0);
-  const gray   = rgb(0.4, 0.4, 0.4);
+  const gray = rgb(0.4, 0.4, 0.4);
 
   let y = height - 60;
-
-  const h = (t: string, c = purple) => { page.drawText(t, { x: 50, y, size: 16, font: bold, color: c }); y -= 25; };
-  const p = (t: string) => { page.drawText(t, { x: 50, y, size: 12, font, color: black }); y -= 20; };
-  const li = (t: string) => { page.drawText(t, { x: 60, y, size: 11, font, color: black }); y -= 18; };
-
-  page.drawText('Your Spookify Print Guide', { x: 50, y, size: 24, font: bold, color: orange }); y -= 40;
-  p('Congratulations! Your spooky masterpiece is ready to haunt your walls.');
-  p('Here’s everything you need to print at home or at your local print shop.'); y -= 10;
-
-  h("What's in Your Package");
-  [
-    '• MASTER file: Full resolution (for large prints at print shops)',
-    '• 2:3, 3:4, 4:5, 5:7 ratios: Portrait & Landscape',
-    '• A5, A4, A3: Perfect for standard frames',
-    '• All files are 300 DPI, print-ready!',
-  ].forEach(li); y -= 5;
-
-  h('Printing at Home (A5 - A4 sizes)');
-  [
-    '1. Use the A4 or A5 file',
-    '2. Glossy photo paper for best results (matte works too)',
-    '3. Printer settings: “Best/High Quality”, “Borderless” if available',
-    '4. Print a test on regular paper first',
-  ].forEach(li); y -= 5;
-
-  h('Taking to a Print Shop (A3 and larger)');
-  [
-    '1. Bring the MASTER file on a USB or email it',
-    '2. Ask for: “High quality photo print on glossy or matte paper”',
-    '3. Most shops can print up to 24×36" or larger',
-    '4. Try: Staples, FedEx, local photo labs, or online',
-  ].forEach(li); y -= 5;
-
-  h('Quick Size Reference');
-  [
-    '• Small frames (5×7", 8×10"): Use 5-7 or 4-5 files',
-    '• Medium frames (11×14", 12×18"): Use 3-4 or 2-3 files',
-    '• Large prints (16×20"+): Use MASTER file at print shop',
-    '• Standard frames: Use A5, A4, or A3 files',
-  ].forEach(li);
-
-  y = 50;
-  page.drawText('Happy Haunting!', { x: width / 2 - 60, y, size: 14, font: bold, color: orange });
+  page.drawText("Your Spookify Print Guide", { x: 50, y, size: 24, font: bold, color: orange });
+  y -= 40;
+  page.drawText("Thanks for bringing your art to life!", { x: 50, y, size: 12, font });
   y -= 20;
-  page.drawText('Made by Spookify', { x: width / 2 - 70, y, size: 10, font, color: gray });
+  page.drawText("• Use A4 version for home prints", { x: 60, y, size: 12, font });
+  y -= 20;
+  page.drawText("• Use master file for large prints", { x: 60, y, size: 12, font });
+  y -= 40;
+  page.drawText("Happy Haunting!", { x: width / 2 - 60, y, size: 14, font: bold, color: orange });
+  y -= 20;
+  page.drawText("Made by Spookify", { x: width / 2 - 70, y, size: 10, font, color: gray });
 
-  return Buffer.from(await pdfDoc.save());
+  // pdf-lib gives Uint8Array; convert to NodeBuf
+  const out = await pdfDoc.save();
+  return Buffer.from(out.buffer) as unknown as NodeBuf;
 }
 
-/* ---------------- Route handler ---------------- */
+/* -------- Watermark helper -------- */
+// keep your NodeBuf alias if you added it: type NodeBuf = Buffer<ArrayBufferLike>;
 
-type Body =
-  | { jobId: string }                                   // preferred: tiny request body
-  | { fileUrl: string; imageId?: string };              // legacy: http(s) or data: URL
+async function addWatermark(base: NodeBuf): Promise<NodeBuf> {
+  const img = await Jimp.read(base);
 
-export async function POST(req: NextRequest) {
+  const text = "SPOOKIFY PREVIEW";
+  const font = await Jimp.loadFont(Jimp.FONT_SANS_64_WHITE);
+  const textWidth = Jimp.measureText(font, text);
+
+  const x = Math.max(10, Math.round((img.bitmap.width - textWidth) / 2));
+  const y = Math.max(10, img.bitmap.height - 100);
+
+  const stamped = img.clone();
+  // Jimp typings mark .print() as void in some versions — do NOT chain
+  stamped.print(font, x, y, text);
+  stamped.opacity(0.95);
+
+  const out = await stamped.quality(90).getBufferAsync(Jimp.MIME_JPEG);
+  return out as unknown as NodeBuf;
+}
+
+
+/* -------- Route -------- */
+export async function POST(req: Request) {
   try {
-    let body: Body;
-    try {
-      body = (await req.json()) as Body;
-    } catch {
-      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    const { fileUrl, imageId, watermarked } = await req.json();
+
+    if (!fileUrl) {
+      return NextResponse.json({ error: "Missing fileUrl" }, { status: 400 });
     }
 
-    // Resolve the source image bytes
-    let original: Buffer;
-    let imageIdForName: string | undefined;
-
-    if ('jobId' in body && body.jobId) {
-      const job = await getJob(body.jobId);
-      if (!job || job.status !== 'done' || !job.resultUrl) {
-        return NextResponse.json({ error: 'Job not found or not complete' }, { status: 404 });
-      }
-      const parsed = parseDataUrl(job.resultUrl);
-      if (!parsed) return NextResponse.json({ error: 'Bad job result data URL' }, { status: 500 });
-      original = parsed.buffer;
-      imageIdForName = job.input.imageId;
-    } else if ('fileUrl' in body && body.fileUrl) {
-      imageIdForName = body.imageId;
-      if (body.fileUrl.startsWith('data:')) {
-        const parsed = parseDataUrl(body.fileUrl);
-        if (!parsed) return NextResponse.json({ error: 'Bad data URL' }, { status: 400 });
-        original = parsed.buffer;
-      } else {
-        const src = await fetch(body.fileUrl, { cache: 'no-store' });
-        if (!src.ok) return NextResponse.json({ error: `Fetch failed: ${src.status} ${src.statusText}` }, { status: 400 });
-        original = Buffer.from(await src.arrayBuffer());
-      }
-    } else {
-      return NextResponse.json({ error: 'Provide jobId or fileUrl' }, { status: 400 });
+    const res = await fetch(fileUrl, { cache: "no-store" });
+    if (!res.ok) {
+      return NextResponse.json({ error: "Could not fetch image" }, { status: 404 });
     }
 
-    const adapter = await loadAdapter();
+    // Normalize to our NodeBuf alias
+    const arrayBuf = await res.arrayBuffer();
+    const buf = Buffer.from(arrayBuf) as unknown as NodeBuf;
+
     const zip = new JSZip();
 
-    // 1) MASTER files
-    const masterPng = await adapter.toPNG(original, 100);
-    const masterJpg = await adapter.toJPG(original, 95);
-    zip.file('spookified-MASTER-full-resolution.png', masterPng);
-    zip.file('spookified-MASTER-full-resolution.jpg', masterJpg);
+    let master: NodeBuf = buf;
 
-    // 2) Aspect ratio crops (portrait + landscape)
-    for (const ratio of ASPECT_RATIOS) {
-      const portrait = await adapter.cropToAspect(original, ratio.width, ratio.height);
-      zip.file(`spookified-${ratio.name}-portrait.jpg`, portrait);
-
-      const landscape = await adapter.cropToAspect(original, ratio.height, ratio.width);
-      zip.file(`spookified-${ratio.name}-landscape.jpg`, landscape);
+    // Optional watermark for unpaid users
+    if (Boolean(watermarked)) {
+      master = await addWatermark(buf);
+      zip.file(
+        "README.txt",
+        "This is a preview file only. Purchase required for full-quality print."
+      );
     }
 
-    // 3) Print Guide PDF
+    // MASTER (use Uint8Array for JSZip to avoid Buffer generic noise)
+    zip.file("spookify-master.jpg", new Uint8Array(master));
+
+    // A4 resized (approx 2480x3508 @ 300dpi)
+    const a4Img = await Jimp.read(master);
+    a4Img.resize(2480, 3508).quality(90);
+    const a4Buffer = (await a4Img.getBufferAsync(Jimp.MIME_JPEG)) as unknown as NodeBuf;
+    zip.file("spookify-A4.jpg", new Uint8Array(a4Buffer));
+
+    // PDF guide
     const guide = await generatePrintGuidePDF();
-    zip.file('PRINT-GUIDE.pdf', guide);
+    zip.file("PRINT-GUIDE.pdf", new Uint8Array(guide));
 
-    // 4) ZIP → Response
-    const zipBuf = await zip.generateAsync({ type: 'nodebuffer' });
-    const arrayBuffer = zipBuf.buffer.slice(zipBuf.byteOffset, zipBuf.byteOffset + zipBuf.byteLength);
+// ZIP → Response (Blob-based, type-safe)
+// ZIP → Response (fresh ArrayBuffer to satisfy TS/Web API)
+const zipBytes = await zip.generateAsync({ type: "uint8array" }); // Uint8Array
 
-    return new NextResponse(arrayBuffer as unknown as ArrayBuffer, {
-      headers: {
-        'Content-Type': 'application/zip',
-        'Content-Disposition': `attachment; filename="spookify-print-package-${imageIdForName || 'download'}.zip"`,
-        'Cache-Control': 'no-store',
-      },
-    });
+// Make a brand-new ArrayBuffer (not SharedArrayBuffer)
+const ab = new ArrayBuffer(zipBytes.byteLength);
+new Uint8Array(ab).set(zipBytes);
+
+return new NextResponse(ab, {
+  headers: {
+    "Content-Type": "application/zip",
+    "Content-Disposition": `attachment; filename="spookify-${imageId || "artwork"}.zip"`,
+    "Cache-Control": "no-store",
+  },
+});
+
+
+
   } catch (err) {
-    console.error('Error generating print package:', err);
+    console.error("❌ generate-print-package error", err);
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Failed to generate package' },
-      { status: 500, headers: { 'Cache-Control': 'no-store' } }
+      { error: err instanceof Error ? err.message : "Failed to generate print package" },
+      { status: 500 }
     );
   }
 }

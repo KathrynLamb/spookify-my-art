@@ -17,7 +17,7 @@ export const metadata = {
 export default async function LandingPage() {
   const session = await getServerSession(authOptions);
 
-  console.log("Session", session)
+  console.log(session)
   return (
     <main className="relative min-h-screen bg-black text-white">
       {/* --- HERO --- */}

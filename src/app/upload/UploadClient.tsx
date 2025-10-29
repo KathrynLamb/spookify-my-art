@@ -171,6 +171,9 @@ function useEnsurePublicUrl() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
 
+  // const t0 = Date.now();
+  // const mark = (label: string) => console.log(`[spookify-worker] ${label}`, Date.now() - t0, "ms");
+
   const ensurePublicUrl = useCallback(async (current: string, givenImageId: string) => {
     if (/^https?:\/\//i.test(current)) return current;
 
@@ -1079,7 +1082,7 @@ function Composer({
           right-1.5 bottom-1.5
           md:right-2 md:bottom-2
           h-9 md:h-10
-          px-0 md:px-4
+          px-0 md:px-4 
           rounded-full
           bg-white text-black
           shadow

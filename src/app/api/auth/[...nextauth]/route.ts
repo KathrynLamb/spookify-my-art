@@ -1,105 +1,4 @@
-// // app/api/auth/[...nextauth]/route.ts
-// export const runtime = "nodejs";
-// export const dynamic = "force-dynamic";
-
-// import NextAuth, { type NextAuthOptions, type DefaultSession } from "next-auth";
-// import GoogleProvider from "next-auth/providers/google";
-
-// /* -------------------------------------------------------------------------- */
-// /*                               Type Extension                               */
-// /* -------------------------------------------------------------------------- */
-// declare module "next-auth" {
-//   interface Session extends DefaultSession {
-//     user: {
-//       id: string;
-//       name?: string | null;
-//       email?: string | null;
-//       image?: string | null;
-//     };
-//   }
-// }
-
-// declare module "next-auth/jwt" {
-//   interface JWT {
-//     uid?: string;
-//   }
-// }
-
-// /* -------------------------------------------------------------------------- */
-// /*                              Auth Configuration                            */
-// /* -------------------------------------------------------------------------- */
-// export const authOptions: NextAuthOptions = {
-//   session: { strategy: "jwt" },
-
-//   providers: [
-//     GoogleProvider({
-//       clientId: process.env.GOOGLE_CLIENT_ID!,
-//       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-//     }),
-//   ],
-
-//   callbacks: {
-//     /** Ensure a stable uid is always present on the JWT */
-//     async jwt({ token, account }) {
-//       // token.sub is the provider user id; persist it as uid
-//       token.uid ??= token.sub ?? account?.providerAccountId;
-//       return token;
-//     },
-
-//     /** Expose uid on the session */
-//     async session({ session, token }) {
-//       if (token?.uid) {
-//         // make sure session.user exists (it does for OAuth)
-//         session.user.id = token.uid;
-//       }
-//       return session;
-//     },
-
-//     /** Best-effort Firestore sync (don't block sign-in on failure) */
-//     async signIn({ user, account }) {
-//       try {
-//         const { adminDb } = await import("@/lib/firebase/admin");
-
-//         const uid = account?.providerAccountId ?? user.email?.replace(/\W+/g, "_");
-//         if (!uid) return true; // allow sign-in even if we can't compute an id
-
-//         await adminDb
-//           .collection("users")
-//           .doc(uid)
-//           .set(
-//             {
-//               name: user.name || "",
-//               email: user.email ?? null,
-//               image: user.image ?? null,
-//               lastLoginAt: new Date().toISOString(),
-//               // createdAt will be preserved if present
-//               createdAt: new Date().toISOString(),
-//             },
-//             { merge: true }
-//           );
-
-//         return true;
-//       } catch (err) {
-//         console.error("🔥 Firestore user sync error:", err);
-//         // Do not block sign-in because of a DB hiccup
-//         return true;
-//       }
-//     },
-//   },
-
-//   pages: {
-//     signIn: "/login",
-//     error: "/login",
-//   },
-
-//   debug: process.env.NEXTAUTH_DEBUG === "true",
-// };
-
-// /* -------------------------------------------------------------------------- */
-// /*                                 Export Handlers                            */
-// /* -------------------------------------------------------------------------- */
-// const handler = NextAuth(authOptions);
-// export { handler as GET, handler as POST };
+// app/api/auth/[...nextauth]/route.ts
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -108,25 +7,13 @@ import GoogleProvider from "next-auth/providers/google";
 
 declare module "next-auth" {
   interface Session extends DefaultSession {
-    user: {
-      id: string;
-      name?: string | null;
-      email?: string | null;
-      image?: string | null;
-    };
+    user: { id: string; name?: string | null; email?: string | null; image?: string | null };
   }
 }
-
-declare module "next-auth/jwt" {
-  interface JWT {
-    uid?: string;
-  }
-}
+declare module "next-auth/jwt" { interface JWT { uid?: string } }
 
 export const authOptions: NextAuthOptions = {
-  /** ✅ explicitly pass secret so v4 never complains in prod */
-  secret: process.env.NEXTAUTH_SECRET,
-
+  secret: process.env.NEXTAUTH_SECRET,             // ✅ explicit, fixes NO_SECRET in prod
   session: { strategy: "jwt" },
 
   providers: [
@@ -135,6 +22,12 @@ export const authOptions: NextAuthOptions = {
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
   ],
+
+  logger: {                                        // ✅ surface the real error in Vercel logs
+    error(code, meta) { console.error("[next-auth:error]", code, meta); },
+    warn(code) { console.warn("[next-auth:warn]", code); },
+    debug(code, meta) { if (process.env.NEXTAUTH_DEBUG === "true") console.log("[next-auth:debug]", code, meta); },
+  },
 
   callbacks: {
     async jwt({ token, account }) {
@@ -145,13 +38,17 @@ export const authOptions: NextAuthOptions = {
       if (token?.uid) session.user.id = token.uid;
       return session;
     },
+
+    // ✅ Never block sign-in on Firestore errors (return true even on failure)
     async signIn({ user, account }) {
       try {
         const { adminDb } = await import("@/lib/firebase/admin");
         const uid = account?.providerAccountId || user.email?.replace(/\W+/g, "_");
-        if (!uid) return false;
+        if (!uid) return true; // let them in
+
         const ref = adminDb.collection("users").doc(uid);
         const snap = await ref.get();
+
         if (!snap.exists) {
           await ref.set({
             name: user.name || "",
@@ -166,19 +63,15 @@ export const authOptions: NextAuthOptions = {
             lastLoginAt: new Date().toISOString(),
           });
         }
-        return true;
-      } catch (err) {
-        console.error("🔥 Firestore user sync error:", err);
-        return false;
+      } catch (e) {
+        console.error("🔥 Firestore user sync error (non-blocking):", e);
+        // DO NOT return false/throw — that turns into ?error=OAuthSignin
       }
+      return true;
     },
   },
 
-  pages: {
-    signIn: "/login",
-    error: "/login",
-  },
-
+  pages: { signIn: "/login", error: "/login" },
   debug: process.env.NEXTAUTH_DEBUG === "true",
 };
 

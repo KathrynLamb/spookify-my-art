@@ -320,7 +320,11 @@ const { ensurePublicUrl, isUploading, uploadProgress } = useEnsurePublicUrl();
       return await fetchJsonWithDebug<ChatResponse>('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: imageId, messages: msgs, mode: 'spookify' }),
+        body: JSON.stringify({ 
+          id: imageId, 
+          messages: msgs,
+          mode: 'spookify', 
+        }),
       });
     } catch (e) {
       throw e; // caller already sets setError

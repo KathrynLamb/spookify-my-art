@@ -11,9 +11,9 @@ import { type Currency } from '@/lib/currency';
 import { POSTER } from '@/lib/products/poster';
 
 // UI
-import ProductCard, { type Variant as CardVariant } from '../components/product-card';
+import ProductCard, { type Variant as CardVariant } from '../spookify/components/product-card';
 import { FRAMED_POSTER } from '@/lib/products/index';
-import ProductCardPrintAtHome from '../components/product-card-print-at-home';
+import ProductCardPrintAtHome from '../spookify/components/product-card-print-at-home';
 
 const isHttpUrl = (s: string) => /^https?:\/\//i.test(s);
 const PRINT_AT_HOME = {

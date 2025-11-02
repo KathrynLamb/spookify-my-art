@@ -134,7 +134,8 @@ export async function POST(req: Request) {
     form.append("model", "gpt-image-1");
     form.append("prompt", prompt);
     form.append("size", size);
-    form.append("quality", "standard");
+    // form.append("quality", "standard");
+    form.append("quality", "high");
     form.append("image", srcBlob, "source.jpg");
 
     const controller = new AbortController();

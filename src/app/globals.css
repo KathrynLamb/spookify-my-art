@@ -8,6 +8,16 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes jolly-shimmer {
+  0%   { transform: translateX(-60%) translateY(-10%) rotate(12deg); }
+  100% { transform: translateX(60%)  translateY(10%)  rotate(12deg); }
+}
+@keyframes jolly-twinkle {
+  0%, 100% { opacity: .25; transform: scale(.9); }
+  50%      { opacity: .95; transform: scale(1.2); }
+}
+
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

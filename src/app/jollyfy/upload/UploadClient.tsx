@@ -138,7 +138,7 @@ async function uploadWithProgress(
     const fd = new FormData();
     fd.append('file', blob, filename);
 
-    xhr.open('POST', '/api/upload-spooky', true);
+    xhr.open('POST', '/api/upload-jolly', true);
 
     xhr.upload.onprogress = (evt) => {
       if (evt.lengthComputable) {
@@ -320,7 +320,7 @@ const { ensurePublicUrl, isUploading, uploadProgress } = useEnsurePublicUrl();
       return await fetchJsonWithDebug<ChatResponse>('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: imageId, messages: msgs, mode: 'spookify' }),
+        body: JSON.stringify({ id: imageId, messages: msgs }),
       });
     } catch (e) {
       throw e; // caller already sets setError
@@ -414,7 +414,7 @@ const { ensurePublicUrl, isUploading, uploadProgress } = useEnsurePublicUrl();
         {
           role: 'assistant',
           content:
-            'Nice photo! Pick a vibe below or type your own (e.g., cozy-cute • spookiness 3 • fog + tiny ghost • moonlit blues • no blood).',
+            'Nice photo! Pick a vibe below or type your own (e.g., cozy-cute • add christmas decoration • snow + santa hats • ).',
         },
       ]);
       await refreshPlanFromServer(newId);
@@ -662,7 +662,7 @@ const generate = async () => {
     
 <main className="min-h-screen bg-black text-white px-4 md:px-8 pt-4 pb-[6rem] md:pb-16 overflow-y-auto">
       <header className="max-w-6xl mx-auto text-center mb-3">
-        <h1 className="text-3xl md:text-4xl font-bold">Spookify Your Art 👻</h1>
+        <h1 className="text-3xl md:text-4xl font-bold">Jollyfy Your Art </h1>
         <p className="text-white/60 mt-1">Upload → Pick vibe → Generate → Print</p>
       </header>
 

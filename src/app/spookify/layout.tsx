@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
+// import "./globals.css";
+import "../globals.css"
 
-import Footer from "./spookify/components/footer";
-import { Providers } from "./spookify/components/Providers";
+// import Footer from "./spookify/components/footer";
+import SiteHeader from "./components/site-header";
+// import { Providers } from "./components/Providers";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,13 +32,13 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-zinc-900`}
       >
-      <Providers>
-      {/* <SiteHeader /> */}
+      {/* <Providers> */}
+      <SiteHeader />
       <main className="flex-grow">
         {children}
         </main>
-        <Footer />
-        </Providers>
+        {/* <Footer /> */}
+        {/* </Providers> */}
       </body>
     </html>
   );

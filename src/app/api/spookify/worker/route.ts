@@ -287,12 +287,14 @@ console.log("RESPONSE FROM open AI", resp)
         access: "public",
         contentType: "image/jpeg",
         addRandomSuffix: false,
+        allowOverwrite: true,   
         token: blobToken,
       }),
       put(previewKey, previewBuffer, {
         access: "public",
         contentType: "image/jpeg",
         addRandomSuffix: false,
+        allowOverwrite: true,   
         token: blobToken,
       }),
     ]);

@@ -84,11 +84,12 @@ export async function POST(req: Request) {
 
     // Fire the worker (non-blocking); client will poll /status
     const base = getBaseUrl(req);
+    console.log("BASE", base)
     fetch(`${base}/api/spookify/worker`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       // IMPORTANT: pass the JOB id (not the image id)
-      body: JSON.stringify({ id: job.id }),
+      body: JSON.stringify({ id: job.id, input: job.input }),
       cache: 'no-store',
     }).catch((e) => {
       // swallow; the client will see job error via /status if worker fails

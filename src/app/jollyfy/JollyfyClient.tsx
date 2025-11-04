@@ -179,7 +179,7 @@ function CandyButton({
       className={[
         'inline-flex items-center justify-center rounded-full px-5 py-3 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60',
         primary
-          ? 'bg-gradient-to-r from-red-500 to-amber-400 text-black hover:opacity-90'
+          ? 'bg-gradient-to-r from-red-700 to-red-400 text-green-400 hover:opacity-90'
           : 'text-white hover:bg-white/10',
       ].join(' ')}
       style={!primary ? { borderWidth: 2, borderStyle: 'solid', borderImage: candy.borderImage } : undefined}
@@ -243,9 +243,11 @@ const PRODUCTS = [
   { title: 'Framed prints',  src: '/jollyfy/framed.png',   href: '/jollyfy/products?cat=prints' },
   { title: 'Holiday cards',   src: '/jollyfy/cards.png',     href: '/jollyfy/products?cat=posters' },
   { title: 'Cushions',       src: '/jollyfy/prod-cushion.png',  href: '/jollyfy/products?cat=cushions' },
-  { title: 'Calendars',      src: '/jollyfy/prod-calendar.jpg', href: '/jollyfy/products?cat=calendars' },
-  { title: 'FlipWhizz.book', src: '/jollyfy/prod-book.jpg',     href: '/jollyfy/products?cat=books' },
-  { title: 'Mugs',           src: '/jollyfy/prod-mug.jpg',      href: '/jollyfy/products?cat=mugs' },
-  { title: 'Phone cases',    src: '/jollyfy/prod-phone.jpg',    href: '/jollyfy/products?cat=phone' },
-  { title: 'Gift cards',     src: '/jollyfy/prod-gift.jpg',     href: '/jollyfy/products?cat=giftcards' },
+  { title: 'Mugs',           src: '/jollyfy/mug.png',      href: '/jollyfy/products?cat=mugs' },
+  // { title: 'FlipWhizz.book', src: '/jollyfy/prod-book.jpg',     href: '/jollyfy/products?cat=books' },
+  // { title: 'Calendars',      src: '/jollyfy/prod-calendar.jpg', href: '/jollyfy/products?cat=calendars' },
+
+  // { title: 'Mugs',           src: '/jollyfy/mug.jpg',      href: '/jollyfy/products?cat=mugs' },
+  // { title: 'Phone cases',    src: '/jollyfy/prod-phone.jpg',    href: '/jollyfy/products?cat=phone' },
+  // { title: 'Gift cards',     src: '/jollyfy/prod-gift.jpg',     href: '/jollyfy/products?cat=giftcards' },
 ];

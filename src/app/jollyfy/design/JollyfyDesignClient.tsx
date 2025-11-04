@@ -398,7 +398,7 @@ export default function JollyfyDesignClient() {
         throw new Error(data?.error || `begin failed (${res.status})`);
       }
 
-      const preview = await pollStatus(data.jobId, { timeoutMs: 180_000 });
+      const preview = await pollStatus(data.jobId, { timeoutMs: 240_000 });
       setResultUrl(preview);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Generation failed');

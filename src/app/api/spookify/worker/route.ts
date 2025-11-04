@@ -4,12 +4,28 @@ export const dynamic = "force-dynamic";
 
 import { put } from "@vercel/blob";
 import { NextResponse } from "next/server";
-import { getJob, updateJob, type SpookifyJobInput } from "@/lib/jobs";
+import {
+  getJob,
+  updateJob,
+  createJob,
+  type SpookifyJobInput,
+  type SpookifyJob,
+} from "@/lib/jobs";
 
 /* ---------------- Types ---------------- */
 type JobInput = SpookifyJobInput & {
   userId?: string | null;
   title?: string | null;
+};
+
+type WorkerBody = {
+  id?: string;
+  input?: JobInput;
+};
+
+type MetaJson = {
+  fileUrl?: string;
+  finalizedPrompt?: string | null;
 };
 
 /* ---------------- Constants ---------------- */
@@ -39,6 +55,11 @@ function pickImageSize(
   return "1024x1024";
 }
 
+/* Simple health probe */
+export async function GET() {
+  return NextResponse.json({ ok: true, route: "/api/spookify/worker" });
+}
+
 /* ---------------- Route ---------------- */
 export async function POST(req: Request) {
   const start = Date.now();
@@ -49,30 +70,67 @@ export async function POST(req: Request) {
 
   try {
     // Heavy deps – load only when invoked
-    const { Jimp } = await import("jimp");
+    // const { Jimp } = await import("jimp");
+    const Jimp = (await import("jimp")).default;
+    // ✅ Correct: Jimp is the default export
 
-    const body = await req.json().catch(() => ({}));
-    jobId = body?.id ?? "";
+
+
+    // Parse body (id + optional input fallback)
+    const bodyJson = (await req.json().catch(() => ({}))) as WorkerBody;
+    jobId = bodyJson?.id?.trim() ?? "";
     if (!jobId) return NextResponse.json({ error: "Missing job id" }, { status: 400 });
 
-    const job = await getJob(jobId);
+    // Try KV / memory first
+    let job = await getJob(jobId);
     mark("job.lookup");
-    if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
 
-    await updateJob(jobId, { status: "processing" });
+    let input: JobInput | null = null;
 
-    const rawInput = job.input as unknown;
-    if (!isSpookifyJobInput(rawInput)) {
-      await updateJob(jobId, { status: "error", error: "Invalid job input" });
-      return NextResponse.json({ error: "Invalid job input" }, { status: 400 });
+    if (!job) {
+      // Fallback: hot-reload may have nuked memory store in dev.
+      const maybeInput = bodyJson.input;
+      if (isSpookifyJobInput(maybeInput)) {
+        input = maybeInput as JobInput;
+
+        // Re-hydrate a minimal job so /status keeps working
+        const now = Date.now();
+        const shadowJob: SpookifyJob = {
+          id: jobId,
+          status: "processing",
+          input,
+          resultUrl: null,
+          previewUrl: null,
+          resultFullUrl: null,
+          error: null,
+          createdAt: now,
+          updatedAt: now,
+        };
+        await createJob(shadowJob);
+        job = shadowJob;
+        mark("job.rehydrated");
+      } else {
+        return NextResponse.json({ error: "Job not found" }, { status: 404 });
+      }
+    } else {
+      await updateJob(jobId, { status: "processing" });
+      const raw = job.input as unknown;
+      if (!isSpookifyJobInput(raw)) {
+        await updateJob(jobId, { status: "error", error: "Invalid job input" });
+        return NextResponse.json({ error: "Invalid job input" }, { status: 400 });
+      }
+      input = raw as JobInput;
     }
-    const input = rawInput as JobInput;
-    const { imageId, promptOverride, orientation, userId, title } = input;
+
+    // Input is guaranteed now
+    const { imageId, promptOverride, orientation, userId, title } = input!;
 
     /* ------------- Step 1: (Lazy) Firestore project create ------------- */
     // Avoid initializing Admin SDK at build time: import only when needed.
+    const FIRESTORE_ENABLED = process.env.FIRESTORE_ENABLED === "1";
     let adminDb: import("firebase-admin/firestore").Firestore | null = null;
-    if (userId) {
+    
+    if (FIRESTORE_ENABLED && userId) {
       try {
         const m = await import("@/lib/firebase/admin");
         adminDb = m.adminDb;
@@ -103,7 +161,7 @@ export async function POST(req: Request) {
 
     const metaRes = await fetch(metaUrl, { cache: "no-store" });
     if (!metaRes.ok) throw new Error(`Meta not found: ${metaRes.status} ${metaRes.statusText}`);
-    const meta = await metaRes.json();
+    const meta = (await metaRes.json()) as MetaJson;
     mark("meta.fetched");
 
     const fileUrl = meta.fileUrl;
@@ -129,37 +187,50 @@ export async function POST(req: Request) {
     if (!apiKey || !blobToken) throw new Error("Missing OPENAI_API_KEY or BLOB_READ_WRITE_TOKEN");
 
     /* ------------- Step 5: Generate via OpenAI ------------- */
-    const size = pickImageSize(orientation ?? undefined);
-    const form = new FormData();
-    form.append("model", "gpt-image-1");
-    form.append("prompt", prompt);
-    form.append("size", size);
-    // form.append("quality", "standard");
-    form.append("quality", "high");
-    form.append("image", srcBlob, "source.jpg");
+ // ...unchanged code above...
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 45_000);
+// ------------- Step 5: Generate via OpenAI -------------
+const size = pickImageSize(orientation ?? undefined);
+const form = new FormData();
+form.append("model", "gpt-image-1");
+form.append("prompt", prompt);
+form.append("size", size);
 
-    mark("openai.begin");
-    const resp = await fetch("https://api.openai.com/v1/images/edits", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}` },
-      body: form,
-      signal: controller.signal,
-    }).catch((e) => {
-      throw e.name === "AbortError"
-        ? new Error("OpenAI image generation timed out (>45s)")
-        : e;
-    });
-    clearTimeout(timeout);
+// SPEED: 'standard' is noticeably faster than 'high'
+const imgQuality = process.env.IMG_QUALITY === "high" ? "high" : "auto";
+form.append("quality", imgQuality);
+
+// attach the input image
+form.append("image", srcBlob, "source.jpg");
+
+// Increase the worker-side timeout to 180s (was 45s / 90s before)
+const controller = new AbortController();
+const timeout = setTimeout(() => controller.abort(), 240_000); // 3 minutes
+
+mark("openai.begin");
+const resp = await fetch("https://api.openai.com/v1/images/edits", {
+  method: "POST",
+  headers: { Authorization: `Bearer ${apiKey}` },
+  body: form,
+  signal: controller.signal,
+
+}).catch((e) => {
+  throw e.name === "AbortError"
+    ? new Error("OpenAI image generation timed out (>180s)")
+    : e;
+});
+clearTimeout(timeout);
+console.log("RESPONSE FROM open AI", resp)
 
     mark("openai.done");
     if (!resp.ok) {
       const text = await resp.text().catch(() => "");
       const lower = text.toLowerCase();
       const maybeSafety =
-        lower.includes("safety") || lower.includes("violence") || lower.includes("policy") || lower.includes("content");
+        lower.includes("safety") ||
+        lower.includes("violence") ||
+        lower.includes("policy") ||
+        lower.includes("content");
       const msg = maybeSafety
         ? "Prompt rejected by safety system — try a gentler description (no gore/violence)."
         : `Image generation failed: ${text || resp.statusText}`;
@@ -168,27 +239,44 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: msg }, { status: 400 });
     }
 
-    const json = await resp.json();
+    const json = (await resp.json()) as {
+      data?: { b64_json?: string | null }[];
+    };
     const b64 = json?.data?.[0]?.b64_json;
     if (!b64) throw new Error("No image data from OpenAI");
     mark("openai.jsonParsed");
 
     const cleanBuffer = Buffer.from(b64, "base64");
 
-    /* ------------- Step 6: Create watermarked preview ------------- */
-    const img = await Jimp.read(cleanBuffer);
-    const font = await Jimp.loadFont(Jimp.FONT_SANS_64_WHITE);
-    const text = "SPOOKIFY PREVIEW";
-    const textWidth = Jimp.measureText(font, text);
-    const x = (img.bitmap.width - textWidth) / 2;
-    const y = img.bitmap.height - 100;
+    // add:
+    const previewBuffer = cleanBuffer;
+    mark("watermark.skipped");
 
-    const watermarked = img.clone();
-    watermarked.print(font, x, y, text);
-    watermarked.opacity(0.95);
+/* ------------- Step 6: Create watermarked preview ------------- */
 
-    const previewBuffer = await watermarked.quality(85).getBufferAsync(Jimp.MIME_JPEG);
-    mark("watermark.done");
+
+
+// SKIP WATERMARK FOR NOW!!
+// try {
+//   const img = await Jimp.read(cleanBuffer);
+//   const font = await Jimp.loadFont(Jimp.FONT_SANS_64_WHITE);
+//   const wmText = "SPOOKIFY PREVIEW";
+//   const textWidth = Jimp.measureText(font, wmText);
+//   const x = (img.bitmap.width - textWidth) / 2;
+//   const y = img.bitmap.height - 100;
+
+//   const watermarked = img.clone();
+//   watermarked.print(font, x, y, wmText);
+//   watermarked.opacity(0.95);
+
+//   previewBuffer = await watermarked.quality(85).getBufferAsync(Jimp.MIME_JPEG);
+//   mark("watermark.done");
+// } catch (e) {
+//   errlog("watermark.failed -> using clean as preview", e);
+//   previewBuffer = cleanBuffer; // graceful fallback
+//   mark("watermark.skipped");
+// }
+
 
     /* ------------- Step 7: Upload both images ------------- */
     const cleanKey = `spookify/${imageId}/result-clean.jpg`;
@@ -253,39 +341,36 @@ export async function POST(req: Request) {
     const msg = err instanceof Error ? err.message : String(err);
     errlog("FATAL", msg);
 
-    // Best-effort Firestore error reflection
-// Best-effort Firestore error reflection (typed, no `any`)
-try {
-  if (jobId) {
-    const job = await getJob(jobId);
-    const maybe = job?.input as Partial<JobInput> | undefined;
+    // Best-effort error reflection back into job + Firestore
+    try {
+      if (jobId) {
+        const job = await getJob(jobId);
+        const maybe = job?.input as Partial<JobInput> | undefined;
 
-    if (maybe?.userId) {
-      // Optional, typed dynamic import of admin Firestore
-      let adminDbFallback: import("firebase-admin/firestore").Firestore | null = null;
-      try {
-        adminDbFallback = (await import("@/lib/firebase/admin")).adminDb;
-      } catch {
-        adminDbFallback = null;
-      }
+        if (maybe?.userId) {
+          let adminDbFallback: import("firebase-admin/firestore").Firestore | null = null;
+          try {
+            adminDbFallback = (await import("@/lib/firebase/admin")).adminDb;
+          } catch {
+            adminDbFallback = null;
+          }
 
-      if (adminDbFallback) {
-        await adminDbFallback
-          .collection("users")
-          .doc(maybe.userId)
-          .collection("projects")
-          .doc(jobId)
-          .set(
-            { status: "error", error: msg, updatedAt: new Date().toISOString() },
-            { merge: true }
-          );
+          if (adminDbFallback) {
+            await adminDbFallback
+              .collection("users")
+              .doc(maybe.userId)
+              .collection("projects")
+              .doc(jobId)
+              .set(
+                { status: "error", error: msg, updatedAt: new Date().toISOString() },
+                { merge: true }
+              );
+          }
+        }
       }
+    } catch (inner) {
+      console.error(`${TAG} Firestore error-status update failed`, inner);
     }
-  }
-} catch (inner) {
-  console.error(`${TAG} Firestore error-status update failed`, inner);
-}
-
 
     if (jobId) await updateJob(jobId, { status: "error", error: msg });
     return NextResponse.json({ error: msg }, { status: 500 });

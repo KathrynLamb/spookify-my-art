@@ -57,8 +57,8 @@ const MODE_CONFIG: Record<
       'Minimal white card • embossed names • gold-foil effect',
       'Family postcard • matching sweaters • candlelight warmth',
     ],
-    beginEndpoint: '/api/jollyfy/begin',
-    statusEndpoint: '/api/jollyfy/status',
+    beginEndpoint: '/api/design/begin',
+    statusEndpoint: '/api/design/status',
     vibePlaceholder:
       'cozy holiday • twinkle lights • soft grain • our names bottom center',
   },
@@ -72,8 +72,8 @@ const MODE_CONFIG: Record<
       'Cinematic poster • names as credits • warm golden hour',
       'Minimal line-art couple • initials K + A • blush duotone',
     ],
-    beginEndpoint: '/api/lovify/begin',
-    statusEndpoint: '/api/lovify/status',
+    beginEndpoint: '/api/design/begin',
+    statusEndpoint: '/api/design/status',
     vibePlaceholder:
       'romantic comic • warm golden hour • caption “you, always.”',
   },

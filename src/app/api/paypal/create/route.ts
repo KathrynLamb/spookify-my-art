@@ -11,6 +11,12 @@ const BASE =
     ? 'https://api-m.paypal.com'
     : 'https://api-m.sandbox.paypal.com'
 
+    // at top of the file (after BASE):
+const APPROVE_BASE =
+ENV === 'live'
+  ? 'https://www.paypal.com/checkoutnow?token='
+  : 'https://www.sandbox.paypal.com/checkoutnow?token=';
+
 const CLIENT_ID =
   process.env.PAYPAL_CLIENT_ID ||
   process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID ||
@@ -121,15 +127,14 @@ if (sku === 'print-at-home') {
     );
   }
 
- // Save context for later retrieval on the thank-you page
-ORDER_CTX.set(j.id, { fileUrl, imageId });
-
-return NextResponse.json({
-  orderID: j.id,
-  passthrough: { sku, imageId, fileUrl },
-});
-}
-
+    // … inside DIGITAL branch, replace the final return with:
+    ORDER_CTX.set(j.id, { fileUrl, imageId });
+    return NextResponse.json({
+      orderID: j.id,
+      approveUrl: `${APPROVE_BASE}${j.id}`,      // 👈 add this
+      passthrough: { sku, imageId, fileUrl },
+    });
+    }
 
     // 🧩 Branch 2: PHYSICAL — Gelato print (existing flow)
     const payload = {
@@ -172,9 +177,9 @@ return NextResponse.json({
     }
 
     ORDER_CTX.set(j.id, { fileUrl, imageId });
-
     return NextResponse.json({
       orderID: j.id,
+      approveUrl: `${APPROVE_BASE}${j.id}`,        // 👈 add this
       passthrough: { imageId, fileUrl, size, orientation, frameColor },
     });
   } catch (e) {

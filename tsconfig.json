@@ -1,37 +1,56 @@
 // {
 //   "compilerOptions": {
-//     "target": "ES2017",
-//     "lib": ["dom", "dom.iterable", "esnext"],
-//     "allowJs": true,
-//     "skipLibCheck": true,
+//     "typeRoots": ["./src/types", "./node_modules/@types"],
+//     "target": "ES2022",
+//     "module": "ESNext",
+//     "moduleResolution": "bundler", // ✅ Next.js default; works great with ESM pkgs like 'openai'
+//     "jsx": "preserve",
 //     "strict": true,
 //     "noEmit": true,
+//     "baseUrl": ".",
+//     "paths": {
+//       "@/*": [
+//         "src/*"
+//       ]
+//     }, // ✅ so imports like "@/lib/memStore" resolve
+//     "types": [
+//       "node"
+//     ], // ✅ VS Code knows Node globals like Buffer, process.env
+//     "skipLibCheck": true,
+//     "lib": [
+//       "dom",
+//       "dom.iterable",
+//       "esnext"
+//     ],
+//     "allowJs": true,
+//     "incremental": true,
 //     "esModuleInterop": true,
-//     "module": "esnext",
-//     "moduleResolution": "bundler",
 //     "resolveJsonModule": true,
 //     "isolatedModules": true,
-//     "jsx": "preserve",
-//     "incremental": true,
 //     "plugins": [
 //       {
 //         "name": "next"
 //       }
-//     ],
-//     "paths": {
-//       "@/*": ["./src/*"]
-//     }
+//     ]
 //   },
-//   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-//   "exclude": ["node_modules"]
+//   "include": [
+//     "**/*.ts",
+//     "**/*.tsx",
+//     "next-env.d.ts",
+//     ".next/types/**/*.ts",
+//     ".next/dev/types/**/*.ts"
+//   ],
+//   "exclude": [
+//     "node_modules"
+//   ]
 // }
 {
   "compilerOptions": {
-    "typeRoots": ["./src/types", "./node_modules/@types"],
     "target": "ES2022",
     "module": "ESNext",
-    "moduleResolution": "bundler", // ✅ Next.js default; works great with ESM pkgs like 'openai'
+    "moduleResolution": "bundler",
     "jsx": "preserve",
+    "jsxImportSource": "react",
     "strict": true,
     "noEmit": true,
     "baseUrl": ".",
@@ -39,17 +58,22 @@
       "@/*": [
         "src/*"
       ]
-    }, // ✅ so imports like "@/lib/memStore" resolve
+    },
+    "typeRoots": [
+      "./src/types",
+      "./node_modules/@types"
+    ],
     "types": [
-      "node"
-    ], // ✅ VS Code knows Node globals like Buffer, process.env
+      "node",
+      "react",
+      "react-dom"
+    ],
     "skipLibCheck": true,
     "lib": [
       "dom",
       "dom.iterable",
       "esnext"
     ],
-    "allowJs": true,
     "incremental": true,
     "esModuleInterop": true,
     "resolveJsonModule": true,
@@ -58,7 +82,8 @@
       {
         "name": "next"
       }
-    ]
+    ],
+    "allowJs": true
   },
   "include": [
     "**/*.ts",

@@ -1,4 +1,6 @@
 // src/lib/renderGreetingPng.tsx
+/** @jsxImportSource react */
+import React from "react"; // harmless with the automatic runtime, silences some editors
 import satori from "satori";
 
 // (Optional) if you use the WASM resvg approach, keep this helper:

@@ -5,8 +5,7 @@ let inited = false;
 let initPromise: Promise<void> | null = null;
 
 function nodeRequire(): NodeRequire {
-  // avoid bundler static analysis
-  // eslint-disable-next-line @typescript-eslint/no-implied-eval
+
   return (0, eval)("require");
 }
 

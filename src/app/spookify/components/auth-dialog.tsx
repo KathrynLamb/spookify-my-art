@@ -22,9 +22,9 @@ export function AuthDialog({ open, onClose }: { open: boolean; onClose: () => vo
           exit={{ scale: 0.95, opacity: 0 }}
           className="relative w-full max-w-sm rounded-2xl border border-white/10 bg-[#111] p-6 text-white shadow-xl"
         >
-          <h2 className="text-xl font-bold mb-2 text-center">Join Spookify</h2>
+          <h2 className="text-xl font-bold mb-2 text-center">Join Ai Gifts</h2>
           <p className="text-sm text-white/70 mb-6 text-center">
-            Save your spooky creations, redo images, and track orders.
+            Save your creations, redo images, and track orders.
           </p>
 
           <div className="flex flex-col gap-3">

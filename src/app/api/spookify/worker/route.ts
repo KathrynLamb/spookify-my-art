@@ -71,7 +71,7 @@ export async function POST(req: Request) {
   try {
     // Heavy deps – load only when invoked
     // const { Jimp } = await import("jimp");
-    const Jimp = (await import("jimp")).default;
+    // const Jimp = (await import("jimp")).default;
     // ✅ Correct: Jimp is the default export
 
 

@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { authOptions } from '@/lib/authOptions';
 import { newJob, createJob, type SpookifyJobInput } from '@/lib/jobs';
 
 /* ---------- Types ---------- */
@@ -61,6 +61,13 @@ export async function POST(req: Request) {
     const body = (await req.json().catch(() => ({}))) as BeginBody;
     const imageId = (body.imageId || body.id || '').trim();
 
+    let productPlan: { productId: string; reasonShort?: string } | null = null;
+try {
+  const r = await fetch(`${getBaseUrl(req)}/api/get-plan?id=${encodeURIComponent(imageId)}`, { cache: 'no-store' });
+  const j = await r.json().catch(() => ({}));
+  if (j?.productPlan?.productId) productPlan = j.productPlan;
+} catch { /* noop */ }
+
     if (!imageId) {
       return NextResponse.json({ error: 'Missing imageId' }, { status: 400 });
     }
@@ -79,6 +86,7 @@ export async function POST(req: Request) {
       target,
       title,
       userId, // may be null if unauthenticated
+      productPlan,
     });
     await createJob(job);
 

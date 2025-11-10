@@ -1,189 +1,92 @@
-// // import { NextRequest, NextResponse } from 'next/server';
-// // import OpenAI from 'openai';
-// // import { upsertItem } from '@/lib/memStore';
-// // import { getSystemPrompt, PromptKey } from '@/lib/ai/prompts/index';
 
-// // export const runtime = 'nodejs';
-// // export const dynamic = 'force-dynamic';
-
-// // type Role = 'user' | 'assistant';
-// // type SystemRole = 'system';
-// // type AllRoles = Role | SystemRole;
-
-// // export interface ChatMsg {
-// //   role: Role;
-// //   content?: string;
-// //   images?: string[];
-// // }
-
-// // export interface ChatRequestBody {
-// //   id: string;
-// //   mode?: PromptKey; // e.g. 'spookify', 'jollyfy', etc.
-// //   messages: ChatMsg[];
-// // }
-
-// // /* ---------- JSON extractor ---------- */
-// // function tryParseJSON<T>(text: string): T | null {
-// //   const m = text.match(/```json\s*([\s\S]*?)\s*```/i) || text.match(/\{[\s\S]*\}/);
-// //   if (!m) return null;
-// //   try {
-// //     return JSON.parse(Array.isArray(m) ? m[1] ?? m[0] : m[0]);
-// //   } catch {
-// //     return null;
-// //   }
-// // }
-
-// // /* ---------- OpenAI message converter ---------- */
-// // function toOpenAIMessage(
-// //   m: ChatMsg | { role: SystemRole; content: string }
-// // ): OpenAI.Chat.Completions.ChatCompletionMessageParam {
-// //   if ('role' in m && m.role === 'system') {
-// //     // System message
-// //     return { role: 'system', content: m.content };
-// //   }
-
-// //   const msg = m as ChatMsg;
-// //   const text = msg.content?.trim() || '';
-
-// //   // Use concrete content-part types from the SDK (no `any`)
-// //   const parts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = text
-// //     ? [{ type: 'text', text }] // satisfies OpenAI part type
-// //     : [];
-
-// //   if (msg.images?.length) {
-// //     for (const url of msg.images) {
-// //       parts.push({
-// //         type: 'image_url',
-// //         image_url: { url },
-// //       } as OpenAI.Chat.Completions.ChatCompletionContentPart);
-// //     }
-// //   }
-
-// //   return {
-// //     role: msg.role,
-// //     content: parts.length ? parts : [{ type: 'text', text: '' }],
-// //   };
-// // }
-
-// // /* ---------- Route ---------- */
-// // export async function POST(req: NextRequest) {
-// //   try {
-// //     const { id, mode = 'spookify', messages } = (await req.json()) as ChatRequestBody;
-// //     if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
-// //     if (!Array.isArray(messages)) return NextResponse.json({ error: 'messages must be array' }, { status: 400 });
-
-// //     const apiKey = process.env.OPENAI_API_KEY;
-// //     if (!apiKey) return NextResponse.json({ error: 'Missing OPENAI_API_KEY' }, { status: 503 });
-
-// //     const openai = new OpenAI({ apiKey });
-
-// //     const systemPrompt = getSystemPrompt(mode);
-
-// //     const chat = await openai.chat.completions.create({
-// //       model: 'gpt-4o',
-// //       temperature: 0.6,
-// //       messages: [
-// //         { role: 'system' as AllRoles, content: systemPrompt },
-// //         ...messages.map(toOpenAIMessage),
-// //       ],
-// //     });
-
-// //     const fullContent = chat.choices?.[0]?.message?.content ?? '';
-// //     const plan = tryParseJSON<Record<string, unknown>>(fullContent);
-// //     const contentWithoutJson = fullContent.replace(/```json[\s\S]*?```/, '').trim();
-
-// //     upsertItem(id, { plan });
-
-// //     return NextResponse.json({ content: contentWithoutJson, plan });
-// //   } catch (err: unknown) {
-// //     const message = err instanceof Error ? err.message : String(err);
-// //     return NextResponse.json({ error: message }, { status: 500 });
-// //   }
-// // }
-// // ./src/app/api/chat/route.ts
 // import { NextRequest, NextResponse } from 'next/server';
 // import OpenAI from 'openai';
 // import { upsertItem } from '@/lib/memStore';
-// import { getSystemPrompt, type PromptKey } from '@/lib/ai/prompts';
+// import { buildSystemPromptForDesign } from '@/lib/ai/prompts/productPrompt';
+// import { CATALOG } from '@/lib/catalog';
 
 // export const runtime = 'nodejs';
 // export const dynamic = 'force-dynamic';
 
 // type Role = 'user' | 'assistant';
-// type SystemRole = 'system';
+// type Orientation = 'Horizontal' | 'Vertical' | 'Square';
 
-// export interface ChatMsg {
-//   role: Role;
-//   content?: string;
-//   images?: string[];
-// }
+// type ChatMsg = { role: Role; content?: string; images?: string[] };
+// type PromptMode = 'spookify' | 'jollyfy' | 'lovify' | 'custom';
 
-// export interface ChatRequestBody {
-//   id: string;
-//   mode?: PromptKey; // e.g. 'spookify', 'jollyfy', etc.
+// type Plan = {
+//   vibe?: string;
+//   elements?: string[];
+//   palette?: string;
+//   avoid?: string[];
+//   textOverlay?: string;
+//   orientation: Orientation;            // required
+//   finalizedPrompt: string;             // required
+// };
+
+// type ProductPlan = {
+//   productId: string | null;            // null when asking a clarifier
+//   reasonShort?: string;
+// };
+
+// type ChatBody = {
+//   id: string;                          // imageId
+//   mode?: PromptMode;
 //   messages: ChatMsg[];
+// };
+
+// function extractJsonFence(text: string): any | null {
+//   const m = text.match(/```json\s*([\s\S]*?)\s*```/i) || text.match(/```\s*([\s\S]*?)\s*```/i);
+//   const payload = m?.[1];
+//   if (!payload) return null;
+//   try { return JSON.parse(payload); } catch { return null; }
 // }
 
-// /* ---------- JSON extractor ---------- */
-// function tryParseJSON<T>(text: string): T | null {
-//   const m = text.match(/```json\s*([\s\S]*?)\s*```/i) || text.match(/\{[\s\S]*\}/);
-//   if (!m) return null;
-//   try {
-//     return JSON.parse(Array.isArray(m) ? m[1] ?? m[0] : m[0]);
-//   } catch {
-//     return null;
-//   }
+// function normalizeOrientation(v: unknown): Orientation | null {
+//   const s = String(v ?? '').toLowerCase();
+//   if (/(horizontal|landscape|wide|16:9|3:2|postcard)/.test(s)) return 'Horizontal';
+//   if (/(vertical|portrait|tall|2:3)/.test(s)) return 'Vertical';
+//   if (/(square|1:1)/.test(s)) return 'Square';
+//   return null;
 // }
 
-// /* ---------- OpenAI message converter ---------- */
-// /**
-//  * IMPORTANT: With Chat Completions:
-//  * - user messages may be a multi-part array (text + image_url parts)
-//  * - assistant messages must be plain text (string), not a parts array
-//  */
-// function toOpenAIMessage(
-//   m: ChatMsg | { role: SystemRole; content: string }
-// ): OpenAI.Chat.Completions.ChatCompletionMessageParam {
-//   if (m.role === 'system') {
-//     return { role: 'system', content: m.content };
+// // Ensure product exists and supports the orientation.
+// function coerceProductPlan(pp: ProductPlan | null | undefined, o: Orientation) {
+//   if (!pp || !pp.productId) return { productId: null, reasonShort: pp?.reasonShort ?? 'Do you want this as a card to send, or a wall print to keep?' };
+//   const found = CATALOG.find(c => c.productId === pp.productId);
+//   if (!found) {
+//     return { productId: null, reasonShort: 'I need to confirm the product type (card vs framed print vs canvas).' };
 //   }
+//   if (!found.orientations.includes(o)) {
+//     return { productId: null, reasonShort: `That product doesn’t match ${o}. Should we switch orientation or pick another product?` };
+//   }
+//   return { productId: found.productId, reasonShort: pp.reasonShort ?? '' };
+// }
 
-//   const msg = m as ChatMsg;
-//   const text = msg.content?.trim() ?? '';
-
-//   if (msg.role === 'user') {
+// /** Convert our chat message to OpenAI chat-completions message */
+// function toOpenAIMessage(m: ChatMsg | { role: 'system'; content: string }): OpenAI.Chat.Completions.ChatCompletionMessageParam {
+//   if (m.role === 'system') return { role: 'system', content: m.content };
+//   const text = (m.content ?? '').trim();
+//   if (m.role === 'user') {
 //     const parts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
 //     if (text) parts.push({ type: 'text', text });
-//     if (msg.images?.length) {
-//       for (const url of msg.images) {
-//         parts.push({ type: 'image_url', image_url: { url } });
-//       }
-//     }
-//     // ChatCompletionUserMessageParam requires at least one part; fallback to empty text part.
-//     return {
-//       role: 'user',
-//       content: parts.length ? parts : [{ type: 'text', text: '' }],
-//     };
+//     if (m.images?.length) for (const url of m.images) parts.push({ type: 'image_url', image_url: { url } });
+//     return { role: 'user', content: parts.length ? parts : [{ type: 'text', text: '' }] };
 //   }
-
-//   // Assistant must be plain text here.
 //   return { role: 'assistant', content: text };
 // }
 
-// /* ---------- Route ---------- */
 // export async function POST(req: NextRequest) {
 //   try {
-//     const { id, mode = 'spookify', messages } = (await req.json()) as ChatRequestBody;
+//     const { id, mode = 'custom', messages } = (await req.json()) as ChatBody;
 //     if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
-//     if (!Array.isArray(messages)) {
-//       return NextResponse.json({ error: 'messages must be array' }, { status: 400 });
-//     }
+//     if (!Array.isArray(messages)) return NextResponse.json({ error: 'messages must be array' }, { status: 400 });
 
 //     const apiKey = process.env.OPENAI_API_KEY;
 //     if (!apiKey) return NextResponse.json({ error: 'Missing OPENAI_API_KEY' }, { status: 503 });
 
 //     const openai = new OpenAI({ apiKey });
-//     const systemPrompt = getSystemPrompt(mode);
+//     const systemPrompt = buildSystemPromptForDesign(mode);
 
 //     const openaiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
 //       { role: 'system', content: systemPrompt },
@@ -196,13 +99,46 @@
 //       messages: openaiMessages,
 //     });
 
-//     const fullContent = chat.choices?.[0]?.message?.content ?? '';
-//     const plan = tryParseJSON<Record<string, unknown>>(fullContent);
-//     const contentWithoutJson = fullContent.replace(/```json[\s\S]*?```/, '').trim();
+//     const full = chat.choices?.[0]?.message?.content ?? '';
+//     const json = extractJsonFence(full);
 
-//     upsertItem(id, { plan });
-//     return NextResponse.json({ content: contentWithoutJson, plan });
-//   } catch (err: unknown) {
+//     // Minimal, defensive validation
+//     if (!json || typeof json !== 'object' || !json.plan) {
+//       return NextResponse.json({ content: full, error: 'No JSON plan found' }, { status: 200 });
+//     }
+
+//     const orientation = normalizeOrientation(json.plan?.orientation) as Orientation | null;
+//     const finalizedPrompt = String(json.plan?.finalizedPrompt ?? '').trim();
+
+//     if (!orientation) {
+//       return NextResponse.json({ content: full, error: 'orientation missing' }, { status: 200 });
+//     }
+//     if (!finalizedPrompt) {
+//       return NextResponse.json({ content: full, error: 'finalizedPrompt missing' }, { status: 200 });
+//     }
+
+//     const plan: Plan = {
+//       vibe: json.plan?.vibe ?? undefined,
+//       elements: Array.isArray(json.plan?.elements) ? json.plan.elements : undefined,
+//       palette: json.plan?.palette ?? undefined,
+//       avoid: Array.isArray(json.plan?.avoid) ? json.plan.avoid : undefined,
+//       textOverlay: json.plan?.textOverlay ?? undefined,
+//       orientation,
+//       finalizedPrompt,
+//     };
+
+//     const productPlan = coerceProductPlan(json.productPlan as ProductPlan | undefined, orientation);
+
+//     // persist for later fetch (/api/get-plan etc)
+//     upsertItem(id, { plan, productPlan });
+
+//     return NextResponse.json({
+//       content: full.replace(/```json[\s\S]*?```/gi, '').trim(), // human reply without the fence
+//       plan,
+//       productPlan,
+//       finalizedPrompt: plan.finalizedPrompt, // for old clients
+//     });
+//   } catch (err) {
 //     const message = err instanceof Error ? err.message : String(err);
 //     return NextResponse.json({ error: message }, { status: 500 });
 //   }
@@ -211,80 +147,111 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { upsertItem } from '@/lib/memStore';
-import { getSystemPrompt, type PromptKey } from '@/lib/ai/prompts/index';
+import { buildSystemPromptForDesign } from '@/lib/ai/prompts/productPrompt';
+import { CATALOG } from '@/lib/catalog';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 type Role = 'user' | 'assistant';
-type SystemRole = 'system';
+type Orientation = 'Horizontal' | 'Vertical' | 'Square';
+type PromptMode = 'spookify' | 'jollyfy' | 'lovify' | 'custom';
 
-export interface ChatMsg {
-  role: Role;
-  content?: string;
-  images?: string[];
-}
+type ChatMsg = { role: Role; content?: string; images?: string[] };
 
-export interface ChatRequestBody {
-  id: string;
-  mode?: PromptKey; // 'spookify' | 'jollyfy' | ...
+type Plan = {
+  vibe?: string;
+  elements?: string[];
+  palette?: string;
+  avoid?: string[];
+  textOverlay?: string;
+  orientation: Orientation;     // required
+  finalizedPrompt: string;      // required
+};
+
+type ProductPlan = {
+  productId: string | null;     // null when asking a clarifier
+  reasonShort?: string;
+};
+
+type ChatBody = {
+  id: string;                   // imageId
+  mode?: PromptMode;
   messages: ChatMsg[];
+};
+
+// -------- type guards & helpers (no any) ------------------------------------
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null;
 }
 
-/* ---------- JSON extractor ---------- */
-function tryParseJSON<T>(text: string): T | null {
-  const fence = text.match(/```json\s*([\s\S]*?)\s*```/i);
-  const raw = fence ? fence[1] : (text.match(/\{[\s\S]*\}/)?.[0] ?? null);
-  if (!raw) return null;
+function extractJsonFence(text: string): unknown | null {
+  const m =
+    text.match(/```json\s*([\s\S]*?)\s*```/i) ??
+    text.match(/```\s*([\s\S]*?)\s*```/i);
+  const payload = m?.[1];
+  if (!payload) return null;
   try {
-    return JSON.parse(raw) as T;
+    return JSON.parse(payload);
   } catch {
     return null;
   }
 }
 
-/* ---------- OpenAI message converter ----------
-   Chat Completions rules:
-   - user may send an array of content parts (text + image_url)
-   - assistant should be a plain string message
-------------------------------------------------- */
-function toOpenAIMessage(
-  m: ChatMsg | { role: SystemRole; content: string }
-): OpenAI.Chat.Completions.ChatCompletionMessageParam {
-  if (m.role === 'system') {
-    return { role: 'system', content: m.content };
+function normalizeOrientation(v: unknown): Orientation | null {
+  const s = String(v ?? '').toLowerCase();
+  if (/(horizontal|landscape|wide|16:9|3:2|postcard)/.test(s)) return 'Horizontal';
+  if (/(vertical|portrait|tall|2:3)/.test(s)) return 'Vertical';
+  if (/(square|1:1)/.test(s)) return 'Square';
+  return null;
+}
+
+function coerceProductPlan(pp: unknown, o: Orientation): ProductPlan {
+  if (!isRecord(pp)) {
+    return { productId: null, reasonShort: 'Do you want this as a card to send, or a wall print to keep?' };
   }
+  const productId = typeof pp.productId === 'string' ? pp.productId : null;
+  const reasonShort = typeof pp.reasonShort === 'string' ? pp.reasonShort : undefined;
 
-  const msg = m as ChatMsg;
-  const text = (msg.content ?? '').trim();
+  if (!productId) return { productId: null, reasonShort: reasonShort ?? 'I need the product type (card vs wall print).' };
 
-  if (msg.role === 'user') {
+  const found = (CATALOG as Array<{ productId: string; orientations: Orientation[] }>).find(
+    c => c.productId === productId
+  );
+  if (!found) return { productId: null, reasonShort: 'That product id is not available. Pick a type.' };
+  if (!found.orientations.includes(o)) {
+    return { productId: null, reasonShort: `That product doesn’t match ${o}. Switch orientation or pick another product?` };
+  }
+  return { productId: found.productId, reasonShort: reasonShort ?? '' };
+}
+
+/** Convert our chat message to OpenAI chat-completions message */
+function toOpenAIMessage(
+  m: ChatMsg | { role: 'system'; content: string }
+): OpenAI.Chat.Completions.ChatCompletionMessageParam {
+  if (m.role === 'system') return { role: 'system', content: m.content };
+
+  const text = (m.content ?? '').trim();
+  if (m.role === 'user') {
     const parts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
     if (text) parts.push({ type: 'text', text });
-    if (msg.images?.length) {
-      for (const url of msg.images) {
+    if (m.images?.length) {
+      for (const url of m.images) {
         parts.push({ type: 'image_url', image_url: { url } });
       }
     }
-    return {
-      role: 'user',
-      content: parts.length ? parts : [{ type: 'text', text: '' }],
-    };
+    return { role: 'user', content: parts.length ? parts : [{ type: 'text', text: '' }] };
   }
-
-  // assistant
   return { role: 'assistant', content: text };
 }
 
-/* ---------- Route ---------- */
+// -----------------------------------------------------------------------------
+
 export async function POST(req: NextRequest) {
   try {
-    const { id, mode, messages } = (await req.json()) as ChatRequestBody;
-
-    console.log("ID", id, "Modde", mode, "messages", messages)
-
+    const { id, mode = 'custom', messages } = (await req.json()) as ChatBody;
     if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
-    if (!mode) return NextResponse.json({ error: 'Missing MODE' }, { status: 400 });
     if (!Array.isArray(messages)) {
       return NextResponse.json({ error: 'messages must be array' }, { status: 400 });
     }
@@ -293,9 +260,7 @@ export async function POST(req: NextRequest) {
     if (!apiKey) return NextResponse.json({ error: 'Missing OPENAI_API_KEY' }, { status: 503 });
 
     const openai = new OpenAI({ apiKey });
-    const systemPrompt = getSystemPrompt(mode);
-
-    console.log("SYS PROMPT", systemPrompt)
+    const systemPrompt = buildSystemPromptForDesign(mode);
 
     const openaiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       { role: 'system', content: systemPrompt },
@@ -308,23 +273,48 @@ export async function POST(req: NextRequest) {
       messages: openaiMessages,
     });
 
-    const fullContent = chat.choices?.[0]?.message?.content ?? '';
-    const plan = tryParseJSON<Record<string, unknown>>(fullContent);
-    const contentWithoutJson = fullContent.replace(/```json[\s\S]*?```/gi, '').trim();
+    const full = chat.choices?.[0]?.message?.content ?? '';
 
-    // Persist for later use
-    upsertItem(id, { plan });
+    // Parse fenced JSON, then validate/normalize
+    const raw = extractJsonFence(full);
+    if (!isRecord(raw) || !isRecord(raw.plan)) {
+      return NextResponse.json({ content: full, error: 'No JSON plan found' }, { status: 200 });
+    }
 
-    // *** Compatibility for existing UI ***
-    const finalizedPrompt =
-      plan && typeof plan === 'object' && 'finalizedPrompt' in plan
-        ? (plan as { finalizedPrompt?: string }).finalizedPrompt ?? null
-        : null;
+    const planObj = raw.plan;
+
+    const orientation = normalizeOrientation(planObj.orientation);
+    const finalizedPrompt = typeof planObj.finalizedPrompt === 'string'
+      ? planObj.finalizedPrompt.trim()
+      : '';
+
+    if (!orientation) {
+      return NextResponse.json({ content: full, error: 'orientation missing' }, { status: 200 });
+    }
+    if (!finalizedPrompt) {
+      return NextResponse.json({ content: full, error: 'finalizedPrompt missing' }, { status: 200 });
+    }
+
+    const plan: Plan = {
+      vibe: typeof planObj.vibe === 'string' ? planObj.vibe : undefined,
+      elements: Array.isArray(planObj.elements) ? planObj.elements.filter(x => typeof x === 'string') as string[] : undefined,
+      palette: typeof planObj.palette === 'string' ? planObj.palette : undefined,
+      avoid: Array.isArray(planObj.avoid) ? planObj.avoid.filter(x => typeof x === 'string') as string[] : undefined,
+      textOverlay: typeof planObj.textOverlay === 'string' ? planObj.textOverlay : undefined,
+      orientation,
+      finalizedPrompt,
+    };
+
+    const productPlan = coerceProductPlan(raw.productPlan, orientation);
+
+    // persist for later fetch (/api/get-plan etc)
+    upsertItem(id, { plan, productPlan });
 
     return NextResponse.json({
-      content: contentWithoutJson,
+      content: full.replace(/```json[\s\S]*?```/gi, '').trim(), // human reply without the fence
       plan,
-      finalizedPrompt, // <- legacy field expected by client UIs
+      productPlan,
+      finalizedPrompt: plan.finalizedPrompt, // for old clients
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

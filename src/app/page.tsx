@@ -1,155 +1,359 @@
 'use client'
 
-import Link from "next/link";
-import Image from "next/image";
-import { motion } from "framer-motion";
+import { useState, useEffect } from 'react'
+import Link from 'next/link'
+import Image from 'next/image'
+import { motion } from 'framer-motion'
+import {
+  ChevronDown
+} from 'lucide-react'
+
+
+
+
+import LanternSlider from './spookify/components/lantern-slider'
+import { PRODUCTS } from '@/lib/products_gallery_jolly'
+import { HeroImageWithChatBelow } from '@/lib/heroDemo'
+
+/**
+ * Drop-in world-class landing for AI Gifts
+ * - Hero with live before/after demo
+ * - Outcome-based cards (price + ship time)
+ * - How it works strip
+ * - Social proof band
+ * - FAQ
+ * - Performance & a11y friendly
+ */
+
+
+
+function GalleryItem({ before, after }: { before: string; after: string }) {
+  return (
+    <div className="group relative overflow-hidden rounded-2xl border border-white/10 bg-[#0e0e11]">
+      <LanternSlider
+        beforeSrc={before}
+        afterSrc={after}
+        alt="Family photo comparison"
+        priority
+      />
+      {/* glow + label */}
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+      <div className="absolute bottom-3 left-3 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] text-white/85 backdrop-blur">
+        Drag the lantern →
+      </div>
+    </div>
+  );
+}
 
 export default function HomePage() {
-  const brands = [
+ 
+  const faqs = [
     {
-      slug: "spookify",
-      name: "Spookify",
-      tagline: "Turn your photo into spooky wall art.",
-      color: "from-orange-500/80 via-orange-600/70 to-orange-700/60",
-      image: "/ai_gifts_landing/brand-spookify.png",
+      q: 'How does it work?',
+      a: 'Upload a photo, choose a style, personalize captions or text, then preview. We color-manage for print and ship via trusted partners.',
     },
     {
-      slug: "jollyfy",
-      name: "Jollyfy",
-      tagline: "Make your memories merry & bright.",
-      color: "from-red-400/80 via-amber-500/70 to-rose-500/60",
-      image: "/ai_gifts_landing/brand-jollyfy.png",
+      q: 'What about quality?',
+      a: 'We use archival inks and FSC-certified papers. Metal and acrylic prints include durable finishes with crisp detail.',
     },
     {
-      slug: "lovify",
-      name: "Lovify",
-      tagline: "Transform love into lasting keepsakes.",
-      color: "from-pink-400/80 via-rose-500/70 to-red-500/60",
-      image: "/ai_gifts_landing/brand-lovify.png",
+      q: 'Where do you ship?',
+      a: 'We ship to 30+ countries, including UK, EU, US & Canada. Shipping windows update at checkout by region.',
     },
     {
-      slug: "petify",
-      name: "Petify",
-      tagline: "Turn your pet into art worth wagging about.",
-      color: "from-emerald-400/80 via-teal-500/70 to-cyan-500/60",
-      image: "/ai_gifts_landing/brand-petify.png",
+      q: 'What if I’m not happy?',
+      a: 'Love-it guarantee: if your order arrives damaged or defective, we’ll reprint or refund within 14 days.',
     },
-  ];
+  ]
+
+  /** ---------- HERO DEMO (before/after slider with rotating styles) ---------- */
+  const demoFrames = [
+    {
+      key: 'original',
+      label: 'Original',
+      img: '/ai_gifts_landing/demo-original.jpg',
+    },
+    {
+      key: 'spookify',
+      label: 'Spookify',
+      img: '/ai_gifts_landing/demo-spookify.jpg',
+    },
+    {
+      key: 'jollyfy',
+      label: 'Jollyfy',
+      img: '/ai_gifts_landing/demo-jollyfy.jpg',
+    },
+    {
+      key: 'lovify',
+      label: 'Lovify',
+      img: '/ai_gifts_landing/demo-lovify.jpg',
+    },
+  ]
+
+  const [afterIndex, setAfterIndex] = useState(1) // start on Spookify
+  console.log(afterIndex)
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setAfterIndex((i) => (i + 1) % demoFrames.length)
+    }, 3500)
+    return () => clearInterval(id)
+  }, [demoFrames.length])
+
+
+  /** ---------- UI ---------- */
+
+
+
+  const [reducedMotion, setReducedMotion] = useState(false);
+
+  useEffect(() => {
+    console.log(reducedMotion)
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    setReducedMotion(mq.matches);
+    const onChange = (e: MediaQueryListEvent) => setReducedMotion(e.matches);
+    mq.addEventListener?.('change', onChange);
+    return () => mq.removeEventListener?.('change', onChange);
+  }, [reducedMotion]);
+
+
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-[#090909] via-[#0d0d0d] to-[#111] text-white">
-      {/* Floating glow background */}
-      <div className="absolute inset-0 -z-10 overflow-hidden">
-        <div className="absolute top-[-200px] left-[40%] w-[600px] h-[600px] bg-pink-500/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-[-300px] left-[10%] w-[500px] h-[500px] bg-emerald-400/10 rounded-full blur-3xl" />
-        <div className="absolute top-[200px] right-[10%] w-[400px] h-[400px] bg-orange-400/10 rounded-full blur-3xl" />
+    <main className="min-h-screen bg-[#0B0B0D] text-white antialiased">
+      {/* Ambient glows (brand + subtle holiday cue) */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+        <div className="absolute top-[-260px] left-[30%] h-[720px] w-[720px] rounded-full bg-fuchsia-500/10 blur-3xl" />
+        <div className="absolute bottom-[-340px] left-[8%] h-[560px] w-[560px] rounded-full bg-emerald-500/10 blur-3xl" />
+        <div className="absolute top-[220px] right-[6%] h-[460px] w-[460px] rounded-full bg-orange-400/10 blur-3xl" />
       </div>
 
-      {/* Hero */}
-      <section className="relative max-w-5xl mx-auto px-6 pt-32 pb-24 text-center">
-        <motion.h1
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="text-5xl sm:text-7xl font-extrabold tracking-tight mb-6"
-        >
-          Turn memories into{" "}
-          <span className="bg-gradient-to-r from-fuchsia-400 via-rose-400 to-amber-300 bg-clip-text text-transparent">
-            magic
-          </span>
-        </motion.h1>
-
-        <motion.p
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="text-white/70 max-w-2xl mx-auto text-lg leading-relaxed mb-10"
-        >
-          From haunting Halloween portraits to heartfelt Christmas gifts,{" "}
-          <span className="text-white">AI Gifts</span> transforms your photos into
-          museum-grade prints, cards, and keepsakes — crafted by AI, printed by world-class partners.
-        </motion.p>
-
+      {/* HERO */}
+      <section className="relative mx-auto grid max-w-6xl grid-cols-1 gap-12 px-6 pb-20 pt-28 lg:grid-cols-2">
         <motion.div
-          initial={{ opacity: 0, y: 10 }}
+          initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="flex flex-wrap justify-center gap-4"
+          transition={{ duration: 0.45 }}
         >
-          <Link
-            href="/spookify"
-            className="px-7 py-3 bg-gradient-to-r from-orange-500 to-orange-600 rounded-full font-medium text-black hover:opacity-90 transition shadow-lg shadow-orange-500/20"
-          >
-            Try Spookify
-          </Link>
-          <Link
-            href="/jollyfy"
-            className="px-7 py-3 bg-gradient-to-r from-red-500 to-amber-500 rounded-full font-medium text-black hover:opacity-90 transition shadow-lg shadow-red-500/20"
-          >
-            Try Jollyfy
-          </Link>
-        </motion.div>
-      </section>
+          <h1 className="text-5xl font-extrabold tracking-tight sm:text-6xl">
+            Turn ideas or photos into{' '}
+            <span className="bg-gradient-to-r from-fuchsia-400 via-rose-400 to-amber-300 bg-clip-text text-transparent">
+              museum-quality magic
+            </span>
+          </h1>
 
-      {/* Brand Grid */}
-      <section className="max-w-6xl mx-auto grid sm:grid-cols-2 lg:grid-cols-4 gap-10 px-6 pb-32">
-        {brands.map((b, i) => (
-          <motion.div
-            key={b.slug}
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.1 }}
-            viewport={{ once: true }}
-          >
-            <Link href={`/${b.slug}`}>
-              <motion.div
-                whileHover={{ scale: 1.04, y: -3 }}
-                className={`rounded-2xl overflow-hidden bg-gradient-to-br ${b.color} p-[2px] transition-all duration-300`}
-              >
-                <div className="bg-[#121212] rounded-2xl flex flex-col justify-between h-full">
-                  <div className="p-5 pb-3">
-                    <h3 className="text-xl font-semibold mb-1">{b.name}</h3>
-                    <p className="text-sm text-white/70 leading-snug">{b.tagline}</p>
-                  </div>
-                  <div className="relative aspect-square overflow-hidden rounded-b-2xl">
-                    <Image
-                      src={b.image}
-                      alt={b.name}
-                      fill
-                      className="object-cover transition-transform duration-500 hover:scale-105"
-                    />
-                  </div>
-                </div>
-              </motion.div>
+          {/* Seasonal strap (light touch; remove after season) */}
+          <p className="mt-3 text-emerald-300/90">
+            Create custom Christmas cards, cushions, ornaments & framed prints in minutes.
+          </p>
+
+          <p className="mt-4 max-w-xl text-lg leading-relaxed text-white/75">
+            Upload a photo. Pick a style. Get gallery-grade keepsakes delivered worldwide.
+          </p>
+
+          <div className="mt-7 flex flex-wrap gap-4">
+            <Link
+              href="/upload"
+              className="rounded-2xl bg-gradient-to-r from-fuchsia-500 to-orange-400 px-6 py-3 text-sm font-semibold text-black shadow-[0_0_0_1px_rgba(255,255,255,0.08)_inset] hover:opacity-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500"
+            >
+              Start now
             </Link>
-          </motion.div>
-        ))}
+            <a
+              href="#styles"
+              className="rounded-2xl border border-[#24262B] px-6 py-3 text-sm font-semibold text-white hover:border-emerald-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500"
+            >
+              Browse styles
+            </a>
+          </div>
+
+          {/* Micro benefits */}
+          <ul className="mt-6 flex flex-wrap gap-x-6 gap-y-3 text-sm text-white/75">
+            <li className="flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#D7B46A]"></span>
+              Museum-grade prints
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#D7B46A]"></span>
+              Ships worldwide
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#D7B46A]"></span>
+              Ready in minutes
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#D7B46A]"></span>
+              Love-it guarantee
+            </li>
+          </ul>
+        </motion.div>
+
+        {/* Before/After Demo (with better labels + soft feather seam) */}
+      <HeroImageWithChatBelow />
       </section>
 
-      {/* Why AI Gifts */}
-      <section className="max-w-3xl mx-auto px-6 text-center pb-24">
-        <motion.h2
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          className="text-3xl font-bold mb-6"
-        >
-          Crafted with care, printed to perfection.
-        </motion.h2>
-        <p className="text-white/70 text-lg leading-relaxed">
-          Every AI Gifts creation starts with your imagination.  
-          We enhance it using responsible AI models, print it sustainably through trusted
-          partners like <span className="text-white">Gelato</span> and <span className="text-white">Prodigi</span>,
-          and deliver it beautifully packaged — ready to gift, or keep forever.
-        </p>
+      {/* PRODUCTS */}
+      <section aria-labelledby="holiday-decorations" className="relative z-10 mx-auto max-w-6xl px-6 pb-12">
+        <div className="mb-4 flex items-end justify-between gap-4">
+          <div>
+            <h2 id="holiday-decorations" className="text-3xl font-bold tracking-tight">
+              Make beautiful holiday decorations
+            </h2>
+            <p className="mt-1 text-sm text-neutral-300">
+              Upload a photo, pick a style, and we’ll print museum-grade keepsakes—delivered worldwide.
+            </p>
+          </div>
+
+          <a
+            href="/products"
+            className="hidden shrink-0 rounded-xl border border-[#24262B] px-4 py-2 text-sm font-semibold text-white hover:border-emerald-600 sm:inline-block focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500"
+            aria-label="Browse all holiday products"
+          >
+            Browse all
+          </a>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+          {PRODUCTS.map((p) => (
+            <a
+              key={p.title}
+              href={p.href}
+              className="group rounded-2xl border border-[#24262B] bg-[#111216] ring-0 transition hover:border-emerald-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500"
+            >
+              <div className="relative aspect-square overflow-hidden rounded-2xl">
+                <Image
+                  src={p.src}
+                  alt={p.title}
+                  fill
+                  sizes="(max-width: 768px) 50vw, (max-width: 1280px) 25vw, 20vw"
+                  className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </div>
+              <div className="p-4">
+                <h3 className="text-sm font-semibold">{p.title}</h3>
+              </div>
+            </a>
+          ))}
+        </div>
+
+        {/* tiny trust row */}
+        <ul className="mt-4 grid grid-cols-1 gap-2 text-xs text-neutral-400 sm:grid-cols-3">
+          <li className="flex items-center gap-2">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#D7B46A]" />
+            Archival inks · FSC-certified papers
+          </li>
+          <li className="flex items-center gap-2">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#D7B46A]" />
+            Printed near you · Ships worldwide
+          </li>
+          <li className="flex items-center gap-2">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#D7B46A]" />
+            Love-it guarantee
+          </li>
+        </ul>
+
+        {/* mobile browse link */}
+        <div className="mt-4 sm:hidden">
+          <a
+            href="/products"
+            className="inline-flex rounded-xl border border-[#24262B] px-4 py-2 text-sm font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500"
+          >
+            Browse all
+          </a>
+        </div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t border-white/10 py-10 text-center text-white/60 text-sm">
-        <p>© {new Date().getFullYear()} AI Gifts · Made with ❤️ by Kathryn Lamb</p>
-        <p className="mt-2 text-white/50">
-          Printed sustainably · Ships to 30+ countries · Powered by AI + artistry
-        </p>
-      </footer>
+      {/* HOW IT WORKS */}
+      <section className="mx-auto max-w-6xl px-6 pb-24">
+        <h2 className="mb-12 text-center text-3xl font-bold">How it works (about 90 seconds)</h2>
+        <ol className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            { t: 'Upload', d: 'Pick your favourite photo.' },
+            { t: 'Choose style', d: 'Lovify watercolor, cozy cartoon, classic portrait & more.' },
+            { t: 'Personalize', d: 'Add greetings, names, dates—your touch.' },
+            { t: 'Print & ship', d: 'Archival quality. Delivered fast.' },
+          ].map((s, i) => (
+            <li key={s.t} className="rounded-2xl bg-[#111216] p-5 ring-1 ring-[#24262B]">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-white/65">Step {i + 1}</span>
+                <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs">
+                  {i === 3 ? 'Done' : 'Easy'}
+                </span>
+              </div>
+              <p className="mt-3 text-lg font-semibold">{s.t}</p>
+              <p className="mt-1 text-sm text-white/75">{s.d}</p>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      {/* --- GALLERY / BEFORE-AFTER (static grid) --- */}
+      <section className="mx-auto max-w-7xl px-4 py-16 md:py-20">
+        <h2 className="mb-8 text-center text-3xl font-bold md:text-4xl">Before → After</h2>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {/* Replace with your <GalleryItem /> component if desired */}
+          <GalleryItem before="/before_after_gallery/fam_picnic.png" after="/before_after_gallery/fam_picnic_spookified.png" />
+          <GalleryItem before="/before_after_gallery/smile.png" after="/before_after_gallery/spookified-hero.png" />
+          <GalleryItem before="/before_after_gallery/city.png" after="/before_after_gallery/city_spookified.png" />
+          <GalleryItem before="/before_after_gallery/landscape.png" after="/before_after_gallery/landscape_spookified.png" />
+          <GalleryItem before="/before_after_gallery/pets.png" after="/before_after_gallery/pets_spookified.png" />
+          <GalleryItem before="/before_after_gallery/wedding.png" after="/before_after_gallery/wedding_WD_spookified.png" />
+        </div>
+      </section>
+
+      {/* REVIEWS */}
+      <section className="mx-auto max-w-6xl px-6 pb-24">
+        <h2 className="mb-10 text-center text-3xl font-bold">Loved by gift-givers</h2>
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {[
+            { n: 'Sophie, London', t: '“The Lovify comic made him cry—in the best way.”' },
+            { n: 'Marcus, Dublin', t: '“Quality feels like a gallery piece. Super fast shipping.”' },
+            { n: 'Ava, Seattle', t: '“Our Halloween Spookify is now a year-round conversation starter.”' },
+          ].map((r) => (
+            <blockquote key={r.n} className="rounded-2xl bg-[#111216] p-5 ring-1 ring-[#24262B]">
+              <p className="text-white/90">{r.t}</p>
+              <footer className="mt-3 text-sm text-white/65">— {r.n}</footer>
+            </blockquote>
+          ))}
+        </div>
+      </section>
+
+            {/* SOCIAL PROOF STRIP */}
+      <section className="mx-auto max-w-6xl px-6 pb-10">
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="rounded-xl bg-[#111216] p-4 ring-1 ring-[#24262B]">
+            <p className="text-sm text-white/70">Rating</p>
+            <p className="mt-1 text-lg font-semibold">4.9/5 from 1,200+ orders</p>
+          </div>
+          <div className="rounded-xl bg-[#111216] p-4 ring-1 ring-[#24262B]">
+            <p className="text-sm text-white/70">Fulfillment partners</p>
+            <p className="mt-1 text-lg font-semibold">Gelato · Prodigi</p>
+          </div>
+          <div className="rounded-xl bg-[#111216] p-4 ring-1 ring-[#24262B]">
+            <p className="text-sm text-white/70">Sustainability</p>
+            <p className="mt-1 text-lg font-semibold">FSC-certified papers · Archival inks</p>
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section className="mx-auto max-w-4xl px-6 pb-24">
+        <h2 className="mb-10 text-center text-3xl font-bold">FAQs</h2>
+        <div className="overflow-hidden rounded-2xl ring-1 ring-[#24262B]">
+          {faqs.map((f, i) => (
+            <details key={i} className="group open:bg-[#111216]">
+              <summary className="cursor-pointer list-none px-5 py-4 text-left hover:bg-white/5">
+                <div className="flex items-center justify-between gap-6">
+                  <span className="font-medium">{f.q}</span>
+                  <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-300 group-open:rotate-180" />
+                </div>
+              </summary>
+              <div className=" -mt-2 px-5 pb-6 text-white/80">{f.a}</div>
+            </details>
+          ))}
+        </div>
+      </section>
     </main>
   );
 }
+

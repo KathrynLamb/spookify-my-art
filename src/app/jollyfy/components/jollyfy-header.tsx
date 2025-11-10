@@ -67,7 +67,7 @@ export default function JollyfyHeader({ session }: { session: Session | null }) 
                 // onClick={() => console.log('true hould open dialog')}
                 className="inline-flex items-center rounded-full bg-[#FF6A2B] hover:bg-[#FF814E] px-3 py-1.5 text-sm text-black font-medium shadow-[0_0_0_6px_rgba(255,106,43,.15)]"
               >
-                New image
+                Sign Up
               </Button>
             )}
           </div>

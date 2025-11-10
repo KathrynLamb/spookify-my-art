@@ -1,11 +1,32 @@
 // src/lib/memStore.ts
 // Minimal in-memory store for dev/MVP
 
+export type Orientation = 'Horizontal' | 'Vertical' | 'Square';
+
+export type Plan = {
+  vibe?: string;
+  elements?: string[];
+  palette?: string;
+  avoid?: string[];
+  textOverlay?: string;
+  orientation?: Orientation;
+  targetAspect?: number;
+  finalizedPrompt?: string;
+};
+
+// NEW: keep in sync with your /lib/jobs.ts ProductPlan
+export type ProductPlan = {
+  productId: string | null;
+  reasonShort?: string;
+
+};
+
 export type StoredItem = {
   id: string
   dataUrl?: string
   plan?: Record<string, unknown> | null
   finalizedPrompt?: string | null
+  productPlan?: ProductPlan | null; // <-- add this
   created: number
   updated: number
 }

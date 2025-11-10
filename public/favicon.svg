@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="g" x1="0" y1="64" x2="64" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F15BB5"/>
+      <stop offset="0.6" stop-color="#FF8A34"/>
+      <stop offset="1" stop-color="#FFB057"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Subtle rounded backdrop for legibility on light tabs -->
+  <!-- <rect x="4" y="4" width="56" height="56" rx="14" fill="#0B0B0D"/> -->
+   <rect x="4" y="4" width="56" height="56" rx="14" />
+  
+  <!-- Gift box -->
+  <rect x="14" y="28" width="36" height="22" rx="4" fill="none" stroke="url(#g)" stroke-width="3"/>
+  <rect x="30.5" y="28" width="3" height="22" fill="url(#g)"/>
+  
+  <!-- Lid -->
+  <rect x="12" y="22" width="40" height="8" rx="4" fill="#0B0B0D" stroke="url(#g)" stroke-width="3"/>
+  
+  <!-- Ribbon bow (2 loops) -->
+  <path d="M32 22c-4.2-6.5-10.5-7-12.5-4.7-1.5 1.6-.7 4.1 2.8 5.5 2.8 1.1 6 1 9.7-.8z" fill="none" stroke="url(#g)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M32 22c4.2-6.5 10.5-7 12.5-4.7 1.5 1.6.7 4.1-2.8 5.5-2.8 1.1-6 1-9.7-.8z" fill="none" stroke="url(#g)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Spark (AI magic) -->
+  <path d="M46 12l1.6 3.6L51 17.2l-3.6 1.6L46 22l-1.6-3.2L41 17.2l3.4-1.6L46 12z" fill="url(#g)"/>
+</svg>

@@ -1,12 +1,22 @@
 {
-    "extends": "next/core-web-vitals",
-    "overrides": [
+  "extends": "next/core-web-vitals",
+  "rules": {
+    "@typescript-eslint/no-unused-expressions": [
+      "error",
       {
-        "files": ["src/app/api/**/*.ts"],
-        "rules": {
-          "@typescript-eslint/no-explicit-any": "off"
-        }
+        "allowShortCircuit": true,
+        "allowTernary": true,
+        "allowTaggedTemplates": true,
+        "allowString": true    // ✅ allows 'use client' without complaints
       }
     ]
-  }
-  
+  },
+  "overrides": [
+    {
+      "files": ["src/app/api/**/*.ts"],
+      "rules": {
+        "@typescript-eslint/no-explicit-any": "off"
+      }
+    }
+  ]
+}

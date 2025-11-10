@@ -1,14 +1,18 @@
-import type { NextConfig } from 'next';
+// next.config.ts
+import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // ⬅️ Top-level in Next 15
-  serverExternalPackages: ['sharp'],
+  serverExternalPackages: ["sharp"],
+
+  webpack: (config) => {
+    config.experiments = { ...(config.experiments ?? {}), asyncWebAssembly: true };
+    return config;
+  },
 
   images: {
     remotePatterns: [
-      { protocol: 'https', hostname: '**.blob.vercel-storage.com' },
-      { protocol: 'https', hostname: 'fpabsqys5cky7azh.public.blob.vercel-storage.com' },
-
+      { protocol: "https", hostname: "**.blob.vercel-storage.com" },
+      { protocol: "https", hostname: "fpabsqys5cky7azh.public.blob.vercel-storage.com" },
     ],
   },
 };

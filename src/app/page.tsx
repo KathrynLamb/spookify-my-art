@@ -158,20 +158,20 @@ export default function HomePage() {
             Upload a photo. Pick a style. Get gallery-grade keepsakes delivered worldwide.
           </p>
 
-          <div className="mt-7 flex flex-wrap gap-4">
-            <Link
+          {/* <div className="mt-7 flex flex-wrap gap-4"> */}
+            {/* <Link
               href="/upload"
               className="rounded-2xl bg-gradient-to-r from-fuchsia-500 to-orange-400 px-6 py-3 text-sm font-semibold text-black shadow-[0_0_0_1px_rgba(255,255,255,0.08)_inset] hover:opacity-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500"
             >
               Start now
-            </Link>
-            <a
+            </Link> */}
+            {/* <a
               href="#styles"
               className="rounded-2xl border border-[#24262B] px-6 py-3 text-sm font-semibold text-white hover:border-emerald-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500"
             >
               Browse styles
-            </a>
-          </div>
+            </a> */}
+          {/* </div> */}
 
           {/* Micro benefits */}
           <ul className="mt-6 flex flex-wrap gap-x-6 gap-y-3 text-sm text-white/75">

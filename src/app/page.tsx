@@ -8,12 +8,16 @@ import {
   ChevronDown
 } from 'lucide-react'
 
+// import WaitlistModal from '@/components/WaitlistModal';
 
 
-
-import LanternSlider from './spookify/components/lantern-slider'
 import { PRODUCTS } from '@/lib/products_gallery_jolly'
 import { HeroImageWithChatBelow } from '@/lib/heroDemo'
+import WaitlistModal from './design/components/WaitlistModal'
+import { WaitlistProduct } from './design/types'
+
+
+
 
 /**
  * Drop-in world-class landing for AI Gifts
@@ -25,25 +29,24 @@ import { HeroImageWithChatBelow } from '@/lib/heroDemo'
  * - Performance & a11y friendly
  */
 
+// function GalleryItem({ before, after }: { before: string; after: string }) {
 
-
-function GalleryItem({ before, after }: { before: string; after: string }) {
-  return (
-    <div className="group relative overflow-hidden rounded-2xl border border-white/10 bg-[#0e0e11]">
-      <LanternSlider
-        beforeSrc={before}
-        afterSrc={after}
-        alt="Family photo comparison"
-        priority
-      />
-      {/* glow + label */}
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
-      <div className="absolute bottom-3 left-3 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] text-white/85 backdrop-blur">
-        Drag the lantern →
-      </div>
-    </div>
-  );
-}
+//   return (
+//     <div className="group relative overflow-hidden rounded-2xl border border-white/10 bg-[#0e0e11]">
+//       <LanternSlider
+//         beforeSrc={before}
+//         afterSrc={after}
+//         alt="Family photo comparison"
+//         priority
+//       />
+//       {/* glow + label */}
+//       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+//       <div className="absolute bottom-3 left-3 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] text-white/85 backdrop-blur">
+//         Drag the lantern →
+//       </div>
+//     </div>
+//   );
+// }
 
 export default function HomePage() {
  
@@ -89,6 +92,11 @@ export default function HomePage() {
       img: '/ai_gifts_landing/demo-lovify.jpg',
     },
   ]
+
+  const [showWaitlist, setShowWaitlist] = useState(false);
+  const [waitlistProduct, setWaitlistProduct] =
+  useState<WaitlistProduct | null>(null);
+
 
   const [afterIndex, setAfterIndex] = useState(1) // start on Spookify
   console.log(afterIndex)
@@ -215,12 +223,37 @@ export default function HomePage() {
           {PRODUCTS.map((p) => (
             <a
               key={p.title}
-              href={p.href}
+              onClick={() => {
+                // console.log('product', p)
+
+                if (p.comingSoon) {
+                  setWaitlistProduct(p);
+                  setShowWaitlist(true);
+                  return;
+                } else {
+                try {
+                  localStorage.setItem('design:selectedProduct', JSON.stringify({
+                    title: p.title,
+                    src: p.src,
+                    name: p.name,
+                    description: p.description,
+                    productUID: p.productUID,
+                    specs: p.specs,
+                    prices: p.prices,
+                    shippingRegions: p.shippingRegions,
+                    shippingTime: p.shippingTime
+                  }
+                    ));
+                } catch {}
+                window.location.href = `/design?product=${p.productUID}`;
+
+              }
+              }}
               className="group rounded-2xl border border-[#24262B] bg-[#111216] ring-0 transition hover:border-emerald-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500"
             >
               <div className="relative aspect-square overflow-hidden rounded-2xl">
                 <Image
-                  src={p.src}
+                  src={p.jollySrc}
                   alt={p.title}
                   fill
                   sizes="(max-width: 768px) 50vw, (max-width: 1280px) 25vw, 20vw"
@@ -231,6 +264,8 @@ export default function HomePage() {
               </div>
               <div className="p-4">
                 <h3 className="text-sm font-semibold">{p.title}</h3>
+                {p.comingSoon &&  <h3 className="text-md font-bold text-red-500">Coming Soon</h3> }
+               
               </div>
             </a>
           ))}
@@ -288,18 +323,18 @@ export default function HomePage() {
       </section>
 
       {/* --- GALLERY / BEFORE-AFTER (static grid) --- */}
-      <section className="mx-auto max-w-7xl px-4 py-16 md:py-20">
+      {/* <section className="mx-auto max-w-7xl px-4 py-16 md:py-20">
         <h2 className="mb-8 text-center text-3xl font-bold md:text-4xl">Before → After</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {/* Replace with your <GalleryItem /> component if desired */}
+      
           <GalleryItem before="/before_after_gallery/fam_picnic.png" after="/before_after_gallery/fam_picnic_spookified.png" />
-          <GalleryItem before="/before_after_gallery/smile.png" after="/before_after_gallery/spookified-hero.png" />
+          <GalleryItem before="/before_after_gallery/smile.png" after="/before_after_gallery/angel.png" />
           <GalleryItem before="/before_after_gallery/city.png" after="/before_after_gallery/city_spookified.png" />
           <GalleryItem before="/before_after_gallery/landscape.png" after="/before_after_gallery/landscape_spookified.png" />
           <GalleryItem before="/before_after_gallery/pets.png" after="/before_after_gallery/pets_spookified.png" />
           <GalleryItem before="/before_after_gallery/wedding.png" after="/before_after_gallery/wedding_WD_spookified.png" />
         </div>
-      </section>
+      </section> */}
 
       {/* REVIEWS */}
       <section className="mx-auto max-w-6xl px-6 pb-24">
@@ -351,9 +386,17 @@ export default function HomePage() {
               <div className=" -mt-2 px-5 pb-6 text-white/80">{f.a}</div>
             </details>
           ))}
-        </div>
-      </section>
-    </main>
+
+        <WaitlistModal
+          product={waitlistProduct}
+          isOpen={showWaitlist}
+          onClose={() => setShowWaitlist(false)}
+        />
+      </div>
+    </section>
+</main>
+
   );
-}
+        }
+
 

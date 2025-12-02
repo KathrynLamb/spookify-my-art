@@ -1,323 +1,270 @@
+import { NextRequest, NextResponse } from "next/server";
+import OpenAI from "openai";
+import { upsertItem } from "@/lib/memStore";
+import { buildSystemPromptForDesign } from "@/lib/ai/prompts/productPrompt";
 
-// import { NextRequest, NextResponse } from 'next/server';
-// import OpenAI from 'openai';
-// import { upsertItem } from '@/lib/memStore';
-// import { buildSystemPromptForDesign } from '@/lib/ai/prompts/productPrompt';
-// import { CATALOG } from '@/lib/catalog';
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-// export const runtime = 'nodejs';
-// export const dynamic = 'force-dynamic';
+/* -------------------------------------------------------------
+ * Types
+ * ------------------------------------------------------------- */
 
-// type Role = 'user' | 'assistant';
-// type Orientation = 'Horizontal' | 'Vertical' | 'Square';
+type Role = "user" | "assistant";
 
-// type ChatMsg = { role: Role; content?: string; images?: string[] };
-// type PromptMode = 'spookify' | 'jollyfy' | 'lovify' | 'custom';
+export type ChatMsg = {
+  role: Role;
+  content?: string;
+};
 
-// type Plan = {
-//   vibe?: string;
-//   elements?: string[];
-//   palette?: string;
-//   avoid?: string[];
-//   textOverlay?: string;
-//   orientation: Orientation;            // required
-//   finalizedPrompt: string;             // required
-// };
+export type ReferenceImage = {
+  id: string;
+  url: string;
+  label?: string;
+  role?: string;
+  notes?: string;
+};
 
-// type ProductPlan = {
-//   productId: string | null;            // null when asking a clarifier
-//   reasonShort?: string;
-// };
-
-// type ChatBody = {
-//   id: string;                          // imageId
-//   mode?: PromptMode;
-//   messages: ChatMsg[];
-// };
-
-// function extractJsonFence(text: string): any | null {
-//   const m = text.match(/```json\s*([\s\S]*?)\s*```/i) || text.match(/```\s*([\s\S]*?)\s*```/i);
-//   const payload = m?.[1];
-//   if (!payload) return null;
-//   try { return JSON.parse(payload); } catch { return null; }
-// }
-
-// function normalizeOrientation(v: unknown): Orientation | null {
-//   const s = String(v ?? '').toLowerCase();
-//   if (/(horizontal|landscape|wide|16:9|3:2|postcard)/.test(s)) return 'Horizontal';
-//   if (/(vertical|portrait|tall|2:3)/.test(s)) return 'Vertical';
-//   if (/(square|1:1)/.test(s)) return 'Square';
-//   return null;
-// }
-
-// // Ensure product exists and supports the orientation.
-// function coerceProductPlan(pp: ProductPlan | null | undefined, o: Orientation) {
-//   if (!pp || !pp.productId) return { productId: null, reasonShort: pp?.reasonShort ?? 'Do you want this as a card to send, or a wall print to keep?' };
-//   const found = CATALOG.find(c => c.productId === pp.productId);
-//   if (!found) {
-//     return { productId: null, reasonShort: 'I need to confirm the product type (card vs framed print vs canvas).' };
-//   }
-//   if (!found.orientations.includes(o)) {
-//     return { productId: null, reasonShort: `That product doesn’t match ${o}. Should we switch orientation or pick another product?` };
-//   }
-//   return { productId: found.productId, reasonShort: pp.reasonShort ?? '' };
-// }
-
-// /** Convert our chat message to OpenAI chat-completions message */
-// function toOpenAIMessage(m: ChatMsg | { role: 'system'; content: string }): OpenAI.Chat.Completions.ChatCompletionMessageParam {
-//   if (m.role === 'system') return { role: 'system', content: m.content };
-//   const text = (m.content ?? '').trim();
-//   if (m.role === 'user') {
-//     const parts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
-//     if (text) parts.push({ type: 'text', text });
-//     if (m.images?.length) for (const url of m.images) parts.push({ type: 'image_url', image_url: { url } });
-//     return { role: 'user', content: parts.length ? parts : [{ type: 'text', text: '' }] };
-//   }
-//   return { role: 'assistant', content: text };
-// }
-
-// export async function POST(req: NextRequest) {
-//   try {
-//     const { id, mode = 'custom', messages } = (await req.json()) as ChatBody;
-//     if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
-//     if (!Array.isArray(messages)) return NextResponse.json({ error: 'messages must be array' }, { status: 400 });
-
-//     const apiKey = process.env.OPENAI_API_KEY;
-//     if (!apiKey) return NextResponse.json({ error: 'Missing OPENAI_API_KEY' }, { status: 503 });
-
-//     const openai = new OpenAI({ apiKey });
-//     const systemPrompt = buildSystemPromptForDesign(mode);
-
-//     const openaiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-//       { role: 'system', content: systemPrompt },
-//       ...messages.map(toOpenAIMessage),
-//     ];
-
-//     const chat = await openai.chat.completions.create({
-//       model: 'gpt-4o',
-//       temperature: 0.6,
-//       messages: openaiMessages,
-//     });
-
-//     const full = chat.choices?.[0]?.message?.content ?? '';
-//     const json = extractJsonFence(full);
-
-//     // Minimal, defensive validation
-//     if (!json || typeof json !== 'object' || !json.plan) {
-//       return NextResponse.json({ content: full, error: 'No JSON plan found' }, { status: 200 });
-//     }
-
-//     const orientation = normalizeOrientation(json.plan?.orientation) as Orientation | null;
-//     const finalizedPrompt = String(json.plan?.finalizedPrompt ?? '').trim();
-
-//     if (!orientation) {
-//       return NextResponse.json({ content: full, error: 'orientation missing' }, { status: 200 });
-//     }
-//     if (!finalizedPrompt) {
-//       return NextResponse.json({ content: full, error: 'finalizedPrompt missing' }, { status: 200 });
-//     }
-
-//     const plan: Plan = {
-//       vibe: json.plan?.vibe ?? undefined,
-//       elements: Array.isArray(json.plan?.elements) ? json.plan.elements : undefined,
-//       palette: json.plan?.palette ?? undefined,
-//       avoid: Array.isArray(json.plan?.avoid) ? json.plan.avoid : undefined,
-//       textOverlay: json.plan?.textOverlay ?? undefined,
-//       orientation,
-//       finalizedPrompt,
-//     };
-
-//     const productPlan = coerceProductPlan(json.productPlan as ProductPlan | undefined, orientation);
-
-//     // persist for later fetch (/api/get-plan etc)
-//     upsertItem(id, { plan, productPlan });
-
-//     return NextResponse.json({
-//       content: full.replace(/```json[\s\S]*?```/gi, '').trim(), // human reply without the fence
-//       plan,
-//       productPlan,
-//       finalizedPrompt: plan.finalizedPrompt, // for old clients
-//     });
-//   } catch (err) {
-//     const message = err instanceof Error ? err.message : String(err);
-//     return NextResponse.json({ error: message }, { status: 500 });
-//   }
-// }
-// ./src/app/api/chat/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
-import { upsertItem } from '@/lib/memStore';
-import { buildSystemPromptForDesign } from '@/lib/ai/prompts/productPrompt';
-import { CATALOG } from '@/lib/catalog';
-
-export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
-
-type Role = 'user' | 'assistant';
-type Orientation = 'Horizontal' | 'Vertical' | 'Square';
-type PromptMode = 'spookify' | 'jollyfy' | 'lovify' | 'custom';
-
-type ChatMsg = { role: Role; content?: string; images?: string[] };
-
-type Plan = {
+export type Plan = {
+  intent?: string;
   vibe?: string;
   elements?: string[];
   palette?: string;
   avoid?: string[];
   textOverlay?: string;
-  orientation: Orientation;     // required
-  finalizedPrompt: string;      // required
+
+  referencesNeeded?: string[];
+  references?: ReferenceImage[];
+
+  productId?: string | null;
+
+  orientation?: string | null;
+  targetAspect?: number | null;
+
+  finalizedPrompt?: string | null;
+  userConfirmed?: boolean;
 };
 
-type ProductPlan = {
-  productId: string | null;     // null when asking a clarifier
-  reasonShort?: string;
-};
-
-type ChatBody = {
-  id: string;                   // imageId
-  mode?: PromptMode;
+export type ChatBody = {
+  id?: string;
   messages: ChatMsg[];
+  username?: string | null;
+  selectedProduct?: Record<string, unknown> | null;
+  plan?: Partial<Plan> | null;
 };
 
-// -------- type guards & helpers (no any) ------------------------------------
+/* -------------------------------------------------------------
+ * Helpers
+ * ------------------------------------------------------------- */
 
 function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null;
+  return typeof v === "object" && v !== null;
 }
 
-function extractJsonFence(text: string): unknown | null {
-  const m =
-    text.match(/```json\s*([\s\S]*?)\s*```/i) ??
-    text.match(/```\s*([\s\S]*?)\s*```/i);
-  const payload = m?.[1];
-  if (!payload) return null;
-  try {
-    return JSON.parse(payload);
-  } catch {
-    return null;
-  }
+function mergeUniqueRefs(
+  a: ReferenceImage[] = [],
+  b: ReferenceImage[] = []
+): ReferenceImage[] {
+  const map = new Map<string, ReferenceImage>();
+  a.forEach((r) => map.set(r.id, r));
+  b.forEach((r) => map.set(r.id, r));
+  return Array.from(map.values());
 }
 
-function normalizeOrientation(v: unknown): Orientation | null {
-  const s = String(v ?? '').toLowerCase();
-  if (/(horizontal|landscape|wide|16:9|3:2|postcard)/.test(s)) return 'Horizontal';
-  if (/(vertical|portrait|tall|2:3)/.test(s)) return 'Vertical';
-  if (/(square|1:1)/.test(s)) return 'Square';
-  return null;
+function mergePlan(base: Partial<Plan>, delta: Partial<Plan>): Plan {
+  return {
+    ...base,
+    ...delta,
+    references: mergeUniqueRefs(base.references, delta.references),
+  };
 }
 
-function coerceProductPlan(pp: unknown, o: Orientation): ProductPlan {
-  if (!isRecord(pp)) {
-    return { productId: null, reasonShort: 'Do you want this as a card to send, or a wall print to keep?' };
-  }
-  const productId = typeof pp.productId === 'string' ? pp.productId : null;
-  const reasonShort = typeof pp.reasonShort === 'string' ? pp.reasonShort : undefined;
-
-  if (!productId) return { productId: null, reasonShort: reasonShort ?? 'I need the product type (card vs wall print).' };
-
-  const found = (CATALOG as Array<{ productId: string; orientations: Orientation[] }>).find(
-    c => c.productId === productId
-  );
-  if (!found) return { productId: null, reasonShort: 'That product id is not available. Pick a type.' };
-  if (!found.orientations.includes(o)) {
-    return { productId: null, reasonShort: `That product doesn’t match ${o}. Switch orientation or pick another product?` };
-  }
-  return { productId: found.productId, reasonShort: reasonShort ?? '' };
-}
-
-/** Convert our chat message to OpenAI chat-completions message */
-function toOpenAIMessage(
-  m: ChatMsg | { role: 'system'; content: string }
-): OpenAI.Chat.Completions.ChatCompletionMessageParam {
-  if (m.role === 'system') return { role: 'system', content: m.content };
-
-  const text = (m.content ?? '').trim();
-  if (m.role === 'user') {
-    const parts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
-    if (text) parts.push({ type: 'text', text });
-    if (m.images?.length) {
-      for (const url of m.images) {
-        parts.push({ type: 'image_url', image_url: { url } });
-      }
-    }
-    return { role: 'user', content: parts.length ? parts : [{ type: 'text', text: '' }] };
-  }
-  return { role: 'assistant', content: text };
-}
-
-// -----------------------------------------------------------------------------
+/* -------------------------------------------------------------
+ * MAIN CHAT ROUTE — with correct image_url injection
+ * ------------------------------------------------------------- */
 
 export async function POST(req: NextRequest) {
   try {
-    const { id, mode = 'custom', messages } = (await req.json()) as ChatBody;
-    if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
+    const rawBody = (await req.json()) as unknown;
+
+    if (!isRecord(rawBody)) {
+      return NextResponse.json({ error: "Invalid body" }, { status: 400 });
+    }
+
+    const {
+      id,
+      messages,
+      username = null,
+      selectedProduct = null,
+      plan: clientPlan = null,
+    } = rawBody as ChatBody;
+
     if (!Array.isArray(messages)) {
-      return NextResponse.json({ error: 'messages must be array' }, { status: 400 });
+      return NextResponse.json(
+        { error: "messages must be array" },
+        { status: 400 }
+      );
     }
 
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) return NextResponse.json({ error: 'Missing OPENAI_API_KEY' }, { status: 503 });
+    if (!process.env.OPENAI_API_KEY) {
+      return NextResponse.json(
+        { error: "Missing OPENAI_API_KEY" },
+        { status: 503 }
+      );
+    }
 
-    const openai = new OpenAI({ apiKey });
-    const systemPrompt = buildSystemPromptForDesign(mode);
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-    const openaiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-      { role: 'system', content: systemPrompt },
-      ...messages.map(toOpenAIMessage),
-    ];
+    /* -------------------------------------------------------------
+     * Extract reference images from plan
+     * ------------------------------------------------------------- */
+    const planRefs: ReferenceImage[] = Array.isArray(clientPlan?.references)
+      ? (clientPlan!.references as ReferenceImage[])
+      : [];
 
-    const chat = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      temperature: 0.6,
-      messages: openaiMessages,
+    const uploadedRefLabels = planRefs.map((r) => r.label || "reference photo");
+
+    const remainingRefs = Array.isArray(clientPlan?.referencesNeeded)
+      ? clientPlan.referencesNeeded
+      : [];
+
+    /* -------------------------------------------------------------
+     * Build system prompt
+     * ------------------------------------------------------------- */
+    const systemPrompt = buildSystemPromptForDesign({
+      username: username ?? undefined,
+      selectedProduct,
+      uploadedRefs: uploadedRefLabels,
+      remainingRefs,
+      currentPrompt:
+        typeof clientPlan?.finalizedPrompt === "string"
+          ? clientPlan.finalizedPrompt
+          : null,
     });
 
-    const full = chat.choices?.[0]?.message?.content ?? '';
+    /* -------------------------------------------------------------
+     * Build final message array for GPT
+     * ------------------------------------------------------------- */
+    const finalMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] =
+      [];
 
-    // Parse fenced JSON, then validate/normalize
-    const raw = extractJsonFence(full);
-    if (!isRecord(raw) || !isRecord(raw.plan)) {
-      return NextResponse.json({ content: full, error: 'No JSON plan found' }, { status: 200 });
+    // SYSTEM
+    finalMessages.push({
+      role: "system",
+      content: systemPrompt,
+    });
+
+    // Reference images
+    for (const ref of planRefs) {
+      finalMessages.push({
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: `Reference image: ${ref.label || "reference photo"}`,
+          },
+          {
+            type: "image_url",
+            image_url: { url: ref.url },
+          },
+        ],
+      });
     }
 
-    const planObj = raw.plan;
-
-    const orientation = normalizeOrientation(planObj.orientation);
-    const finalizedPrompt = typeof planObj.finalizedPrompt === 'string'
-      ? planObj.finalizedPrompt.trim()
-      : '';
-
-    if (!orientation) {
-      return NextResponse.json({ content: full, error: 'orientation missing' }, { status: 200 });
-    }
-    if (!finalizedPrompt) {
-      return NextResponse.json({ content: full, error: 'finalizedPrompt missing' }, { status: 200 });
+    // Conversation messages
+    for (const m of messages) {
+      finalMessages.push({
+        role: m.role,
+        content: m.content || "",
+      });
     }
 
-    const plan: Plan = {
-      vibe: typeof planObj.vibe === 'string' ? planObj.vibe : undefined,
-      elements: Array.isArray(planObj.elements) ? planObj.elements.filter(x => typeof x === 'string') as string[] : undefined,
-      palette: typeof planObj.palette === 'string' ? planObj.palette : undefined,
-      avoid: Array.isArray(planObj.avoid) ? planObj.avoid.filter(x => typeof x === 'string') as string[] : undefined,
-      textOverlay: typeof planObj.textOverlay === 'string' ? planObj.textOverlay : undefined,
-      orientation,
-      finalizedPrompt,
-    };
+    /* -------------------------------------------------------------
+     * Call GPT-4o
+     * ------------------------------------------------------------- */
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o",
+      temperature: 0.4,
+      response_format: { type: "json_object" },
+      messages: finalMessages,
+    });
 
-    const productPlan = coerceProductPlan(raw.productPlan, orientation);
+    const rawOutput = completion.choices[0].message.content ?? "{}";
 
-    // persist for later fetch (/api/get-plan etc)
-    upsertItem(id, { plan, productPlan });
+    /* -------------------------------------------------------------
+     * Parse JSON safely
+     * ------------------------------------------------------------- */
+    let json: unknown;
+    try {
+      json = JSON.parse(rawOutput);
+    } catch {
+      return NextResponse.json(
+        {
+          error: "Model returned invalid JSON",
+          raw: rawOutput,
+        },
+        { status: 500 }
+      );
+    }
 
+    if (!isRecord(json)) {
+      return NextResponse.json(
+        {
+          error: "Model returned malformed JSON object",
+          raw: json,
+        },
+        { status: 500 }
+      );
+    }
+
+    /* -------------------------------------------------------------
+     * Typed extraction
+     * ------------------------------------------------------------- */
+    const assistantText =
+      typeof json.content === "string" ? json.content : "";
+
+    const planDelta =
+      isRecord(json.planDelta) ? (json.planDelta as Partial<Plan>) : {};
+
+    const userConfirmed =
+      typeof json.userConfirmed === "boolean"
+        ? json.userConfirmed
+        : false;
+
+    const mergedPlan = mergePlan(clientPlan ?? {}, planDelta);
+
+    // prevent invalid confirmation
+    mergedPlan.userConfirmed =
+      userConfirmed && mergedPlan.finalizedPrompt
+        ? true
+        : false;
+
+    /* -------------------------------------------------------------
+     * Persist plan
+     * ------------------------------------------------------------- */
+    if (id) {
+      upsertItem(id, { plan: mergedPlan });
+    }
+
+    /* -------------------------------------------------------------
+     * Return final response
+     * ------------------------------------------------------------- */
     return NextResponse.json({
-      content: full.replace(/```json[\s\S]*?```/gi, '').trim(), // human reply without the fence
-      plan,
-      productPlan,
-      finalizedPrompt: plan.finalizedPrompt, // for old clients
+      content: assistantText,
+      planDelta,
+      plan: mergedPlan,
+      finalizedPrompt: mergedPlan.finalizedPrompt ?? null,
+      userConfirmed: mergedPlan.userConfirmed,
     });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: message }, { status: 500 });
+  } catch (err: unknown) {
+    const errorMessage =
+      err instanceof Error ? err.message : "Unknown error";
+
+    console.error("❌ chat error", err);
+
+    return NextResponse.json(
+      { error: errorMessage },
+      { status: 500 }
+    );
   }
 }

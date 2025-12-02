@@ -55,6 +55,11 @@ function pickImageSize(
   return "1024x1024";
 }
 
+async function blobToDataUrl(b: Blob, mime = "image/jpeg"): Promise<string> {
+  const arr = Buffer.from(await b.arrayBuffer()).toString("base64");
+  return `data:${mime};base64,${arr}`;
+}
+
 /* Simple health probe */
 export async function GET() {
   return NextResponse.json({ ok: true, route: "/api/spookify/worker" });
@@ -69,13 +74,6 @@ export async function POST(req: Request) {
   let jobId = "";
 
   try {
-    // Heavy deps – load only when invoked
-    // const { Jimp } = await import("jimp");
-    // const Jimp = (await import("jimp")).default;
-    // ✅ Correct: Jimp is the default export
-
-
-
     // Parse body (id + optional input fallback)
     const bodyJson = (await req.json().catch(() => ({}))) as WorkerBody;
     jobId = bodyJson?.id?.trim() ?? "";
@@ -88,12 +86,9 @@ export async function POST(req: Request) {
     let input: JobInput | null = null;
 
     if (!job) {
-      // Fallback: hot-reload may have nuked memory store in dev.
       const maybeInput = bodyJson.input;
       if (isSpookifyJobInput(maybeInput)) {
         input = maybeInput as JobInput;
-
-        // Re-hydrate a minimal job so /status keeps working
         const now = Date.now();
         const shadowJob: SpookifyJob = {
           id: jobId,
@@ -122,18 +117,20 @@ export async function POST(req: Request) {
       input = raw as JobInput;
     }
 
-    // Input is guaranteed now
     const { imageId, promptOverride, orientation, userId, title } = input!;
+    const keyBase = (imageId && imageId.trim()) || jobId;
 
-    /* ------------- Step 1: (Lazy) Firestore project create ------------- */
-    // Avoid initializing Admin SDK at build time: import only when needed.
+    /* ------------- Step 1: Firestore project create ------------- */
     const FIRESTORE_ENABLED = process.env.FIRESTORE_ENABLED === "1";
     let adminDb: import("firebase-admin/firestore").Firestore | null = null;
-    
+
     if (FIRESTORE_ENABLED && userId) {
       try {
-        const m = await import("@/lib/firebase/admin");
-        adminDb = m.adminDb;
+        const { getAdminApp } = await import("@/lib/firebaseAdminApp");
+        const { getFirestore } = await import("firebase-admin/firestore");
+
+        adminDb = getFirestore(getAdminApp());
+
         await adminDb
           .collection("users")
           .doc(userId)
@@ -143,164 +140,166 @@ export async function POST(req: Request) {
             {
               title: title || "Untitled Spookify Project",
               status: "processing",
-              imageId,
+              imageId: imageId || null,
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString(),
             },
             { merge: true }
           );
       } catch (e) {
-        // Don’t fail the job just because Firestore isn’t available
         console.warn(`${TAG} Firestore init/set failed (non-blocking)`, e);
       }
     }
 
-    /* ------------- Step 2: Fetch meta ------------- */
-    const metaUrl = metaUrlFrom(imageId);
-    if (!metaUrl) throw new Error("Missing NEXT_PUBLIC_BLOB_BASE_URL for meta lookup");
+    /* ------------- Step 2: Build prompt & optional source image ------------- */
+    const hasImageId = Boolean(imageId && imageId.trim());
+    let prompt = (promptOverride && promptOverride.trim()) || "";
+    let srcBlob: Blob | undefined;
 
-    const metaRes = await fetch(metaUrl, { cache: "no-store" });
-    if (!metaRes.ok) throw new Error(`Meta not found: ${metaRes.status} ${metaRes.statusText}`);
-    const meta = (await metaRes.json()) as MetaJson;
-    mark("meta.fetched");
+    if (hasImageId) {
+      try {
+        const mu = metaUrlFrom(imageId!);
+        if (!mu) throw new Error("Missing NEXT_PUBLIC_BLOB_BASE_URL for meta lookup");
 
-    const fileUrl = meta.fileUrl;
-    if (!fileUrl) throw new Error("Meta missing fileUrl");
+        const metaRes = await fetch(mu, { cache: "no-store" });
+        if (!metaRes.ok) throw new Error(`Meta not found: ${metaRes.status} ${metaRes.statusText}`);
+        const meta = (await metaRes.json()) as MetaJson;
+        mark("meta.fetched");
 
-    /* ------------- Step 3: Fetch original image ------------- */
-    const imgRes = await fetch(fileUrl, { cache: "no-store" });
-    if (!imgRes.ok) throw new Error(`Could not fetch original: ${imgRes.statusText}`);
-    const imgArrayBuf = await imgRes.arrayBuffer();
-    mark(`original.fetched (${(imgArrayBuf.byteLength / 1024).toFixed(1)}KB)`);
+        const fileUrl = meta.fileUrl;
+        if (!fileUrl) throw new Error("Meta missing fileUrl");
 
-    const srcBlob = new Blob([imgArrayBuf], { type: "image/jpeg" });
+        const imgRes = await fetch(fileUrl, { cache: "no-store" });
+        if (!imgRes.ok) throw new Error(`Could not fetch original: ${imgRes.statusText}`);
+        const imgArrayBuf = await imgRes.arrayBuffer();
+        mark(`original.fetched (${(imgArrayBuf.byteLength / 1024).toFixed(1)}KB)`);
 
-    /* ------------- Step 4: Build prompt ------------- */
-    const prompt =
-      (promptOverride && promptOverride.trim()) ||
-      (meta.finalizedPrompt && meta.finalizedPrompt.trim()) ||
-      DEFAULT_PROMPT;
+        srcBlob = new Blob([imgArrayBuf], { type: "image/jpeg" });
+
+        prompt = prompt || (meta.finalizedPrompt?.trim() ?? "") || DEFAULT_PROMPT;
+      } catch (e) {
+        console.warn(`${TAG} meta/source fetch failed – falling back to text-only`, e);
+        srcBlob = undefined;
+        prompt = prompt || DEFAULT_PROMPT;
+      }
+    } else {
+      prompt = prompt || DEFAULT_PROMPT;
+    }
+
     mark("prompt.ready");
 
+    /* ------------- Step 3: Env guards ------------- */
     const apiKey = process.env.OPENAI_API_KEY;
     const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
     if (!apiKey || !blobToken) throw new Error("Missing OPENAI_API_KEY or BLOB_READ_WRITE_TOKEN");
 
-    /* ------------- Step 5: Generate via OpenAI ------------- */
- // ...unchanged code above...
+    /* ------------- Step 4: Generate (OpenAI Image) ------------- */
+    const size = pickImageSize(orientation ?? undefined);
+    let cleanBuffer: Buffer;
 
-// ------------- Step 5: Generate via OpenAI -------------
-const size = pickImageSize(orientation ?? undefined);
-const form = new FormData();
-form.append("model", "gpt-image-1");
-form.append("prompt", prompt);
-form.append("size", size);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 240_000);
 
-// SPEED: 'standard' is noticeably faster than 'high'
-const imgQuality = process.env.IMG_QUALITY === "high" ? "high" : "auto";
-form.append("quality", imgQuality);
+    try {
+      mark("openai.begin");
+      let resp: Response;
 
-// attach the input image
-form.append("image", srcBlob, "source.jpg");
+      if (srcBlob) {
+        const dataUrl = await blobToDataUrl(srcBlob, "image/jpeg");
+        resp = await fetch("https://api.openai.com/v1/images/edits", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "gpt-image-1",
+            prompt,
+            size,
+            quality: process.env.IMG_QUALITY === "high" ? "high" : "auto",
+            image: [{ image: dataUrl }],
+          }),
+          signal: controller.signal,
+        }).catch((e) => {
+          throw e.name === "AbortError"
+            ? new Error("OpenAI image generation timed out (>240s)")
+            : e;
+        });
+      } else {
+        resp = await fetch("https://api.openai.com/v1/images/generations", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "gpt-image-1",
+            prompt,
+            size,
+            quality: process.env.IMG_QUALITY === "high" ? "high" : "auto",
+          }),
+          signal: controller.signal,
+        }).catch((e) => {
+          throw e.name === "AbortError"
+            ? new Error("OpenAI image generation timed out (>240s)")
+            : e;
+        });
+      }
 
-// Increase the worker-side timeout to 180s (was 45s / 90s before)
-const controller = new AbortController();
-const timeout = setTimeout(() => controller.abort(), 240_000); // 3 minutes
+      mark("openai.done");
 
-mark("openai.begin");
-const resp = await fetch("https://api.openai.com/v1/images/edits", {
-  method: "POST",
-  headers: { Authorization: `Bearer ${apiKey}` },
-  body: form,
-  signal: controller.signal,
+      if (!resp.ok) {
+        const text = await resp.text().catch(() => "");
+        const lower = text.toLowerCase();
+        const maybeSafety =
+          lower.includes("safety") ||
+          lower.includes("violence") ||
+          lower.includes("policy") ||
+          lower.includes("content");
 
-}).catch((e) => {
-  throw e.name === "AbortError"
-    ? new Error("OpenAI image generation timed out (>180s)")
-    : e;
-});
-clearTimeout(timeout);
-console.log("RESPONSE FROM open AI", resp)
+        const msg = maybeSafety
+          ? "Prompt rejected by safety system — try a gentler description (no gore/violence)."
+          : `Image generation failed: ${text || resp.statusText}`;
 
-    mark("openai.done");
-    if (!resp.ok) {
-      const text = await resp.text().catch(() => "");
-      const lower = text.toLowerCase();
-      const maybeSafety =
-        lower.includes("safety") ||
-        lower.includes("violence") ||
-        lower.includes("policy") ||
-        lower.includes("content");
-      const msg = maybeSafety
-        ? "Prompt rejected by safety system — try a gentler description (no gore/violence)."
-        : `Image generation failed: ${text || resp.statusText}`;
-      errlog("openai.error", msg);
-      await updateJob(jobId, { status: "error", error: msg });
-      return NextResponse.json({ error: msg }, { status: 400 });
+        await updateJob(jobId, { status: "error", error: msg });
+        return NextResponse.json({ error: msg }, { status: 400 });
+      }
+
+      const json = (await resp.json()) as { data?: { b64_json?: string | null }[] };
+      const b64 = json?.data?.[0]?.b64_json;
+      if (!b64) throw new Error("No image data from OpenAI");
+      cleanBuffer = Buffer.from(b64, "base64");
+    } finally {
+      clearTimeout(timeout);
     }
 
-    const json = (await resp.json()) as {
-      data?: { b64_json?: string | null }[];
-    };
-    const b64 = json?.data?.[0]?.b64_json;
-    if (!b64) throw new Error("No image data from OpenAI");
-    mark("openai.jsonParsed");
-
-    const cleanBuffer = Buffer.from(b64, "base64");
-
-    // add:
     const previewBuffer = cleanBuffer;
     mark("watermark.skipped");
 
-/* ------------- Step 6: Create watermarked preview ------------- */
-
-
-
-// SKIP WATERMARK FOR NOW!!
-// try {
-//   const img = await Jimp.read(cleanBuffer);
-//   const font = await Jimp.loadFont(Jimp.FONT_SANS_64_WHITE);
-//   const wmText = "SPOOKIFY PREVIEW";
-//   const textWidth = Jimp.measureText(font, wmText);
-//   const x = (img.bitmap.width - textWidth) / 2;
-//   const y = img.bitmap.height - 100;
-
-//   const watermarked = img.clone();
-//   watermarked.print(font, x, y, wmText);
-//   watermarked.opacity(0.95);
-
-//   previewBuffer = await watermarked.quality(85).getBufferAsync(Jimp.MIME_JPEG);
-//   mark("watermark.done");
-// } catch (e) {
-//   errlog("watermark.failed -> using clean as preview", e);
-//   previewBuffer = cleanBuffer; // graceful fallback
-//   mark("watermark.skipped");
-// }
-
-
-    /* ------------- Step 7: Upload both images ------------- */
-    const cleanKey = `spookify/${imageId}/result-clean.jpg`;
-    const previewKey = `spookify/${imageId}/result-preview.jpg`;
+    /* ------------- Step 5: Upload images ------------- */
+    const cleanKey = `spookify/${keyBase}/result-clean.jpg`;
+    const previewKey = `spookify/${keyBase}/result-preview.jpg`;
 
     const [cleanUpload, previewUpload] = await Promise.all([
       put(cleanKey, cleanBuffer, {
         access: "public",
         contentType: "image/jpeg",
         addRandomSuffix: false,
-        allowOverwrite: true,   
+        allowOverwrite: true,
         token: blobToken,
       }),
       put(previewKey, previewBuffer, {
         access: "public",
         contentType: "image/jpeg",
         addRandomSuffix: false,
-        allowOverwrite: true,   
+        allowOverwrite: true,
         token: blobToken,
       }),
     ]);
+
     mark("blob.uploaded");
 
-    /* ------------- Step 8: Update job + Firestore project ------------- */
+    /* ------------- Step 6: Update job + Firestore project ------------- */
     await updateJob(jobId, {
       status: "done",
       resultUrl: cleanUpload.url,
@@ -343,7 +342,7 @@ console.log("RESPONSE FROM open AI", resp)
     const msg = err instanceof Error ? err.message : String(err);
     errlog("FATAL", msg);
 
-    // Best-effort error reflection back into job + Firestore
+    // Firestore fallback update
     try {
       if (jobId) {
         const job = await getJob(jobId);
@@ -351,8 +350,11 @@ console.log("RESPONSE FROM open AI", resp)
 
         if (maybe?.userId) {
           let adminDbFallback: import("firebase-admin/firestore").Firestore | null = null;
+
           try {
-            adminDbFallback = (await import("@/lib/firebase/admin")).adminDb;
+            const { getAdminApp } = await import("@/lib/firebaseAdminApp");
+            const { getFirestore } = await import("firebase-admin/firestore");
+            adminDbFallback = getFirestore(getAdminApp());
           } catch {
             adminDbFallback = null;
           }
@@ -364,7 +366,11 @@ console.log("RESPONSE FROM open AI", resp)
               .collection("projects")
               .doc(jobId)
               .set(
-                { status: "error", error: msg, updatedAt: new Date().toISOString() },
+                {
+                  status: "error",
+                  error: msg,
+                  updatedAt: new Date().toISOString(),
+                },
                 { merge: true }
               );
           }

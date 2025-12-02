@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { usePathname } from 'next/navigation';
+// import { usePathname } from 'next/navigation';
 import type { Session } from 'next-auth';
 import { Button } from '@/components/ui/button';
 import { UserButton } from './user-button';
@@ -17,18 +17,13 @@ export default function SiteHeaderClient({ session }: Props) {
   const [scrolled, setScrolled] = useState(false);
   const [showDialog, setShowDialog] = useState(false);
   const [open, setOpen] = useState(false);
-  const pathname = usePathname();
+  // const pathname = usePathname();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
-
-  const isActive = (href: string) =>
-    pathname === href
-      ? 'text-white'
-      : 'text-white/70 hover:text-white focus-visible:text-white';
 
   return (
     <>
@@ -61,7 +56,7 @@ export default function SiteHeaderClient({ session }: Props) {
           </Link>
 
           {/* Desktop nav */}
-          <nav className="hidden items-center gap-7 text-sm md:flex">
+          {/* <nav className="hidden items-center gap-7 text-sm md:flex">
             <Link href="/upload" className={isActive('/upload')}>
               Upload
             </Link>
@@ -71,7 +66,7 @@ export default function SiteHeaderClient({ session }: Props) {
             <Link href="/help" className={isActive('/help')}>
               Help
             </Link>
-          </nav>
+          </nav> */}
 
           {/* Actions */}
           <div className="flex items-center gap-2">

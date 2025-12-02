@@ -61,16 +61,24 @@ export async function POST(req: Request) {
     const body = (await req.json().catch(() => ({}))) as BeginBody;
     const imageId = (body.imageId || body.id || '').trim();
 
-    let productPlan: { productId: string; reasonShort?: string } | null = null;
+// Only try to read stored plan if we actually have an imageId
+let productPlan: { productId: string; reasonShort?: string } | null = null;
+if (imageId) {
+  try {
+    const r = await fetch(`${getBaseUrl(req)}/api/get-plan?id=${encodeURIComponent(imageId)}`, { cache: 'no-store' });
+    const j = await r.json().catch(() => ({}));
+    if (j?.productPlan?.productId) productPlan = j.productPlan;
+  } catch {}
+}
 try {
   const r = await fetch(`${getBaseUrl(req)}/api/get-plan?id=${encodeURIComponent(imageId)}`, { cache: 'no-store' });
   const j = await r.json().catch(() => ({}));
   if (j?.productPlan?.productId) productPlan = j.productPlan;
 } catch { /* noop */ }
 
-    if (!imageId) {
-      return NextResponse.json({ error: 'Missing imageId' }, { status: 400 });
-    }
+    // if (!imageId) {
+    //   return NextResponse.json({ error: 'Missing imageId' }, { status: 400 });
+    // }
 
     const orientation = sanitizeOrientation(body.orientation);
     const target = sanitizeTarget(body.target);

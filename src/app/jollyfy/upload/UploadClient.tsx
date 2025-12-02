@@ -237,23 +237,11 @@ export default function UploadWithChatPage() {
 
   // product selection handoff (design-first path)
   const [pending, setPending] = useState<PendingSelection | null>(null);
-  const [askedOrientation, setAskedOrientation] = useState(false);
 
 //   const [isUploading, setIsUploading] = useState(false);
 // const [uploadProgress, setUploadProgress] = useState(0);
 const { ensurePublicUrl, isUploading, uploadProgress } = useEnsurePublicUrl();
 
-
-  useEffect(() => {
-    if (!plan || askedOrientation || plan.orientation) return;
-    setMessages(prev => [
-      ...prev,
-      { role: 'assistant',
-        content: 'Quick one — should the final print be Horizontal, Vertical, or Square?' }
-    ]);
-    setAskedOrientation(true);
-  }, [plan, askedOrientation]);
-  // layout helpers
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);

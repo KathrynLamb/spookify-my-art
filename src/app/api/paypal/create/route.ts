@@ -1,59 +1,60 @@
+// src/app/api/paypal/create/route.ts
+export const runtime = "nodejs";
 
-import { NextResponse } from 'next/server'
-import { ORDER_CTX } from '@/app/api/_order-kv';
+import { NextResponse } from "next/server";
+import { ORDER_CTX } from "@/app/api/_order-kv";
 
+const ENV = (process.env.PAYPAL_ENV ?? "sandbox").toLowerCase() === "live" ? "live" : "sandbox";
+const BASE = ENV === "live"
+  ? "https://api-m.paypal.com"
+  : "https://api-m.sandbox.paypal.com";
 
-
-
-const ENV = process.env.PAYPAL_ENV?.toLowerCase() === 'live' ? 'live' : 'sandbox'
-const BASE =
-  ENV === 'live'
-    ? 'https://api-m.paypal.com'
-    : 'https://api-m.sandbox.paypal.com'
-
-    // at top of the file (after BASE):
-const APPROVE_BASE =
-ENV === 'live'
-  ? 'https://www.paypal.com/checkoutnow?token='
-  : 'https://www.sandbox.paypal.com/checkoutnow?token=';
+const APPROVE_BASE = ENV === "live"
+  ? "https://www.paypal.com/checkoutnow?token="
+  : "https://www.sandbox.paypal.com/checkoutnow?token=";
 
 const CLIENT_ID =
   process.env.PAYPAL_CLIENT_ID ||
   process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID ||
-  ''
+  "";
+
 const CLIENT_SECRET =
-  process.env.PAYPAL_CLIENT_SECRET || process.env.PAYPAL_SECRET || ''
+  process.env.PAYPAL_CLIENT_SECRET ||
+  process.env.PAYPAL_SECRET ||
+  "";
 
-type CreateReq = {
-  amount: number
-  currency: 'GBP' | 'USD' | 'EUR'
-  title: string
-  imageId: string
-  fileUrl: string
-  sku?: string // 👈 NEW: distinguish print-at-home vs physical
-  size?: string
-  orientation?: 'Vertical' | 'Horizontal'
-  frameColor?: 'Black' | 'White' | 'Wood' | 'Dark wood'
-}
+// ---- Shared helper ----
+async function getAccessToken(): Promise<string> {
+  if (!CLIENT_ID || !CLIENT_SECRET) {
+    throw new Error("Missing PayPal env vars");
+  }
 
-async function getAccessToken() {
-  const auth = Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString('base64')
+  const auth = Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString("base64");
+
   const r = await fetch(`${BASE}/v1/oauth2/token`, {
-    method: 'POST',
+    method: "POST",
     headers: {
       Authorization: `Basic ${auth}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
+      "Content-Type": "application/x-www-form-urlencoded",
     },
-    body: 'grant_type=client_credentials',
-    cache: 'no-store',
-  })
-  if (!r.ok) throw new Error('PayPal auth failed')
-  const j = await r.json()
-  return j.access_token as string
+    body: "grant_type=client_credentials",
+    cache: "no-store",
+  });
+
+  if (!r.ok) {
+    const t = await r.text().catch(() => "");
+    throw new Error(`PayPal auth failed: ${t || r.status}`);
+  }
+
+  const j = await r.json();
+  return j.access_token;
 }
 
+// ---- Main handler ----
 export async function POST(req: Request) {
   try {
+    const body = await req.json();
+
     const {
       amount,
       currency,
@@ -61,131 +62,75 @@ export async function POST(req: Request) {
       imageId,
       fileUrl,
       sku,
-      size,
-      orientation,
-      frameColor,
-    } = (await req.json()) as CreateReq
+      vendor,
+      draft,
+    } = body;
 
-    if (!amount || !currency) {
-      return NextResponse.json(
-        { error: 'Missing amount/currency' },
-        { status: 400 },
-      )
+    const numericAmount = Number(amount);
+    if (!Number.isFinite(numericAmount)) {
+      return NextResponse.json({ error: "Invalid amount" }, { status: 400 });
     }
 
-    const token = await getAccessToken()
+    const token = await getAccessToken();
+    const value = numericAmount.toFixed(2);
 
-    // 🧩 Branch 1: DIGITAL — Print-at-Home
- // in /api/paypal/create/route.ts (digital branch)
-if (sku === 'print-at-home') {
-  const value = amount.toFixed(2);
+    const reqUrl = new URL(req.url);
+    const baseUrl =
+      process.env.NEXT_PUBLIC_BASE_URL?.replace(/\/$/, "") ||
+      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "") ||
+      reqUrl.origin;
 
-  const payload = {
-    intent: 'CAPTURE',
-    purchase_units: [
-      {
-        reference_id: imageId || 'spooky-digital',
-        description: title || 'Print-at-Home Artwork (digital download)',
-        amount: {
-          currency_code: currency,
-          value,
-          breakdown: {
-            item_total: { currency_code: currency, value },  // ✅ must match items sum
-          },
-        },
-        items: [
-          {
-            name: title || 'Print-at-Home Artwork',
-            quantity: '1',
-            category: 'DIGITAL_GOODS',
-            unit_amount: { currency_code: currency, value },
-          },
-        ],
-      },
-    ],
-    application_context: {
-      brand_name: 'Spookify',
-      user_action: 'PAY_NOW',
-      shipping_preference: 'NO_SHIPPING',  // ✅ digital
-      locale: 'en-GB',
-      landing_page: 'LOGIN',
-    },
-  };
+    const isDigital = sku === "print-at-home";
 
-  const r = await fetch(`${BASE}/v2/checkout/orders`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-    cache: 'no-store',
-  });
+    const application_context = {
+      brand_name: "Spookify",
+      user_action: "PAY_NOW",
+      shipping_preference: isDigital ? "NO_SHIPPING" : "GET_FROM_FILE",
+      locale: "en-GB",
+      landing_page: "LOGIN",
+      return_url: `${baseUrl}/post-checkout?status=approved&provider=paypal`,
+      cancel_url: `${baseUrl}/post-checkout?status=cancelled&provider=paypal`,
+    };
 
-  const j = await r.json();
-  if (!r.ok || !j?.id) {
-    return NextResponse.json(
-      { error: j?.message || 'Unable to create PayPal order', details: j },
-      { status: 500 },
-    );
-  }
-
-    // … inside DIGITAL branch, replace the final return with:
-    ORDER_CTX.set(j.id, { fileUrl, imageId });
-    return NextResponse.json({
-      orderID: j.id,
-      approveUrl: `${APPROVE_BASE}${j.id}`,      // 👈 add this
-      passthrough: { sku, imageId, fileUrl },
-    });
-    }
-
-    // 🧩 Branch 2: PHYSICAL — Gelato print (existing flow)
     const payload = {
-      intent: 'CAPTURE',
+      intent: "CAPTURE",
       purchase_units: [
         {
-          reference_id: imageId || 'spooky-art',
-          description: title || 'Custom Printed Wall Art',
-          amount: {
-            currency_code: currency,
-            value: amount.toFixed(2),
-          },
+          reference_id: imageId,
+          description: title,
+          amount: { currency_code: currency, value },
         },
       ],
-      application_context: {
-        brand_name: 'Spookify',
-        user_action: 'PAY_NOW',
-        shipping_preference: 'GET_FROM_FILE',
-        locale: 'en-GB',
-        landing_page: 'LOGIN',
-      },
-    }
+      application_context,
+    };
 
     const r = await fetch(`${BASE}/v2/checkout/orders`, {
-      method: 'POST',
+      method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify(payload),
-      cache: 'no-store',
-    })
+      cache: "no-store",
+    });
 
-    const j = await r.json()
-    if (!r.ok || !j?.id) {
+    const j = await r.json();
+    if (!r.ok || !j.id) {
       return NextResponse.json(
-        { error: j?.message || 'Unable to create PayPal order', details: j },
-        { status: 500 },
-      )
+        { error: j.message || "Unable to create PayPal order", details: j },
+        { status: 500 }
+      );
     }
 
-    ORDER_CTX.set(j.id, { fileUrl, imageId });
+    ORDER_CTX.set(j.id, { imageId, fileUrl, sku, vendor, draft });
+
     return NextResponse.json({
       orderID: j.id,
-      approveUrl: `${APPROVE_BASE}${j.id}`,        // 👈 add this
-      passthrough: { imageId, fileUrl, size, orientation, frameColor },
+      approveUrl: `${APPROVE_BASE}${j.id}`,
     });
-  } catch (e) {
-    return NextResponse.json(
-      { error: (e as Error).message },
-      { status: 500 },
-    )
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error }, { status: 500 });
   }
+  
 }

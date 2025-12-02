@@ -1,182 +1,317 @@
-import { findProductUid } from '@/lib/products/index'
-import { NextResponse } from 'next/server'
+// src/app/api/paypal/capture/route.ts
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-const ENV = process.env.PAYPAL_ENV?.toLowerCase() === 'live' ? 'live' : 'sandbox'
+import { NextResponse } from "next/server";
+import { ORDER_CTX } from "@/app/api/_order-kv";
+
+/* -------------------------------------------------------------
+ * LIGHTWEIGHT TYPES (fixes "any" without heavy schemas)
+ * ------------------------------------------------------------- */
+type PayPalCaptureResponse = {
+  message?: string;
+  purchase_units?: Array<{
+    shipping?: {
+      name?: { full_name?: string };
+      address?: {
+        address_line_1?: string;
+        address_line_2?: string;
+        line1?: string;
+        admin_area_2?: string;
+        postal_code?: string;
+        country_code?: string;
+      };
+    };
+  }>;
+  payer?: { email_address?: string };
+  [key: string]: unknown; // allow extra PayPal fields
+};
+
+type DraftAsset = {
+  printArea: string;
+  url: string;
+};
+
+type DraftInfo = {
+  prodigiSku: string;
+  printSpecId?: string;
+  assets: DraftAsset[];
+};
+
+
+type OrderContext = {
+  draft?: DraftInfo;
+  sku?: string;
+  fileUrl?: string;
+  vendor?: string;
+  [key: string]: unknown;
+};
+
+type ParsedState = {
+  sku?: string;
+  fileUrl?: string;
+  vendor?: string;
+};
+
+type CaptureBody = {
+  orderID: string;
+  state?: string;
+  sku?: string;
+  fileUrl?: string;
+};
+
+/* -------------------------------------------------------------
+ * AUTH
+ * ------------------------------------------------------------- */
+const ENV =
+  (process.env.PAYPAL_ENV ?? "sandbox").toLowerCase() === "live"
+    ? "live"
+    : "sandbox";
+
 const BASE =
-  ENV === 'live'
-    ? 'https://api-m.paypal.com'
-    : 'https://api-m.sandbox.paypal.com'
+  ENV === "live"
+    ? "https://api-m.paypal.com"
+    : "https://api-m.sandbox.paypal.com";
 
 const CLIENT_ID =
-  process.env.PAYPAL_CLIENT_ID || process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || ''
+  process.env.PAYPAL_CLIENT_ID ||
+  process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID ||
+  "";
 const CLIENT_SECRET =
-  process.env.PAYPAL_CLIENT_SECRET || process.env.PAYPAL_SECRET || ''
+  process.env.PAYPAL_CLIENT_SECRET || process.env.PAYPAL_SECRET || "";
 
-async function getAccessToken() {
-  const auth = Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString('base64')
-  const res = await fetch(`${BASE}/v1/oauth2/token`, {
-    method: 'POST',
+async function getAccessToken(): Promise<string> {
+  const auth = Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString("base64");
+
+  const r = await fetch(`${BASE}/v1/oauth2/token`, {
+    method: "POST",
     headers: {
       Authorization: `Basic ${auth}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
+      "Content-Type": "application/x-www-form-urlencoded",
     },
-    body: 'grant_type=client_credentials',
-    cache: 'no-store',
-  })
-  if (!res.ok) throw new Error('PayPal auth failed')
-  const json = await res.json()
-  return json.access_token as string
+    body: "grant_type=client_credentials",
+    cache: "no-store",
+  });
+
+  if (!r.ok) throw new Error(`PayPal auth failed: ${r.status}`);
+
+  const json = (await r.json()) as { access_token: string };
+  return json.access_token;
 }
 
-// -----------------------------
-// Types
-// -----------------------------
-type CaptureInput = {
-  orderID: string
-  gelatoOrder?: {
-    product: 'framed-poster' | 'poster' | 'print-at-home'
-    currency: 'GBP' | 'USD' | 'EUR'
-    size: string
-    orientation: 'Vertical' | 'Horizontal'
-    frameColor?: 'Black' | 'White' | 'Wood' | 'Dark wood'
-    fileUrl: string
-  }
-}
-
-// -----------------------------
-// Main Handler
-// -----------------------------
+/* -------------------------------------------------------------
+ * MAIN ROUTE
+ * ------------------------------------------------------------- */
 export async function POST(req: Request) {
   try {
-    const body = (await req.json()) as CaptureInput
-    const { orderID, gelatoOrder } = body
+    const { orderID, state, sku: skuFallback, fileUrl: fileFallback } =
+      (await req.json()) as CaptureBody;
 
     if (!orderID) {
-      console.error('❌ Missing orderID in capture body', body)
-      return NextResponse.json({ error: 'Missing orderID' }, { status: 400 })
-    }
-
-    // 1️⃣ Capture the PayPal payment
-    const token = await getAccessToken()
-    const captureRes = await fetch(`${BASE}/v2/checkout/orders/${orderID}/capture`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      cache: 'no-store',
-    })
-
-    const paypal = await captureRes.json()
-    if (!captureRes.ok) {
       return NextResponse.json(
-        { error: paypal?.message || 'PayPal capture failed', details: paypal },
-        { status: 500 },
-      )
+        { error: "Missing orderID" },
+        { status: 400 }
+      );
     }
 
-    // 2️⃣ Extract buyer shipping info (if available)
-    const pu = paypal?.purchase_units?.[0] ?? {}
-    const shipping = pu?.shipping ?? {}
-    const addr = shipping?.address ?? {}
-    const full = (shipping?.name?.full_name as string | undefined) || ''
-    const [first, ...rest] = full.split(/\s+/).filter(Boolean)
-    const last = rest.join(' ')
+    /* -------------------------------------------------------------
+     * 1) Capture payment
+     * ------------------------------------------------------------- */
+    const token = await getAccessToken();
+    const capRes = await fetch(
+      `${BASE}/v2/checkout/orders/${orderID}/capture`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        cache: "no-store",
+      }
+    );
 
-    const shippingAddress = {
-      firstName: first || 'Customer',
-      lastName: last || '',
-      addressLine1: addr.address_line_1 || addr.line1 || '',
-      addressLine2: addr.address_line_2 || '',
-      city: addr.admin_area_2 || '',
-      postCode: addr.postal_code || '',
-      country: addr.country_code || 'GB',
-      email: paypal?.payer?.email_address || '',
+    const paypal = (await capRes.json()) as PayPalCaptureResponse;
+
+    if (!capRes.ok) {
+      return NextResponse.json(
+        { error: paypal.message || "PayPal capture failed", details: paypal },
+        { status: 500 }
+      );
     }
 
-    // 3️⃣ Handle order fulfillment
-    let gelato: unknown = null
+    /* -------------------------------------------------------------
+     * 2) Retrieve server-state from KV
+     * ------------------------------------------------------------- */
+    const ctx =
+      ((ORDER_CTX.get(orderID) as unknown) as OrderContext) || {};
 
-    if (gelatoOrder) {
-      const { product, currency, size, orientation, frameColor, fileUrl } = gelatoOrder
+    let draft = ctx.draft;
+    let sku = ctx.sku;
+    let fileUrl = ctx.fileUrl;
 
-      // 🧩 Case 1: DIGITAL PRINT-AT-HOME
-      if (product === 'print-at-home') {
-        console.log('💾 Digital order — skipping Gelato placement')
-        return NextResponse.json({
-          ok: true,
-          paypal,
-          gelato: { ok: true, digital: true, note: 'No Gelato fulfillment needed' },
-        })
+    const vendor = ctx.vendor || "prodigi";
+
+    /* -------------------------------------------------------------
+     * Fallback: decode `state` or use POST fallback fields
+     * ------------------------------------------------------------- */
+    if (!draft) {
+      let parsed: ParsedState = {};
+
+      try {
+        if (state) {
+          const decoded = Buffer.from(state, "base64url").toString("utf8");
+          parsed = JSON.parse(decoded) as ParsedState;
+        }
+      } catch {
+        // safe ignore
       }
 
-      // 🧩 Case 2: PHYSICAL PRODUCT — needs Gelato
-      const productUid = findProductUid(
-        product === 'poster'
-          ? { product, size, orientation }
-          : { product, size, orientation, frameColor: frameColor! },
-      )
+      sku = sku || parsed.sku || skuFallback;
+      fileUrl = fileUrl || parsed.fileUrl || fileFallback;
 
-      if (!productUid) {
-        console.error('❌ No product UID match', { product, size, orientation, frameColor })
-        return NextResponse.json(
-          {
-            ok: false,
-            error: `No catalog variant for product=${product}, size=${size}, orientation=${orientation}${
-              product === 'framed-poster' ? `, frameColor=${frameColor}` : ''
-            }`,
-          },
-          { status: 400 },
-        )
-      }
+      /* -------------------------------------------------------------
+       * Rebuild assets if SKU + fileUrl known
+       * ------------------------------------------------------------- */
+      if (sku && fileUrl) {
+        const origin =
+          process.env.NEXT_PUBLIC_BASE_URL?.replace(/\/$/, "") ||
+          (process.env.VERCEL_URL
+            ? `https://${process.env.VERCEL_URL}`
+            : "") ||
+          "http://localhost:3000";
 
-      // Build the Gelato order payload
-      const gelatoPayload = {
-        orderReferenceId: orderID,
-        currency,
-        shippingAddress,
-        items: [
-          {
-            itemReferenceId: 'poster1',
-            productUid,
-            quantity: 1,
+        const prepRes = await fetch(`${origin}/api/print-assets/prepare`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sku, fileUrl }),
+        });
+
+        const prep = (await prepRes.json().catch(() => ({}))) as {
+          ok?: boolean;
+          assets?: DraftAsset[];
+
+        };
+
+        if (
+          prepRes.ok &&
+          prep.ok &&
+          Array.isArray(prep.assets) &&
+          prep.assets.length > 0
+        ) {
+          draft = {
+            prodigiSku: sku,
+            printSpecId: undefined,
+            assets: prep.assets as DraftAsset[],   // ensure correct type
+          };
+        
+          ORDER_CTX.set(orderID, {
+            ...ctx,
+            draft,
+            sku,
             fileUrl,
-          },
-        ],
-        shipments: [
-          {
-            shipmentReferenceId: 'main',
-            shipmentMethodUid: 'STANDARD',
-            items: [{ itemReferenceId: 'poster1' }],
-          },
-        ],
+            vendor,
+          });
+        
+        
+        } else {
+          console.warn(
+            "[paypal.capture] could not regenerate assets",
+            prepRes.status,
+            prep
+          );
+        }
+      } else {
+        console.warn(
+          "[paypal.capture] missing draft and no sku/fileUrl to rebuild"
+        );
       }
-
-      // Determine the correct base URL for internal call
-      const reqUrl = new URL(req.url)
-      const baseUrl =
-        process.env.NEXT_PUBLIC_BASE_URL?.replace(/\/$/, '') ||
-        (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '') ||
-        reqUrl.origin ||
-        'http://localhost:3000'
-
-      // Call Gelato placement route
-      const gRes = await fetch(`${baseUrl}/api/gelato/place-order`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(gelatoPayload),
-        cache: 'no-store',
-      })
-      gelato = await gRes.json()
     }
 
-    // 4️⃣ Return unified result
-    return NextResponse.json({ ok: true, paypal, gelato })
+    /* -------------------------------------------------------------
+     * 3) Place Prodigi order
+     * ------------------------------------------------------------- */
+    let prodigi: unknown = null;
+
+    if (vendor === "prodigi" && draft?.prodigiSku && draft.assets.length) {
+      const origin =
+        process.env.NEXT_PUBLIC_BASE_URL?.replace(/\/$/, "") ||
+        (process.env.VERCEL_URL
+          ? `https://${process.env.VERCEL_URL}`
+          : "") ||
+        "http://localhost:3000";
+
+      // best-effort PayPal → shipping mapping
+      const pu = paypal.purchase_units?.[0] ?? {};
+      const shipping = pu.shipping ?? {};
+      const addr = shipping.address ?? {};
+      const fullName = shipping.name?.full_name ?? "";
+
+      const [first, ...rest] = fullName.split(/\s+/).filter(Boolean);
+      const last = rest.join(" ");
+
+      const placeRes = await fetch(
+        `${origin}/api/prodigi/place-order`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            referenceId: orderID,
+            sku: draft.prodigiSku,
+            assets: draft.assets,
+            shipmentMethod: "Standard",
+            shipping: {
+              firstName: first || "Customer",
+              lastName: last || "",
+              address1: addr.address_line_1 || addr.line1 || "Address",
+              address2: addr.address_line_2 || "",
+              city: addr.admin_area_2 || "City",
+              postalCode: addr.postal_code || "0000",
+              countryCode: addr.country_code || "GB",
+              email: paypal.payer?.email_address || undefined,
+            },
+          }),
+        }
+      );
+
+      const placeJson = (await placeRes
+        .json()
+        .catch(() => ({}))) as unknown;
+
+  // replace this:
+// if (!placeRes.ok || (placeJson as any)?.ok === false) {
+
+// with this:
+const isProdigiError =
+typeof placeJson === "object" &&
+placeJson !== null &&
+"ok" in placeJson &&
+(placeJson as { ok: unknown }).ok === false;
+
+if (!placeRes.ok || isProdigiError) {
+return NextResponse.json(
+  {
+    ok: true,
+    paypal,
+    prodigi: placeJson,
+    note: "Payment captured; fulfillment failed",
+  },
+  { status: 200 }
+);
+}
+
+
+      prodigi = placeJson;
+    }
+
+    /* -------------------------------------------------------------
+     * DONE
+     * ------------------------------------------------------------- */
+    return NextResponse.json({ ok: true, paypal, prodigi });
   } catch (err) {
-    console.error('[PayPal Capture] Fatal error', err)
+    const error = err as Error;
     return NextResponse.json(
-      { error: (err as Error).message || 'Unexpected error' },
-      { status: 500 },
-    )
+      { error: error.message ?? String(error) },
+      { status: 500 }
+    );
   }
 }

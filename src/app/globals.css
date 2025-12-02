@@ -17,6 +17,15 @@
   50%      { opacity: .95; transform: scale(1.2); }
 }
 
+.fade-in {
+  animation: fadeIn 0.25s ease forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 
 @theme inline {
   --color-background: var(--background);

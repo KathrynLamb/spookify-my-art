@@ -32,9 +32,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unknown variantId' }, { status: 400 });
     }
 
-    const quantity = body.quantity ?? variant.packSize;
-    // if pack is 10, force quantity 1 (Prodigi pack SKUs represent the pack)
-    const finalQty = variant.packSize === 10 ? 1 : quantity;
+  // Safe packSize: if the SKU doesn't define packSize, default to 1
+const packSize = "packSize" in variant && typeof variant.packSize === "number"
+? variant.packSize
+: 1;
+
+const quantity = body.quantity ?? packSize;
+
+// Prodigi rule: if pack size is 10, quantity must be 1 (their packs represent 10 cards)
+const finalQty = packSize === 10 ? 1 : quantity;
+
 
     // (Optional) render inside text
     let insideRightUrl: string | undefined;

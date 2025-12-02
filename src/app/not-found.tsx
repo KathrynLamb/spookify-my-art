@@ -43,17 +43,20 @@ export default function NotFound() {
             Go home
           </Link>
 
+        {/* {session && sessionStorage.user && (
           <Link
-            href="/upload"
-            className="rounded-xl border border-[#24262B] px-6 py-3 text-sm font-semibold text-white hover:border-emerald-600"
-          >
-            Start creating
-          </Link>
+          href={`/projects/${session.user.id}`}
+          className="rounded-xl border border-[#24262B] px-6 py-3 text-sm font-semibold text-white hover:border-emerald-600"
+        >
+          Start creating
+        </Link> */}
+        {/* )} */}
+      
         </div>
       </motion.div>
 
       {/* Decorative mini preview */}
-      <motion.div
+      {/* <motion.div
         initial={{ opacity: 0, scale: 0.94 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.55, delay: 0.2 }}
@@ -68,7 +71,7 @@ export default function NotFound() {
         <div className="absolute top-2 left-2 bg-white/10 px-2 py-1 text-xs rounded-full backdrop-blur">
           Lost preview
         </div>
-      </motion.div>
+      </motion.div> */}
     </main>
   );
 }

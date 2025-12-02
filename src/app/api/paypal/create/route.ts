@@ -83,9 +83,10 @@ export async function POST(req: Request) {
     const isDigital = sku === "print-at-home";
 
     const application_context = {
-      brand_name: "Spookify",
+      brand_name: "Ai Gifts",
       user_action: "PAY_NOW",
-      shipping_preference: isDigital ? "NO_SHIPPING" : "GET_FROM_FILE",
+      // shipping_preference: isDigital ? "NO_SHIPPING" : "GET_FROM_FILE",
+      shipping_preference: "GET_FROM_FILE",
       locale: "en-GB",
       landing_page: "LOGIN",
       return_url: `${baseUrl}/post-checkout?status=approved&provider=paypal`,

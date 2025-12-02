@@ -256,6 +256,7 @@ export async function POST(req: Request) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             referenceId: orderID,
+            test: true,                      // ← Add this line
             sku: draft.prodigiSku,
             assets: draft.assets,
             shipmentMethod: "Standard",

@@ -2,13 +2,13 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Help & Support | Spookify My Art",
+  title: "Help & Support | Ai Gifta",
   description:
-    "Support, delivery times, returns and refunds for Spookify My Art posters and prints.",
+    "Support, delivery times, returns and refunds for Ai Gifts posters and prints.",
 };
 
 const email = "support@aigifts.org"; // ✅ update if you prefer a different inbox
-const businessName = "Spookify My Art";
+const businessName = "Ai Gifts";
 const siteHost = "aigifts.org";
 
 export default function HelpPage() {

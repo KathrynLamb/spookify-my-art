@@ -3,14 +3,14 @@
 export default function AboutPage() {
   return (
     <main className="min-h-screen bg-black text-white p-6 md:p-12 max-w-3xl mx-auto">
-      <h1 className="text-4xl font-bold mb-4 text-orange-500">About Spookify My Art</h1>
+      <h1 className="text-4xl font-bold mb-4 text-orange-500">About Ai Gifts My Art</h1>
       <p className="mb-6 text-lg text-gray-300">
-        Welcome to <strong>Spookify My Art</strong> {`— the magical way to transform your everyday wall art into hauntingly delightful Halloween decor. Whether it’s a family photo, a peaceful landscape, or your child’s artwork, we turn it into a spooky seasonal version perfect for decorating your home.`}
+        Welcome to <strong>Ai Gifts</strong> {`— the magical way to transform your everyday wall art into hauntingly delightful Halloween decor. Whether it’s a family photo, a peaceful landscape, or your child’s artwork, we turn it into a spooky seasonal version perfect for decorating your home.`}
       </p>
 
       <h2 className="text-2xl font-semibold mt-6 mb-2 text-purple-400">Who We Are</h2>
       <p className="mb-4 text-gray-300">
-        Spookify My Art was created by Kathryn Lamb in the UK with one goal: to help you add eerie charm to your home during the Halloween season — without buying a load of plastic. Simply upload your existing wall art or family photo, tell us your spooky vision, and let our AI do the rest. We even offer printed posters for delivery.
+        AI Gifts was created by Kathryn Lamb in the UK with one goal: to help you add eerie charm to your home during the Halloween season — without buying a load of plastic. Simply upload your existing wall art or family photo, tell us your spooky vision, and let our AI do the rest. We even offer printed posters for delivery.
       </p>
 
       <h2 className="text-2xl font-semibold mt-6 mb-2 text-purple-400">Our Mission</h2>
@@ -25,7 +25,7 @@ export default function AboutPage() {
       </p>
 
       <p className="text-sm text-gray-500 mt-10">
-        Spookify My Art is operated by Kathryn Lamb, Manor House, Eaglescliffe, TS16 0QT, UK.
+        Ai Gifts is operated by Kathryn Lamb, Manor House, Eaglescliffe, TS16 0QT, UK.
       </p>
     </main>
   )

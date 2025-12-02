@@ -9,7 +9,7 @@ export default function Footer() {
 
       <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4 text-sm">
         <div className="text-center md:text-left">
-          <p className="font-bold text-lg">Spookify My Art 👻</p>
+          <p className="font-bold text-lg">Ai Gifts</p>
           <p className="text-gray-400">© {new Date().getFullYear()} Kathryn Lamb · All rights reserved</p>
         </div>
 

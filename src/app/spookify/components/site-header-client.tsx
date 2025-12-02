@@ -70,12 +70,12 @@ export default function SiteHeaderClient({ session }: Props) {
 
           {/* Actions */}
           <div className="flex items-center gap-2">
-            <Link
+            {/* <Link
               href="/products"
               className="hidden rounded-full border border-[#24262B] px-3 py-1.5 text-sm text-white hover:border-emerald-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500 sm:inline-flex"
             >
               View products
-            </Link>
+            </Link> */}
 
             {session ? (
               <UserButton />

@@ -209,14 +209,14 @@ export default function HomePage() {
               Upload a photo, pick a style, and we’ll print museum-grade keepsakes—delivered worldwide.
             </p>
           </div>
-
+{/* 
           <a
             href="/products"
             className="hidden shrink-0 rounded-xl border border-[#24262B] px-4 py-2 text-sm font-semibold text-white hover:border-emerald-600 sm:inline-block focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500"
             aria-label="Browse all holiday products"
           >
             Browse all
-          </a>
+          </a> */}
         </div>
 
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">

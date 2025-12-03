@@ -8,7 +8,13 @@ let app: App | null = null;
  */
 export function getAdminApp(): App {
   if (!app) {
-    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
+    const rawKey = process.env.FIREBASE_PRIVATE_KEY;
+const privateKey = rawKey
+  ?.replace(/\\n/g, "\n")
+  ?.replace(/\\\\n/g, "\n")
+  ?.replace(/"'/g, "")      // remove rogue quotes if any
+  ?.trim();
+
 
     if (!privateKey) {
       console.error("❌ FIREBASE_PRIVATE_KEY is missing in env!");

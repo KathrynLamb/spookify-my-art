@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     }
 
     const db = getFirestore(getAdminApp());
-    const userRef = db.collection("users").doc(uid);
+    const userRef = db.collection("users").doc(email);
     const projectsCol = userRef.collection("projects");
 
     const newDoc = await projectsCol.add({

@@ -1,37 +1,42 @@
-// src/lib/firebaseAdminApp.ts
-import "server-only";
-import { cert, getApps, getApp, initializeApp, type App } from "firebase-admin/app";
+import { cert, getApps, initializeApp, App } from "firebase-admin/app";
+import { getFirestore, Firestore } from "firebase-admin/firestore";
 
-// Load service account values safely
-function loadAdminCreds() {
-  const projectId = process.env.FIREBASE_PROJECT_ID;
-  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  let privateKey = process.env.FIREBASE_PRIVATE_KEY;
+let app: App | null = null;
 
-  if (!projectId || !clientEmail || !privateKey) {
-    throw new Error(
-      "[firebase-admin] Missing FIREBASE_PROJECT_ID / FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY"
-    );
+/**
+ * Returns a singleton Firebase Admin app instance.
+ */
+export function getAdminApp(): App {
+  if (!app) {
+    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
+
+    if (!privateKey) {
+      console.error("❌ FIREBASE_PRIVATE_KEY is missing in env!");
+    }
+    if (!process.env.FIREBASE_PROJECT_ID) {
+      console.error("❌ FIREBASE_PROJECT_ID is missing in env!");
+    }
+    if (!process.env.FIREBASE_CLIENT_EMAIL) {
+      console.error("❌ FIREBASE_CLIENT_EMAIL is missing in env!");
+    }
+
+    // Reuse existing app if already initialized
+    if (getApps().length > 0) {
+      app = getApps()[0]!;
+    } else {
+      app = initializeApp({
+        credential: cert({
+          projectId: process.env.FIREBASE_PROJECT_ID,
+          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+          privateKey,
+        }),
+      });
+
+      console.log("🔥 Firebase Admin initialized");
+    }
   }
 
-  // Fix escaped newlines
-  privateKey = privateKey.replace(/\\n/g, "\n");
-
-  return { projectId, clientEmail, privateKey };
+  return app;
 }
 
-export function getAdminApp(): App {
-  const apps = getApps();
-  if (apps.length > 0) return getApp();
-
-  const { projectId, clientEmail, privateKey } = loadAdminCreds();
-
-  return initializeApp({
-    credential: cert({
-      projectId,
-      clientEmail,
-      privateKey,
-    }),
-    storageBucket: process.env.FIREBASE_STORAGE_BUCKET, // e.g. ai-gifts.appspot.com
-  });
-}
+export const adminDb: Firestore = getFirestore(getAdminApp());

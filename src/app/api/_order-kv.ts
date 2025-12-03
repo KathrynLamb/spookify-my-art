@@ -1,28 +1,44 @@
 // src/app/api/_order-kv.ts
 
-// Dev-only in-memory store for order context.
-// NOTE: resets on deployment/restart. Use Redis/DB for production.
-
+// --- Types for assets ---
 export type DraftAsset = {
   printArea: string;
   url: string;
 };
 
-export type OrderDraft = {
-  prodigiSku: string;
-  printSpecId?: string;
-  assets: DraftAsset[];
-};
+// --- Prodigi + PayPal generic structures ---
+export type PayPalData = Record<string, unknown>;
+export type ProdigiData = Record<string, unknown>;
+export type AssetList = Array<{ url: string; printArea: string }>;
 
-/**
- * A fully typed order context.
- */
+// --- Final captured order type ---
 export type OrderCtx = {
-  fileUrl?: string;
+  orderId: string;
+  userEmail: string | null;
+
   imageId?: string;
-  vendor?: string;
   sku?: string;
-  draft?: OrderDraft;
+
+  amount?: number | string;
+  currency?: string;
+
+  paypal?: PayPalData;
+  prodigi?: ProdigiData;
+  assets?: AssetList;
+
+  status: string;
+  createdAt: number;
 };
 
-export const ORDER_CTX = new Map<string, OrderCtx>();
+// --- Pre-capture draft order type ---
+export type DraftOrderCtx = {
+  imageId: string;
+  fileUrl: string;
+  sku?: string;
+  vendor?: string;
+  invoiceId: string;
+  status: "CREATED";
+};
+
+// --- ORDER_CTX accepts BOTH draft and final ---
+export const ORDER_CTX = new Map<string, DraftOrderCtx | OrderCtx>();

@@ -16,7 +16,6 @@ type Order = {
   id: string;
   amount?: number;
   createdAt?: string | number;
-  total?: number;
   status?: string;
   [k: string]: unknown;
 };
@@ -34,23 +33,25 @@ export default async function UserProjectsPage({
   if (!session?.user) redirect("/login");
   if (session.user.id !== userId) redirect(`/projects/${session.user.id}`);
 
-  const { adminDb } = await import("@/lib/firebase/admin");
+  // --- FETCH VIA API ROUTE ---
+  const url = `${process.env.NEXT_PUBLIC_BASE_URL}/api/user/projects?userId=${userId}`;
+  const res = await fetch(url, { cache: "no-store" });
 
-  const userRef = adminDb.collection("users").doc(userId);
-  const userSnap = await userRef.get();
-  const user: UserDoc = (userSnap.data() as UserDoc) || {};
+  if (!res.ok) {
+    console.error("Failed to load user projects", await res.text());
+    redirect("/error");
+  }
 
-  const projectsSnap = await userRef.collection("projects").get().catch(() => null);
-  const ordersSnap = await userRef.collection("orders").get().catch(() => null);
-
-  const projects: Project[] =
-    projectsSnap?.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Project, "id">) })) ?? [];
-
-  const orders: Order[] =
-    ordersSnap?.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Order, "id">) })) ?? [];
+  const { user, projects, orders } = (await res.json()) as {
+    user: UserDoc;
+    projects: Project[];
+    orders: Order[];
+  };
 
   const displayName =
-    (typeof user.name === "string" && user.name) || session.user.name || "Spookifier";
+    (typeof user.name === "string" && user.name) ||
+    session.user.name ||
+    "Spookifier";
 
   return (
     <main className="max-w-5xl min-h-screen mx-auto p-8 text-white">
@@ -64,14 +65,24 @@ export default async function UserProjectsPage({
         ) : (
           <ul className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {projects.map((p) => (
-              <li key={p.id} className="rounded-xl overflow-hidden bg-white/10 border border-white/10">
+              <li
+                key={p.id}
+                className="rounded-xl overflow-hidden bg-white/10 border border-white/10"
+              >
                 {p.thumbnail && (
                   <div className="relative aspect-square">
-                    <Image src={p.thumbnail} alt={p.title || "Project"} fill className="object-cover" />
+                    <Image
+                      src={p.thumbnail}
+                      alt={p.title || "Project"}
+                      fill
+                      className="object-cover"
+                    />
                   </div>
                 )}
                 <div className="p-4">
-                  <h3 className="font-semibold truncate">{p.title || "Untitled Project"}</h3>
+                  <h3 className="font-semibold truncate">
+                    {p.title || "Untitled Project"}
+                  </h3>
                   <p className="text-xs text-white/50">
                     {p.createdAt
                       ? new Date(p.createdAt as number | string).toLocaleDateString()
@@ -92,7 +103,10 @@ export default async function UserProjectsPage({
         ) : (
           <ul className="space-y-3">
             {orders.map((o) => (
-              <li key={o.id} className="p-4 bg-white/10 rounded-lg border border-white/10">
+              <li
+                key={o.id}
+                className="p-4 bg-white/10 rounded-lg border border-white/10"
+              >
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="font-medium">Order #{o.id}</div>
@@ -102,8 +116,10 @@ export default async function UserProjectsPage({
                         : "Unknown date"}
                     </div>
                   </div>
-                  {o.amount != null && (
-                    <div className="text-white/80">£{(Number(o.amount) / 100).toFixed(2)}</div>
+                  {"amount" in o && (
+                    <div className="text-white/80">
+                      £{(Number(o.amount) / 100).toFixed(2)}
+                    </div>
                   )}
                 </div>
               </li>
@@ -115,7 +131,6 @@ export default async function UserProjectsPage({
   );
 }
 
-// If you also export metadata for this route:
 export async function generateMetadata({
   params,
 }: {

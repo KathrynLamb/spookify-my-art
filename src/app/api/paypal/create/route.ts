@@ -1,137 +1,163 @@
-// src/app/api/paypal/create/route.ts
-export const runtime = "nodejs";
-
+// /app/api/paypal/create/route.ts
 import { NextResponse } from "next/server";
 import { ORDER_CTX } from "@/app/api/_order-kv";
 
-const ENV = (process.env.PAYPAL_ENV ?? "sandbox").toLowerCase() === "live" ? "live" : "sandbox";
-const BASE = ENV === "live"
-  ? "https://api-m.paypal.com"
-  : "https://api-m.sandbox.paypal.com";
+export const runtime = "nodejs";
 
-const APPROVE_BASE = ENV === "live"
-  ? "https://www.paypal.com/checkoutnow?token="
-  : "https://www.sandbox.paypal.com/checkoutnow?token=";
+/* ---------------------------------------------
+ * TYPES
+ * --------------------------------------------- */
 
-const CLIENT_ID =
-  process.env.PAYPAL_CLIENT_ID ||
-  process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID ||
-  "";
+type CreateOrderBody = {
+  amount: number;
+  currency?: string;
+  title?: string;
+  imageId: string;
+  fileUrl: string;
+  sku?: string;
+  vendor?: string;
+};
 
-const CLIENT_SECRET =
-  process.env.PAYPAL_CLIENT_SECRET ||
-  process.env.PAYPAL_SECRET ||
-  "";
+type PayPalLink = {
+  href: string;
+  rel: string;
+  method: string;
+};
 
-// ---- Shared helper ----
-async function getAccessToken(): Promise<string> {
-  if (!CLIENT_ID || !CLIENT_SECRET) {
-    throw new Error("Missing PayPal env vars");
-  }
+type PayPalCreateResponse = {
+  id: string;
+  links: PayPalLink[];
+};
 
-  const auth = Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString("base64");
+/* ---------------------------------------------
+ * MAIN ROUTE
+ * --------------------------------------------- */
 
-  const r = await fetch(`${BASE}/v1/oauth2/token`, {
-    method: "POST",
-    headers: {
-      Authorization: `Basic ${auth}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: "grant_type=client_credentials",
-    cache: "no-store",
-  });
-
-  if (!r.ok) {
-    const t = await r.text().catch(() => "");
-    throw new Error(`PayPal auth failed: ${t || r.status}`);
-  }
-
-  const j = await r.json();
-  return j.access_token;
-}
-
-// ---- Main handler ----
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-
     const {
       amount,
-      currency,
+      currency = "GBP",
       title,
       imageId,
       fileUrl,
       sku,
-      vendor,
-      draft,
-    } = body;
+      vendor = "prodigi",
+    } = (await req.json()) as CreateOrderBody;
 
-    const numericAmount = Number(amount);
-    if (!Number.isFinite(numericAmount)) {
-      return NextResponse.json({ error: "Invalid amount" }, { status: 400 });
+    if (!imageId || !fileUrl) {
+      return NextResponse.json(
+        { error: "Missing imageId or fileUrl" },
+        { status: 400 }
+      );
     }
 
-    const token = await getAccessToken();
-    const value = numericAmount.toFixed(2);
+    /* ---------------------------------------------
+     * PAYPAL AUTH
+     * --------------------------------------------- */
+    const clientId = process.env.PAYPAL_CLIENT_ID!;
+    const secret = process.env.PAYPAL_SECRET!;
+    const auth = Buffer.from(`${clientId}:${secret}`).toString("base64");
 
-    const reqUrl = new URL(req.url);
-    const baseUrl =
-      process.env.NEXT_PUBLIC_BASE_URL?.replace(/\/$/, "") ||
-      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "") ||
-      reqUrl.origin;
+    const invoiceId = `AI-${imageId}-${Date.now()}`;
 
-    // const isDigital = sku === "print-at-home";
+    /* ---------------------------------------------
+     * PURCHASE UNIT
+     * --------------------------------------------- */
+    const purchaseUnit = {
+      reference_id: imageId,
+      custom_id: imageId,
+      invoice_id: invoiceId,
 
-    const application_context = {
-      brand_name: "Ai Gifts",
-      user_action: "PAY_NOW",
-      // shipping_preference: isDigital ? "NO_SHIPPING" : "GET_FROM_FILE",
-      shipping_preference: "GET_FROM_FILE",
-      locale: "en-GB",
-      landing_page: "LOGIN",
-      return_url: `${baseUrl}/post-checkout?status=approved&provider=paypal`,
-      cancel_url: `${baseUrl}/post-checkout?status=cancelled&provider=paypal`,
-    };
+      amount: {
+        currency_code: currency,
+        value: amount.toFixed(2),
+        breakdown: {
+          item_total: {
+            currency_code: currency,
+            value: amount.toFixed(2),
+          },
+        },
+      },
 
-    const payload = {
-      intent: "CAPTURE",
-      purchase_units: [
+      items: [
         {
-          reference_id: imageId,
-          description: title,
-          amount: { currency_code: currency, value },
+          name: title ?? "Custom Artwork",
+          quantity: "1",
+          sku,
+          unit_amount: {
+            currency_code: currency,
+            value: amount.toFixed(2),
+          },
+          description:
+            "AI-generated custom artwork. Includes production-ready print file.",
+          image_url: fileUrl,
         },
       ],
-      application_context,
     };
 
-    const r = await fetch(`${BASE}/v2/checkout/orders`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-      cache: "no-store",
-    });
+    /* ---------------------------------------------
+     * CREATE PAYPAL ORDER
+     * --------------------------------------------- */
+    const response = await fetch(
+      "https://api-m.paypal.com/v2/checkout/orders",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Basic ${auth}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          intent: "CAPTURE",
+          purchase_units: [purchaseUnit],
+          application_context: {
+            brand_name: "AI Gifts",
+            landing_page: "BILLING", // Guest checkout enabled
+            user_action: "PAY_NOW",
+            shipping_preference: "NO_SHIPPING",
+            return_url: `${process.env.NEXT_PUBLIC_URL}/paypal/return`,
+            cancel_url: `${process.env.NEXT_PUBLIC_URL}/paypal/cancel`,
+          },
+        }),
+      }
+    );
 
-    const j = await r.json();
-    if (!r.ok || !j.id) {
+    const json = (await response.json()) as PayPalCreateResponse;
+
+    if (!response.ok) {
+      console.error("PayPal Order Create Error:", json);
       return NextResponse.json(
-        { error: j.message || "Unable to create PayPal order", details: j },
+        { error: "PayPal order create failed", details: json },
         { status: 500 }
       );
     }
 
-    ORDER_CTX.set(j.id, { imageId, fileUrl, sku, vendor, draft });
+    /* ---------------------------------------------
+     * SAVE ORDER CONTEXT
+     * --------------------------------------------- */
+    ORDER_CTX.set(json.id, {
+      imageId,
+      fileUrl,
+      sku,
+      vendor,
+      invoiceId,
+      status: "CREATED",
+    });
+
+    /* ---------------------------------------------
+     * FIND APPROVAL LINK (strict typed)
+     * --------------------------------------------- */
+    const approveLink = json.links.find(
+      (l: PayPalLink) => l.rel === "approve"
+    );
 
     return NextResponse.json({
-      orderID: j.id,
-      approveUrl: `${APPROVE_BASE}${j.id}`,
+      orderId: json.id,
+      invoiceId,
+      approveUrl: approveLink?.href,
     });
   } catch (err) {
-    const error = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error }, { status: 500 });
+    console.error("PayPal Create Route Error:", err);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
-  
 }

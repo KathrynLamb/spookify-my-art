@@ -49,7 +49,8 @@ import { WaitlistProduct } from './design/types'
 // }
 
 export default function HomePage() {
- 
+  console.log("FIREBASE_PRIVATE_KEY exists?", !!process.env.FIREBASE_PRIVATE_KEY);
+
   const faqs = [
     {
       q: 'How does it work?',

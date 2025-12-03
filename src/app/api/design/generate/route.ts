@@ -34,20 +34,17 @@ function pickPrintSpec(productId?: string, clientSpec?: ClientPrintSpec) {
   if (clientSpec) return clientSpec;
 
   const match = PRODUCTS.find(
-    (p) => p.productUID === productId || p.prodigiSku === productId
+    p => p.productUID === productId || p.prodigiSku === productId
   );
 
   return (
-    match?.printSpec ?? {
-      finalWidthPx: 2670,
-      finalHeightPx: 1110,
-    }
+    match?.printSpec ?? { finalWidthPx: 2670, finalHeightPx: 1110 }
   );
 }
 
 function extractInlineImage(result: GeminiImageResponse) {
   const part = result.candidates?.[0]?.content?.parts?.find(
-    (p) => p.inlineData?.data
+    p => p.inlineData?.data
   );
   return part?.inlineData
     ? { data: part.inlineData.data, mimeType: part.inlineData.mimeType }
@@ -58,7 +55,7 @@ function extractInlineImage(result: GeminiImageResponse) {
  * MAIN ROUTE
  * ------------------------------------------------------------- */
 export async function POST(req: NextRequest) {
-  const startTime = Date.now();
+  // const startTime = Date.now();
 
   try {
     console.log("🎨 [START] /api/design/generate");
@@ -67,7 +64,7 @@ export async function POST(req: NextRequest) {
      * Parse input
      * --------------------------------------------- */
     const body = await req.json();
-    console.log("📥 Incoming body:", JSON.stringify(body, null, 2));
+    console.log("📥 Incoming body:", body);
 
     const imageId: string = body.imageId;
     const prompt: string = body.prompt;
@@ -76,76 +73,43 @@ export async function POST(req: NextRequest) {
     const clientPrintSpec: ClientPrintSpec | undefined = body.printSpec;
     const references: ReferenceInput[] = body.references ?? [];
 
-    if (!prompt) {
-      console.log("❌ Missing prompt");
-      return NextResponse.json({ error: "Missing prompt" }, { status: 400 });
-    }
+    // 🔥 Required for Firestore saving
+    const userId: string | undefined = body.userId;
+    const productTitle: string = body.title ?? "Generated Design";
 
-    if (!imageId) {
-      console.log("❌ Missing imageId");
-      return NextResponse.json({ error: "Missing imageId" }, { status: 400 });
-    }
+    if (!prompt) return NextResponse.json({ error: "Missing prompt" }, { status: 400 });
+    if (!imageId) return NextResponse.json({ error: "Missing imageId" }, { status: 400 });
 
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      console.log("❌ Missing GEMINI_API_KEY");
-      return NextResponse.json(
-        { error: "Missing GEMINI_API_KEY" },
-        { status: 500 }
-      );
-    }
+    if (!apiKey)
+      return NextResponse.json({ error: "Missing GEMINI_API_KEY" }, { status: 500 });
 
     const ai = new GoogleGenAI({ apiKey });
-
-    console.log("⚙️ Using Gemini key:", apiKey.slice(0, 5) + "...");
 
     /* ---------------------------------------------
      * Print specs
      * --------------------------------------------- */
-    const { finalWidthPx, finalHeightPx } = pickPrintSpec(
-      productId,
-      clientPrintSpec
-    );
-
+    const { finalWidthPx, finalHeightPx } = pickPrintSpec(productId, clientPrintSpec);
     const aspectRatio = aspectFromNumber(finalWidthPx / finalHeightPx);
-
-    console.log(
-      `📐 Print spec: ${finalWidthPx}x${finalHeightPx} (AR: ${aspectRatio})`
-    );
 
     /* ---------------------------------------------
      * Build inline contents
      * --------------------------------------------- */
-    const contents: {
-      text?: string;
-      inlineData?: { mimeType: string; data: string };
-    }[] = [{ text: prompt }];
-
-    console.log(`🖼  Adding ${references.length} reference images…`);
+    const contents: { text?: string; inlineData?: { mimeType: string; data: string } }[] =
+      [{ text: prompt }];
 
     for (const ref of references) {
       if (!ref.url) continue;
 
-      console.log("↳ Fetching ref:", ref.url);
-
       const fetched = await fetch(ref.url);
-      if (!fetched.ok) {
-        console.log("❌ Error fetching reference:", ref.url);
-        continue;
-      }
+      if (!fetched.ok) continue;
 
       const buf = Buffer.from(await fetched.arrayBuffer());
       const mime = fetched.headers.get("content-type") ?? "image/png";
 
       contents.push({
-        inlineData: { mimeType: mime, data: buf.toString("base64") },
+        inlineData: { mimeType: mime, data: buf.toString("base64") }
       });
-
-      console.log(
-        `✓ Loaded reference (${mime}, ${Math.round(
-          buf.length / 1024
-        )} KB) from ${ref.url}`
-      );
     }
 
     /* ---------------------------------------------
@@ -154,147 +118,94 @@ export async function POST(req: NextRequest) {
     const genPath = `designs/${imageId}/gen-${generation}`;
     const latestPath = `designs/${imageId}`;
 
-    console.log("📁 genPath =", genPath);
-    console.log("📁 latestPath =", latestPath);
-
     /* ---------------------------------------------------------
-     * 1) MASTER
+     * 1) MASTER GENERATION
      * --------------------------------------------------------- */
-    console.log("🎨 Generating MASTER…");
-    const tMaster = Date.now();
-
     const masterResponse = (await ai.models.generateContent({
       model: "gemini-3-pro-image-preview",
       contents,
       config: {
         responseModalities: ["IMAGE"],
-        imageConfig: { imageSize: "2K", aspectRatio },
-      },
+        imageConfig: { imageSize: "2K", aspectRatio }
+      }
     })) as GeminiImageResponse;
 
-    console.log("⏱ MASTER generation took", Date.now() - tMaster, "ms");
-
     const masterInline = extractInlineImage(masterResponse);
-
-    if (!masterInline) {
-      console.log("❌ Gemini returned no master image");
-      return NextResponse.json(
-        { error: "Gemini returned no master image" },
-        { status: 500 }
-      );
-    }
+    if (!masterInline)
+      return NextResponse.json({ error: "No master image generated" }, { status: 500 });
 
     const masterBuffer = Buffer.from(masterInline.data, "base64");
-    console.log(
-      `✓ MASTER inline image extracted (${Math.round(
-        masterBuffer.length / 1024
-      )} KB)`
-    );
 
-    /* Save immutable revision */
-    console.log("📤 Uploading MASTER revision…");
     await uploadBuffer(`${genPath}/master.png`, masterBuffer, {
       contentType: masterInline.mimeType,
-      addRandomSuffix: true,
+      addRandomSuffix: true
     });
 
-    /* Save latest (overwrite) */
-    console.log("📤 Uploading MASTER latest…");
     const rawMasterUrl = await uploadBuffer(
       `${latestPath}/master.png`,
       masterBuffer,
       {
         contentType: masterInline.mimeType,
-        allowOverwrite: true,
+        allowOverwrite: true
       }
     );
 
-    // CACHE BUSTING
     const masterUrl = `${rawMasterUrl}?v=${Date.now()}`;
-    console.log("🔗 masterUrl =", masterUrl);
 
     /* ---------------------------------------------------------
-     * 2) PREVIEW
+     * 2) PREVIEW GENERATION
      * --------------------------------------------------------- */
-    console.log("🎨 Generating PREVIEW…");
-    const tPreview = Date.now();
-
-    const previewPrompt = `
-Reproduce the supplied artwork exactly and overlay a diagonal semi-transparent watermark:
-"PREVIEW — NOT FOR PRINT"
-No cropping or modifications.
-`;
-
     const previewResponse = (await ai.models.generateContent({
       model: "gemini-3-pro-image-preview",
       contents: [
-        { text: previewPrompt },
+        {
+          text: `Reproduce exactly and overlay watermark: "PREVIEW — NOT FOR PRINT"`
+        },
         {
           inlineData: {
             mimeType: masterInline.mimeType,
-            data: masterInline.data,
-          },
-        },
+            data: masterInline.data
+          }
+        }
       ],
       config: {
         responseModalities: ["IMAGE"],
-        imageConfig: { imageSize: "1K", aspectRatio },
-      },
+        imageConfig: { imageSize: "1K", aspectRatio }
+      }
     })) as GeminiImageResponse;
-
-    console.log("⏱ PREVIEW generation took", Date.now() - tPreview, "ms");
 
     const previewInline = extractInlineImage(previewResponse);
     const previewBuffer = previewInline
       ? Buffer.from(previewInline.data, "base64")
       : masterBuffer;
 
-    console.log(
-      `✓ PREVIEW buffer ready (${Math.round(
-        previewBuffer.length / 1024
-      )} KB)`
-    );
-
-    /* Upload preview revision */
-    console.log("📤 Uploading PREVIEW revision…");
     await uploadBuffer(`${genPath}/preview.png`, previewBuffer, {
       contentType: "image/png",
-      addRandomSuffix: true,
+      addRandomSuffix: true
     });
 
-    /* Upload preview latest */
-    console.log("📤 Uploading PREVIEW latest…");
     const rawPreviewUrl = await uploadBuffer(
       `${latestPath}/preview.png`,
       previewBuffer,
       {
         contentType: "image/png",
-        allowOverwrite: true,
+        allowOverwrite: true
       }
     );
 
     const previewUrl = `${rawPreviewUrl}?v=${Date.now()}`;
-    console.log("🔗 previewUrl =", previewUrl);
 
     /* ---------------------------------------------------------
-     * 3) MOCKUP
+     * 3) MOCKUP GENERATION (optional)
      * --------------------------------------------------------- */
     let mockupUrl = previewUrl;
 
     const product = PRODUCTS.find(
-      (p) => p.productUID === productId || p.prodigiSku === productId
+      p => p.productUID === productId || p.prodigiSku === productId
     );
 
     if (product?.mockup) {
-      console.log("🎨 Generating MOCKUP…");
-
-      const mock = product.mockup as {
-        prompt: string;
-        imageSize?: string;
-        aspectRatio?: string;
-      };
-
-      const tMock = Date.now();
+      const mock = product.mockup;
 
       const mockResponse = (await ai.models.generateContent({
         model: "gemini-3-pro-image-preview",
@@ -303,72 +214,87 @@ No cropping or modifications.
           {
             inlineData: {
               mimeType: "image/png",
-              data: previewBuffer.toString("base64"),
-            },
-          },
+              data: previewBuffer.toString("base64")
+            }
+          }
         ],
         config: {
           responseModalities: ["IMAGE"],
           imageConfig: {
-            imageSize: mock.imageSize ?? "2K",
-            aspectRatio: mock.aspectRatio ?? "4:3",
-          },
-        },
+            imageSize: "2K",
+            aspectRatio: "4:3",
+            
+          }
+        }
       })) as GeminiImageResponse;
-
-      console.log("⏱ MOCKUP generation took", Date.now() - tMock, "ms");
 
       const mockInline = extractInlineImage(mockResponse);
       const mockBuffer = mockInline
         ? Buffer.from(mockInline.data, "base64")
         : previewBuffer;
 
-      console.log(
-        `✓ MOCKUP buffer ready (${Math.round(
-          mockBuffer.length / 1024
-        )} KB)`
-      );
-
-      /* Upload mockup revision */
-      console.log("📤 Uploading MOCKUP revision…");
       await uploadBuffer(`${genPath}/mockup.png`, mockBuffer, {
         contentType: "image/png",
-        addRandomSuffix: true,
+        addRandomSuffix: true
       });
 
-      /* Upload latest */
-      console.log("📤 Uploading MOCKUP latest…");
-      const rawMockupUrl = await uploadBuffer(
+      const rawMockUrl = await uploadBuffer(
         `${latestPath}/mockup.png`,
         mockBuffer,
-        {
-          contentType: "image/png",
-          allowOverwrite: true,
-        }
+        { contentType: "image/png", allowOverwrite: true }
       );
 
-      mockupUrl = `${rawMockupUrl}?v=${Date.now()}`;
-      console.log("🔗 mockupUrl =", mockupUrl);
-    } else {
-      console.log("ℹ️ No mockup config for product:", productId);
+      mockupUrl = `${rawMockUrl}?v=${Date.now()}`;
+    }
+
+    /* ---------------------------------------------------------
+     * 4) SAVE TO FIRESTORE (only if enabled)
+     * --------------------------------------------------------- */
+    if (process.env.FIRESTORE_ENABLED === "1" && userId) {
+      try {
+        const { getAdminApp } = await import("@/lib/firebaseAdminApp");
+        const { getFirestore } = await import("firebase-admin/firestore");
+
+        const db = getFirestore(getAdminApp());
+
+        await db
+          .collection("users")
+          .doc(userId)
+          .collection("projects")
+          .doc(imageId)
+          .set(
+            {
+              title: productTitle,
+              status: "done",
+              previewUrl,
+              resultUrl: masterUrl,
+              mockupUrl,
+              productId,
+              updatedAt: new Date().toISOString(),
+              createdAt: new Date().toISOString()
+            },
+            { merge: true }
+          );
+      } catch (err) {
+        console.error("🔥 Firestore save failed:", err);
+      }
     }
 
     /* ---------------------------------------------------------
      * DONE
      * --------------------------------------------------------- */
-    console.log("✅ [DONE] Total time:", Date.now() - startTime, "ms");
-
     return NextResponse.json({
       masterUrl,
       previewUrl,
       mockupUrl,
       generation,
-      revisionPath: genPath,
+      revisionPath: genPath
     });
   } catch (err) {
-    console.error("❌ ERROR in /api/design/generate:", err);
-    const message =
-      err instanceof Error ? err.message : "Unknown server error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("❌ ERROR /api/design/generate:", err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Unknown error" },
+      { status: 500 }
+    );
   }
 }

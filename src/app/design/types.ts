@@ -151,11 +151,22 @@ export type ChatMessage = {
   typing?: boolean
 };
 
+// export type ChatResponse = {
+//   content: string;
+//   plan?: Plan;
+//   planDelta?: Partial<Plan>;
+//   productPlan?: ProductPlan | null;
+//   finalizedPrompt?: string;
+//   userConfirmed?: boolean
+// };
+
 export type ChatResponse = {
-  content: string;
+  ok?: boolean;
+  content?: string;
+  message?: string;
   plan?: Plan;
-  planDelta?: Partial<Plan>;
-  productPlan?: ProductPlan | null;
+  productPlan?: ProductPlan;
   finalizedPrompt?: string;
-  userConfirmed?: boolean
+  userConfirmed?: boolean;
+  projectTitle?: string;
 };

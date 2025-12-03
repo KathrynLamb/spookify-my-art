@@ -112,10 +112,9 @@ export function useDesignChat(
       removeTyping();
 
       // Parse plan delta in content if present
-      const cfg: Partial<Plan> =
-        data.plan ??
-        extractJsonFence(data.content) ??
-        {};
+      const fenced = data.content ? extractJsonFence(data.content) : {};
+      const cfg: Partial<Plan> = data.plan ?? fenced ?? {};
+      
 
       const mergedPlan = mergePlan(plan, cfg);
 
@@ -134,8 +133,9 @@ export function useDesignChat(
 
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: data.content },
+        { role: "assistant", content: data.content ?? "" },
       ]);
+      
     },
     [messages, plan, selectedProduct, imageId]
   );
@@ -146,6 +146,21 @@ export function useDesignChat(
  /* -------------------------------------------------------------
  * Greeting (FIRST assistant message must be JSON)
  * ------------------------------------------------------------- */
+// inside useDesignChat.ts
+
+// export type ChatResponse = {
+//   ok?: boolean;
+//   content?: string;
+//   message?: string;
+//   plan?: Plan;
+//   productPlan?: ProductPlan;
+//   finalizedPrompt?: string;
+//   userConfirmed?: boolean;
+//   projectTitle?: string;
+// };
+
+// ...
+
 const startGreeting = useCallback(async () => {
   if (!selectedProduct) return;
 
@@ -153,40 +168,33 @@ const startGreeting = useCallback(async () => {
 
   const res = await fetch("/api/chat", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
+      messages: [{ role: "user", content: "Kickoff greeting only." }],
       selectedProduct,
-      messages: [
-        {
-          role: "user",
-          content: `
-Your job is to help design custom artwork for the user's chosen product.
-
-For your FIRST reply ONLY, respond in STRICT JSON (no markdown, no explanation) using the following exact structure:
-
-{
-  "title": "A short, creative project title based on the product and user request",
-  "message": "A friendly greeting to begin the design conversation"
-}
-
-Do NOT add backticks.
-Do NOT add commentary outside the JSON.
-Reply ONLY with valid JSON.
-          `.trim()
-        }
-      ]
     }),
+    headers: { "Content-Type": "application/json" },
   });
 
   const data: ChatResponse = await res.json();
   removeTyping();
 
-  // 👉 The FIRST assistant message will now be JSON
-  setMessages([{ role: "assistant", content: data.content }]);
+  // Be defensive about where the text lives
+  const assistantText =
+    data.content ??
+    (typeof data.message === "string" ? data.message : "") ??
+    "";
+
+  if (assistantText) {
+    setMessages([{ role: "assistant", content: assistantText }]);
+  } else {
+    console.warn("[chat] Greeting response without content/message", data);
+    setMessages([]);
+  }
 
   if (data.plan) setPlan(data.plan);
   if (data.productPlan) setProductPlan(data.productPlan);
 }, [selectedProduct]);
+
 
 
   /* -------------------------------------------------------------

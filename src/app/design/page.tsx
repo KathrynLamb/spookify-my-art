@@ -199,67 +199,107 @@ const projectCreated = useRef(false);
   /* -------------------------------------------------------------
    *  Create project from first message
      * ------------------------------------------------------------- */
-  const createProject = useCallback(
+// inside DesignPage
 
-    async (title: string, firstAssistantMessage: string) => {
-      console.log("TRYING TO CREATE PROJCT")
-      console.log("USer", user)
-      if (!user?.email) return;
+/* -------------------------------------------------------------
+ *  SAFE MESSAGE CLEANING
+ * ------------------------------------------------------------- */
+interface ChatMessage {
+  role?: string;
+  content?: string;
+  typing?: boolean;
+}
 
+function cleanMessage(raw: ChatMessage): { role: string; content: string } {
+  return {
+    role: typeof raw.role === "string" ? raw.role : "assistant",
+    content: typeof raw.content === "string" ? raw.content : "",
+  };
+}
 
-  
-      try {
-        const res = await fetch("/api/projects/create", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: user.email,
-            title,
-            previewUrl: null,
-            productId,
-            imageId,
-            createdAt: Date.now(),
-            messages: [{ role: "assistant", content: firstAssistantMessage }],
-            references: []
-          })
-        });
-
-  
-        const data = await res.json();
-
-        console.log("PROJCT", data)
-        if (data.ok) setProjectId(data.id);
-      } catch (err) {
-        console.error("Project creation failed", err);
-      }
-    },
-    [user?.email, productId, imageId] // perfect dependency list
-  );
-  
-  
-  
-  useEffect(() => {
-    // Only run once AND only after assistant sends FIRST message
-    if (projectCreated.current) return;
-    if (messages.length !== 1) return;
-    if (messages[0].role !== "assistant") return;
-  
-    const msg = messages[0];
-    let title = "Untitled Project";
-    let messageText = msg.content ?? "";
-  
-    // Try parse JSON first-response
-    try {
-      const parsed = JSON.parse(msg.content);
-      if (parsed.title) title = parsed.title;
-      if (parsed.message) messageText = parsed.message;
-    } catch {
-      // message was not JSON, fallback is fine
+/* -------------------------------------------------------------
+ *  CREATE PROJECT
+ * ------------------------------------------------------------- */
+const createProject = useCallback(
+  async (title: string, firstAssistantMessage: string) => {
+    if (!user?.email) {
+      console.warn("[project] No user email — cannot create project.");
+      return;
     }
-  
-    createProject(title, messageText);
-    projectCreated.current = true;
-  }, [messages, user?.email]);
+
+    console.log("TRYING TO CREATE PROJECT");
+    console.log("USER", user);
+
+    const safeMessage = cleanMessage({
+      role: "assistant",
+      content: firstAssistantMessage,
+    });
+
+    try {
+      const res = await fetch("/api/projects/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: user.email,
+          title,
+          previewUrl: null,
+          productId,
+          imageId,
+          createdAt: Date.now(),
+          messages: [safeMessage],
+          references: [],
+        }),
+      });
+
+      const data = await res.json();
+      console.log("PROJECT CREATE RESPONSE:", data);
+
+      if (data.ok) {
+        setProjectId(data.id);
+      } else {
+        console.error("Project create failed:", data.error);
+      }
+    } catch (err) {
+      console.error("Project creation failed:", err);
+    }
+  },
+  [user?.email, productId, imageId]
+);
+
+/* -------------------------------------------------------------
+ *  TRIGGER PROJECT CREATION ONLY ON A REAL FIRST MESSAGE
+ * ------------------------------------------------------------- */
+useEffect(() => {
+  if (projectCreated.current) return;
+  if (!user?.email) return;
+
+  // Must have exactly one assistant message.
+  if (messages.length !== 1) return;
+
+  const first = messages[0];
+
+  // Ignore typing placeholders, undefined content, or filler dots.
+  if (first.role !== "assistant") return;
+  if (first.typing) return;
+  if (!first.content) return;
+  if (first.content === "•••") return;
+
+  // Extract meaningful title + message.
+  let title = "Untitled Project";
+  let messageText = first.content ?? "";
+
+  try {
+    const parsed = JSON.parse(first.content);
+    if (parsed?.title) title = parsed.title;
+    if (parsed?.message) messageText = parsed.message;
+  } catch {
+    // plain text is fine
+  }
+
+  createProject(title, messageText);
+  projectCreated.current = true;
+}, [messages, user?.email, createProject]);
+
 
   // -------------------------------------------------------------
 // UPDATE PROJECT WHEN DESIGN CHANGES

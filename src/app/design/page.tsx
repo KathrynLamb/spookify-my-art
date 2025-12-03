@@ -79,10 +79,6 @@ const projectCreated = useRef(false);
 
 
     // const firstMessageSent = useRef(false);
-
-
-    
-
     const [currency, setCurrency] = useState<Currency>("GBP");
     
 
@@ -190,7 +186,8 @@ const projectCreated = useRef(false);
             )}.`
           : `I've uploaded the ${label.toLowerCase()}.`;
 
-        await sendMessage(msg, updatedPlan);
+        const sm = await sendMessage(msg, updatedPlan);
+        console.log("SendMessage", sm)
       } catch (err) {
         setUploadError(
           err instanceof Error ? err.message : "Upload failed."
@@ -203,8 +200,13 @@ const projectCreated = useRef(false);
    *  Create project from first message
      * ------------------------------------------------------------- */
   const createProject = useCallback(
+
     async (title: string, firstAssistantMessage: string) => {
+      console.log("TRYING TO CREATE PROJCT")
+      console.log("USer", user)
       if (!user?.email) return;
+
+
   
       try {
         const res = await fetch("/api/projects/create", {
@@ -221,8 +223,11 @@ const projectCreated = useRef(false);
             references: []
           })
         });
+
   
         const data = await res.json();
+
+        console.log("PROJCT", data)
         if (data.ok) setProjectId(data.id);
       } catch (err) {
         console.error("Project creation failed", err);

@@ -56,11 +56,13 @@ function extractInlineImage(result: GeminiImageResponse) {
 }
 
 /* -------------------------------------------------------------
- * MAIN ROUTE — generation-aware, overwrite-safe
+ * MAIN ROUTE
  * ------------------------------------------------------------- */
 export async function POST(req: NextRequest) {
   try {
-    /* ---------------- Parse body safely ---------------- */
+    /* ---------------------------------------------
+     * Parse input (typed)
+     * --------------------------------------------- */
     const body: {
       imageId: string;
       prompt: string;
@@ -91,20 +93,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    /* ---------------- Setup ---------------- */
+    /* ---------------------------------------------
+     * Setup
+     * --------------------------------------------- */
     const ai = new GoogleGenAI({ apiKey });
 
     const { finalWidthPx, finalHeightPx } = pickPrintSpec(
       productId,
       clientPrintSpec
     );
+
     const aspectRatio = aspectFromNumber(finalWidthPx / finalHeightPx);
 
-    const contents: { text?: string; inlineData?: { mimeType: string; data: string } }[] = [
-      { text: prompt },
-    ];
+    const contents: {
+      text?: string;
+      inlineData?: { mimeType: string; data: string };
+    }[] = [{ text: prompt }];
 
-    // Inline reference images
+    // Attach reference photos as inlineData
     for (const ref of references) {
       if (!ref.url) continue;
 
@@ -119,12 +125,14 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    /* ---------------- Revision + Latest Paths ---------------- */
+    /* ---------------------------------------------
+     * Paths (revisioned + latest)
+     * --------------------------------------------- */
     const genPath = `designs/${imageId}/gen-${generation}`;
     const latestPath = `designs/${imageId}`;
 
     /* ---------------------------------------------------------
-     * 1) MASTER (print-quality)
+     * MASTER
      * --------------------------------------------------------- */
     const masterResponse = (await ai.models.generateContent({
       model: "gemini-3-pro-image-preview",
@@ -145,12 +153,12 @@ export async function POST(req: NextRequest) {
 
     const masterBuffer = Buffer.from(masterInline.data, "base64");
 
-    // Save immutable revision
+    // Save immutable
     await uploadBuffer(`${genPath}/master.png`, masterBuffer, {
       contentType: masterInline.mimeType,
     });
 
-    // Save latest (overwrites allowed because filename is same)
+    // Save latest (overwrite)
     const masterUrl = await uploadBuffer(
       `${latestPath}/master.png`,
       masterBuffer,
@@ -158,7 +166,7 @@ export async function POST(req: NextRequest) {
     );
 
     /* ---------------------------------------------------------
-     * 2) PREVIEW (watermarked)
+     * PREVIEW
      * --------------------------------------------------------- */
     const previewPrompt = `
 Reproduce the supplied artwork exactly and overlay a diagonal semi-transparent watermark:
@@ -199,59 +207,55 @@ No cropping or modifications.
     );
 
     /* ---------------------------------------------------------
-     * 3) MOCKUP
+     * MOCKUP
      * --------------------------------------------------------- */
-    /* ---------------------------------------------------------
- * 3) MOCKUP
- * --------------------------------------------------------- */
-let mockupUrl = previewUrl;
+    let mockupUrl = previewUrl;
 
-const product = PRODUCTS.find(
-  (p) => p.productUID === productId || p.prodigiSku === productId
-);
+    const product = PRODUCTS.find(
+      (p) => p.productUID === productId || p.prodigiSku === productId
+    );
 
-if (product?.mockup) {
-  // ---- FIX: treat mock object as flexible, optional fields allowed ----
-  const mock = product.mockup as {
-    prompt: string;
-    imageSize?: string;
-    aspectRatio?: string;
-    [key: string]: unknown;
-  };
+    if (product?.mockup) {
+      const mock = product.mockup as {
+        prompt: string;
+        imageSize?: string;
+        aspectRatio?: string;
+        [key: string]: unknown;
+      };
 
-  const mockResponse = (await ai.models.generateContent({
-    model: "gemini-3-pro-image-preview",
-    contents: [
-      { text: mock.prompt },
-      {
-        inlineData: {
-          mimeType: "image/png",
-          data: previewBuffer.toString("base64"),
+      const mockResponse = (await ai.models.generateContent({
+        model: "gemini-3-pro-image-preview",
+        contents: [
+          { text: mock.prompt },
+          {
+            inlineData: {
+              mimeType: "image/png",
+              data: previewBuffer.toString("base64"),
+            },
+          },
+        ],
+        config: {
+          responseModalities: ["IMAGE"],
+          imageConfig: {
+            imageSize: mock.imageSize ?? "2K",
+            aspectRatio: mock.aspectRatio ?? "4:3",
+          },
         },
-      },
-    ],
-    config: {
-      responseModalities: ["IMAGE"],
-      imageConfig: {
-        imageSize: mock.imageSize ?? "2K",
-        aspectRatio: mock.aspectRatio ?? "4:3",
-      },
-    },
-  })) as GeminiImageResponse;
+      })) as GeminiImageResponse;
 
-  const mockInline = extractInlineImage(mockResponse);
-  const mockBuffer = mockInline
-    ? Buffer.from(mockInline.data, "base64")
-    : previewBuffer;
+      const mockInline = extractInlineImage(mockResponse);
+      const mockBuffer = mockInline
+        ? Buffer.from(mockInline.data, "base64")
+        : previewBuffer;
 
-  await uploadBuffer(`${genPath}/mockup.png`, mockBuffer, {
-    contentType: "image/png",
-  });
+      await uploadBuffer(`${genPath}/mockup.png`, mockBuffer, {
+        contentType: "image/png",
+      });
 
-  mockupUrl = await uploadBuffer(`${latestPath}/mockup.png`, mockBuffer, {
-    contentType: "image/png",
-  });
-}
+      mockupUrl = await uploadBuffer(`${latestPath}/mockup.png`, mockBuffer, {
+        contentType: "image/png",
+      });
+    }
 
     /* ---------------------------------------------------------
      * RESPONSE

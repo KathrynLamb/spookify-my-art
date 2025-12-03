@@ -2,14 +2,21 @@
 import { put } from "@vercel/blob";
 
 /**
- * Ensures filenames are sanitized for Vercel Blob.
+ * Vercel Blob-safe filename sanitizer that preserves folder structure.
  */
 function safeFilename(path: string): string {
-  const cleaned = path.replace(/[^\w./-]/g, "_");
+  // Preserve: letters, numbers, /, _, -, .
+  // Replace anything else with underscores.
+  const cleaned = path.replace(/[^a-zA-Z0-9/_\.-]/g, "_");
 
-  if (cleaned.length > 180) {
-    const end = cleaned.slice(-120);
-    return `file_${Date.now()}_${end}`;
+  // If path too long, shorten ONLY the filename — never the folder prefix
+  if (cleaned.length > 200) {
+    const parts = cleaned.split("/");
+    const file = parts.pop()!;
+    const folder = parts.join("/");
+
+    const shortened = file.slice(-120);
+    return `${folder}/file_${Date.now()}_${shortened}`;
   }
 
   return cleaned;
@@ -17,12 +24,12 @@ function safeFilename(path: string): string {
 
 export type UploadBufferOptions = {
   contentType?: string;
-  addRandomSuffix?: boolean; // optional and supported by Vercel
+  addRandomSuffix?: boolean; // default false → overwrites allowed
 };
 
 /**
- * Upload a buffer to Vercel Blob (public access).
- * Overwrites occur naturally if filename matches.
+ * Upload a buffer to Vercel Blob.
+ * Overwrites occur naturally when the blob key is identical.
  */
 export async function uploadBuffer(
   filename: string,
@@ -34,7 +41,7 @@ export async function uploadBuffer(
   const blob = await put(safe, buf, {
     access: "public",
     contentType: opts.contentType ?? "image/png",
-    addRandomSuffix: opts.addRandomSuffix ?? false, // default false → overwrites allowed
+    addRandomSuffix: opts.addRandomSuffix ?? false,
   });
 
   return blob.url;

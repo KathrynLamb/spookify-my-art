@@ -99,7 +99,7 @@ export const PRODUCTS = [
       "https://cdn.sanity.io/images/...3",
     ],
 
-    prices: { GBP: 11.99, USD: 36.99, EUR: 33.99 },
+    prices: { GBP: 19.99, USD: 36.99, EUR: 33.99 },
     shippingTime: {
       uk: "2–4 business days",
       eu: "3–6 business days",

@@ -273,10 +273,10 @@ export default function HomePage() {
 
         {/* tiny trust row */}
         <ul className="mt-4 grid grid-cols-1 gap-2 text-xs text-neutral-400 sm:grid-cols-3">
-          <li className="flex items-center gap-2">
+          {/* <li className="flex items-center gap-2">
             <span className="h-1.5 w-1.5 rounded-full bg-[#D7B46A]" />
             Archival inks · FSC-certified papers
-          </li>
+          </li> */}
           <li className="flex items-center gap-2">
             <span className="h-1.5 w-1.5 rounded-full bg-[#D7B46A]" />
             Printed near you · Ships worldwide

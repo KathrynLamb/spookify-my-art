@@ -141,6 +141,8 @@ export default function DesignPage() {
     [projectId, user?.email]
   );
 
+  console.log("title", title)
+
   /* -------------------------------------------------------------
    * LOAD EXISTING PROJECT
    * ------------------------------------------------------------- */

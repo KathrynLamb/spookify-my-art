@@ -8,7 +8,7 @@ function safeFilename(path: string): string {
   // Preserve: letters, numbers, /, _, -, .
   const cleaned = path.replace(/[^a-zA-Z0-9/_\.-]/g, "_");
 
-  // If path too long, shorten ONLY the filename — never the folder prefix
+  // If too long, shorten the filename only
   if (cleaned.length > 200) {
     const parts = cleaned.split("/");
     const file = parts.pop()!;
@@ -23,8 +23,8 @@ function safeFilename(path: string): string {
 
 export type UploadBufferOptions = {
   contentType?: string;
-  addRandomSuffix?: boolean; // for immutable/revisioned blobs
-  allowOverwrite?: boolean;  // for "latest" blobs
+  addRandomSuffix?: boolean;
+  allowOverwrite?: boolean;
 };
 
 /**
@@ -37,17 +37,20 @@ export async function uploadBuffer(
 ): Promise<string> {
   const safe = safeFilename(filename);
 
-  const options: any = {
+  // Fully typed internal options object (no `any`)
+  const uploadOpts: {
+    access: "public";
+    contentType: string;
+    addRandomSuffix?: boolean;
+    allowOverwrite?: boolean;
+  } = {
     access: "public",
     contentType: opts.contentType ?? "image/png",
-    addRandomSuffix: opts.addRandomSuffix ?? false,
   };
 
-  if (typeof opts.allowOverwrite === "boolean") {
-    options.allowOverwrite = opts.allowOverwrite;
-  }
+  if (opts.addRandomSuffix) uploadOpts.addRandomSuffix = opts.addRandomSuffix;
+  if (opts.allowOverwrite) uploadOpts.allowOverwrite = opts.allowOverwrite;
 
-  const blob = await put(safe, buf, options);
-
+  const blob = await put(safe, buf, uploadOpts);
   return blob.url;
 }

@@ -80,7 +80,7 @@ export async function POST(req: Request) {
       (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "") ||
       reqUrl.origin;
 
-    const isDigital = sku === "print-at-home";
+    // const isDigital = sku === "print-at-home";
 
     const application_context = {
       brand_name: "Ai Gifts",

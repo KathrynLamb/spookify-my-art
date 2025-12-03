@@ -86,9 +86,14 @@ export default function CheckoutClient() {
 
     const s = document.createElement('script');
     s.id = id;
-    s.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(
-      CLIENT_ID
-    )}&currency=${encodeURIComponent(currency)}&components=buttons`;
+    s.src =
+    `https://www.paypal.com/sdk/js` +
+    `?client-id=${encodeURIComponent(CLIENT_ID)}` +
+    `&currency=${encodeURIComponent(currency)}` +
+    `&intent=capture` +
+    `&enable-funding=card,venmo,applepay,googlepay,paylater` +
+    `&components=buttons,funding-eligibility`;
+  
     s.async = true;
     s.onload = () => setSdkReady(true);
     s.onerror = () => {
@@ -104,6 +109,7 @@ export default function CheckoutClient() {
     if (!window.paypal?.Buttons) return;
 
     const buttons = window.paypal.Buttons({
+  
       style: { layout: 'vertical', color: 'gold', shape: 'rect', label: 'paypal' },
 
       createOrder: async () => {

@@ -8,6 +8,7 @@ import { CanvasStage } from "./components/CanvasStage";
 import { ChatBox } from "./components/ChatBox";
 import { Composer } from "./components/Composer";
 import { ReferencePanel } from "./components/ReferencePanel";
+import { useUser } from "@/hooks/useUser"; // needed for email
 
 import { useUploads } from "./hooks/useUploads";
 import { useDesignChat } from "./hooks/useDesignChat";
@@ -52,6 +53,11 @@ export default function DesignPage() {
 
   const [selectedProduct, setSelectedProduct] =
     useState<SelectedProduct | null>(null);
+const { user } = useUser();
+
+const [projectId, setProjectId] = useState<string | null>(null);
+const projectCreated = useRef(false);
+
 
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -72,6 +78,10 @@ export default function DesignPage() {
     useDesignChat(selectedProduct, imageId);
 
 
+    // const firstMessageSent = useRef(false);
+
+
+    
 
     const [currency, setCurrency] = useState<Currency>("GBP");
     
@@ -145,6 +155,11 @@ export default function DesignPage() {
 
         setReferences(nextRefs);
 
+        if (projectId) {
+          updateProject({ references: nextRefs });
+        }
+        
+
         if (!originalUrl) {
           setOriginalUrl(nextRefs[0].url);
           setPreviewUrl(nextRefs[0].url);
@@ -184,6 +199,100 @@ export default function DesignPage() {
     },
     [handleUpload, references, originalUrl, plan, sendMessage, addReference]
   );
+  /* -------------------------------------------------------------
+   *  Create project from first message
+     * ------------------------------------------------------------- */
+  const createProject = useCallback(
+    async (title: string, firstAssistantMessage: string) => {
+      if (!user?.email) return;
+  
+      try {
+        const res = await fetch("/api/projects/create", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: user.email,
+            title,
+            previewUrl: null,
+            productId,
+            imageId,
+            createdAt: Date.now(),
+            messages: [{ role: "assistant", content: firstAssistantMessage }],
+            references: []
+          })
+        });
+  
+        const data = await res.json();
+        if (data.ok) setProjectId(data.id);
+      } catch (err) {
+        console.error("Project creation failed", err);
+      }
+    },
+    [user?.email, productId, imageId] // perfect dependency list
+  );
+  
+  
+  
+  useEffect(() => {
+    // Only run once AND only after assistant sends FIRST message
+    if (projectCreated.current) return;
+    if (messages.length !== 1) return;
+    if (messages[0].role !== "assistant") return;
+  
+    const msg = messages[0];
+    let title = "Untitled Project";
+    let messageText = msg.content ?? "";
+  
+    // Try parse JSON first-response
+    try {
+      const parsed = JSON.parse(msg.content);
+      if (parsed.title) title = parsed.title;
+      if (parsed.message) messageText = parsed.message;
+    } catch {
+      // message was not JSON, fallback is fine
+    }
+  
+    createProject(title, messageText);
+    projectCreated.current = true;
+  }, [messages, user?.email]);
+
+  // -------------------------------------------------------------
+// UPDATE PROJECT WHEN DESIGN CHANGES
+// -------------------------------------------------------------
+async function updateProject(changes: Record<string, unknown>) {
+
+  if (!projectId) return;
+
+  try {
+    await fetch("/api/projects/update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectId,
+        updates: changes
+      })
+    });
+  } catch (err) {
+    console.error("Project update failed:", err);
+  }
+}
+
+// Watch for previewUrl updates
+useEffect(() => {
+  if (projectId && previewUrl) {
+    updateProject({ previewUrl });
+  }
+}, [previewUrl, projectId]);
+
+// Watch for improved plan title (AI refines project later)
+useEffect(() => {
+  if (projectId && plan?.title) {
+    updateProject({ title: plan.title });
+  }
+}, [plan?.title, projectId]);
+
+  
+  
 
   /* -------------------------------------------------------------
    *  PAYPAL CHECKOUT
@@ -230,7 +339,8 @@ export default function DesignPage() {
     } finally {
       setCheckingOut(false);
     }
-  }, [printUrl, previewUrl, imageId, selectedProduct]);
+  }, [printUrl, previewUrl, imageId, selectedProduct, updateProject, projectId]);
+
 
   /* -------------------------------------------------------------
    *  GEMINI GENERATION
@@ -285,6 +395,14 @@ export default function DesignPage() {
         }
 
         setPrintUrl(data.masterUrl);
+        if (projectId) {
+          updateProject({
+            previewUrl: data.mockupUrl ?? data.previewUrl ?? data.masterUrl,
+            finalImage: data.masterUrl,
+            updatedAt: Date.now(),
+          });
+        }
+        
         if (data.previewUrl) setOriginalUrl(data.previewUrl);
 
         setPreviewUrl(

@@ -143,28 +143,51 @@ export function useDesignChat(
   /* -------------------------------------------------------------
    * Greeting
    * ------------------------------------------------------------- */
-  const startGreeting = useCallback(async () => {
-    if (!selectedProduct) return;
+ /* -------------------------------------------------------------
+ * Greeting (FIRST assistant message must be JSON)
+ * ------------------------------------------------------------- */
+const startGreeting = useCallback(async () => {
+  if (!selectedProduct) return;
 
-    addTyping();
+  addTyping();
 
-    const res = await fetch("/api/chat", {
-      method: "POST",
-      body: JSON.stringify({
-        messages: [{ role: "user", content: "Kickoff greeting only." }],
-        selectedProduct,
-      }),
-      headers: { "Content-Type": "application/json" },
-    });
+  const res = await fetch("/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      selectedProduct,
+      messages: [
+        {
+          role: "user",
+          content: `
+Your job is to help design custom artwork for the user's chosen product.
 
-    const data: ChatResponse = await res.json();
-    removeTyping();
+For your FIRST reply ONLY, respond in STRICT JSON (no markdown, no explanation) using the following exact structure:
 
-    setMessages([{ role: "assistant", content: data.content }]);
+{
+  "title": "A short, creative project title based on the product and user request",
+  "message": "A friendly greeting to begin the design conversation"
+}
 
-    if (data.plan) setPlan(data.plan);
-    if (data.productPlan) setProductPlan(data.productPlan);
-  }, [selectedProduct]);
+Do NOT add backticks.
+Do NOT add commentary outside the JSON.
+Reply ONLY with valid JSON.
+          `.trim()
+        }
+      ]
+    }),
+  });
+
+  const data: ChatResponse = await res.json();
+  removeTyping();
+
+  // 👉 The FIRST assistant message will now be JSON
+  setMessages([{ role: "assistant", content: data.content }]);
+
+  if (data.plan) setPlan(data.plan);
+  if (data.productPlan) setProductPlan(data.productPlan);
+}, [selectedProduct]);
+
 
   /* -------------------------------------------------------------
    * EXPORT

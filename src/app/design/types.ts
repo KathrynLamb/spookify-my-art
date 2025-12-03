@@ -112,6 +112,7 @@ export type Plan = {
   palette?: string;
   avoid?: string[];
   textOverlay?: string;
+  title?: string;
 
   referencesNeeded?: string[];   // from GPT
   references?: Reference[];      // added by uploads

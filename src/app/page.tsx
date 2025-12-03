@@ -354,7 +354,7 @@ export default function HomePage() {
       </section>
 
             {/* SOCIAL PROOF STRIP */}
-      <section className="mx-auto max-w-6xl px-6 pb-10">
+      {/* <section className="mx-auto max-w-6xl px-6 pb-10">
         <div className="grid gap-4 sm:grid-cols-3">
           <div className="rounded-xl bg-[#111216] p-4 ring-1 ring-[#24262B]">
             <p className="text-sm text-white/70">Rating</p>
@@ -369,7 +369,7 @@ export default function HomePage() {
             <p className="mt-1 text-lg font-semibold">FSC-certified papers · Archival inks</p>
           </div>
         </div>
-      </section>
+      </section> */}
 
       {/* FAQ */}
       <section className="mx-auto max-w-4xl px-6 pb-24">

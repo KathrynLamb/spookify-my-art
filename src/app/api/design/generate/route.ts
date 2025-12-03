@@ -60,9 +60,6 @@ function extractInlineImage(result: GeminiImageResponse) {
  * ------------------------------------------------------------- */
 export async function POST(req: NextRequest) {
   try {
-    /* ---------------------------------------------
-     * Parse input (typed)
-     * --------------------------------------------- */
     const body: {
       imageId: string;
       prompt: string;
@@ -93,16 +90,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    /* ---------------------------------------------
-     * Setup
-     * --------------------------------------------- */
     const ai = new GoogleGenAI({ apiKey });
 
     const { finalWidthPx, finalHeightPx } = pickPrintSpec(
       productId,
       clientPrintSpec
     );
-
     const aspectRatio = aspectFromNumber(finalWidthPx / finalHeightPx);
 
     const contents: {
@@ -110,7 +103,6 @@ export async function POST(req: NextRequest) {
       inlineData?: { mimeType: string; data: string };
     }[] = [{ text: prompt }];
 
-    // Attach reference photos as inlineData
     for (const ref of references) {
       if (!ref.url) continue;
 
@@ -125,9 +117,6 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    /* ---------------------------------------------
-     * Paths (revisioned + latest)
-     * --------------------------------------------- */
     const genPath = `designs/${imageId}/gen-${generation}`;
     const latestPath = `designs/${imageId}`;
 
@@ -153,16 +142,20 @@ export async function POST(req: NextRequest) {
 
     const masterBuffer = Buffer.from(masterInline.data, "base64");
 
-    // Save immutable
+    // Immutable revision (always unique)
     await uploadBuffer(`${genPath}/master.png`, masterBuffer, {
       contentType: masterInline.mimeType,
+      addRandomSuffix: true,
     });
 
-    // Save latest (overwrite)
+    // Latest (explicit overwrite)
     const masterUrl = await uploadBuffer(
       `${latestPath}/master.png`,
       masterBuffer,
-      { contentType: masterInline.mimeType }
+      {
+        contentType: masterInline.mimeType,
+        allowOverwrite: true,
+      }
     );
 
     /* ---------------------------------------------------------
@@ -196,14 +189,20 @@ No cropping or modifications.
       ? Buffer.from(previewInline.data, "base64")
       : masterBuffer;
 
+    // Immutable revision
     await uploadBuffer(`${genPath}/preview.png`, previewBuffer, {
       contentType: "image/png",
+      addRandomSuffix: true,
     });
 
+    // Latest
     const previewUrl = await uploadBuffer(
       `${latestPath}/preview.png`,
       previewBuffer,
-      { contentType: "image/png" }
+      {
+        contentType: "image/png",
+        allowOverwrite: true,
+      }
     );
 
     /* ---------------------------------------------------------
@@ -248,12 +247,16 @@ No cropping or modifications.
         ? Buffer.from(mockInline.data, "base64")
         : previewBuffer;
 
+      // Immutable revision
       await uploadBuffer(`${genPath}/mockup.png`, mockBuffer, {
         contentType: "image/png",
+        addRandomSuffix: true,
       });
 
+      // Latest
       mockupUrl = await uploadBuffer(`${latestPath}/mockup.png`, mockBuffer, {
         contentType: "image/png",
+        allowOverwrite: true,
       });
     }
 

@@ -6,7 +6,6 @@ import { put } from "@vercel/blob";
  */
 function safeFilename(path: string): string {
   // Preserve: letters, numbers, /, _, -, .
-  // Replace anything else with underscores.
   const cleaned = path.replace(/[^a-zA-Z0-9/_\.-]/g, "_");
 
   // If path too long, shorten ONLY the filename — never the folder prefix
@@ -24,12 +23,12 @@ function safeFilename(path: string): string {
 
 export type UploadBufferOptions = {
   contentType?: string;
-  addRandomSuffix?: boolean; // default false → overwrites allowed
+  addRandomSuffix?: boolean; // for immutable/revisioned blobs
+  allowOverwrite?: boolean;  // for "latest" blobs
 };
 
 /**
  * Upload a buffer to Vercel Blob.
- * Overwrites occur naturally when the blob key is identical.
  */
 export async function uploadBuffer(
   filename: string,
@@ -38,11 +37,17 @@ export async function uploadBuffer(
 ): Promise<string> {
   const safe = safeFilename(filename);
 
-  const blob = await put(safe, buf, {
+  const options: any = {
     access: "public",
     contentType: opts.contentType ?? "image/png",
     addRandomSuffix: opts.addRandomSuffix ?? false,
-  });
+  };
+
+  if (typeof opts.allowOverwrite === "boolean") {
+    options.allowOverwrite = opts.allowOverwrite;
+  }
+
+  const blob = await put(safe, buf, options);
 
   return blob.url;
 }

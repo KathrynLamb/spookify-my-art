@@ -1,3 +1,4 @@
+// src/app/api/design/generate/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
 import { uploadBuffer } from "@/lib/uploadBuffer";
@@ -9,49 +10,16 @@ export const dynamic = "force-dynamic";
 /* -------------------------------------------------------------
  * Types
  * ------------------------------------------------------------- */
+type ReferenceInput = { url: string; id?: string; role?: string };
+type ClientPrintSpec = { finalWidthPx: number; finalHeightPx: number };
 
-type ReferenceInput = {
-  url: string;
-  id?: string;
-  role?: string;
-};
-
-type ClientPrintSpec = {
-  finalWidthPx: number;
-  finalHeightPx: number;
-};
-
-type ProductPrintSpec = {
-  finalWidthPx: number;
-  finalHeightPx: number;
-};
-
-type GeminiInlinePart = {
-  inlineData?: {
-    mimeType: string;
-    data: string; // base64
-  };
-};
-
-type GeminiCandidate = {
-  content?: {
-    parts?: GeminiInlinePart[];
-  };
-};
-
-// Gemini 3 returns a predictable structure but SDK does not export a type.
-// We define a minimal runtime-safe version:
-type GeminiImageResponse = {
-  candidates?: GeminiCandidate[];
-  // allow any other fields returned by SDK
-  [key: string]: unknown;
-};
-
+type GeminiInlinePart = { inlineData?: { mimeType: string; data: string } };
+type GeminiCandidate = { content?: { parts?: GeminiInlinePart[] } };
+type GeminiImageResponse = { candidates?: GeminiCandidate[] };
 
 /* -------------------------------------------------------------
  * Helpers
  * ------------------------------------------------------------- */
-
 function aspectFromNumber(n: number): string {
   const a = Number(n || 1);
   if (Math.abs(a - 1) < 0.05) return "1:1";
@@ -62,67 +30,51 @@ function aspectFromNumber(n: number): string {
   return "1:1";
 }
 
-function pickPrintSpec(
-  productId?: string,
-  clientSpec?: ClientPrintSpec
-): ProductPrintSpec {
-  if (clientSpec?.finalWidthPx && clientSpec?.finalHeightPx) {
-    return {
-      finalWidthPx: clientSpec.finalWidthPx,
-      finalHeightPx: clientSpec.finalHeightPx,
-    };
-  }
+function pickPrintSpec(productId?: string, clientSpec?: ClientPrintSpec) {
+  if (clientSpec) return clientSpec;
 
   const match = PRODUCTS.find(
     (p) => p.productUID === productId || p.prodigiSku === productId
   );
 
-  if (match?.printSpec) {
-    return {
-      finalWidthPx: match.printSpec.finalWidthPx,
-      finalHeightPx: match.printSpec.finalHeightPx,
-    };
-  }
-
-  return { finalWidthPx: 2670, finalHeightPx: 1110 };
+  return (
+    match?.printSpec ?? {
+      finalWidthPx: 2670,
+      finalHeightPx: 1110,
+    }
+  );
 }
 
-/* -------------------------------------------------------------
- * Extract first inline base64 image from Gemini
- * ------------------------------------------------------------- */
-function extractInlineImage(
-  result: GeminiImageResponse
-): { data: string; mimeType: string } | null {
+function extractInlineImage(result: GeminiImageResponse) {
   const part = result.candidates?.[0]?.content?.parts?.find(
     (p) => p.inlineData?.data
   );
 
-  if (!part?.inlineData) return null;
-
-  return {
-    data: part.inlineData.data,
-    mimeType: part.inlineData.mimeType,
-  };
+  return part?.inlineData
+    ? { data: part.inlineData.data, mimeType: part.inlineData.mimeType }
+    : null;
 }
 
 /* -------------------------------------------------------------
- * MAIN ROUTE
+ * MAIN ROUTE — generation-aware, overwrite-safe
  * ------------------------------------------------------------- */
-
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json()) as {
-      imageId?: string;
-      prompt?: string;
+    /* ---------------- Parse body safely ---------------- */
+    const body: {
+      imageId: string;
+      prompt: string;
       productId?: string;
+      generation?: number;
       printSpec?: ClientPrintSpec;
       references?: ReferenceInput[];
-    };
+    } = await req.json();
 
     const {
       imageId,
       prompt,
       productId,
+      generation = 1,
       printSpec: clientPrintSpec,
       references = [],
     } = body;
@@ -139,21 +91,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    /* ---------------- Setup ---------------- */
     const ai = new GoogleGenAI({ apiKey });
 
-    /* -------------------- PRINT SIZE -------------------- */
     const { finalWidthPx, finalHeightPx } = pickPrintSpec(
       productId,
       clientPrintSpec
     );
-
     const aspectRatio = aspectFromNumber(finalWidthPx / finalHeightPx);
 
-    /* -------------------- BUILD CONTENTS -------------------- */
-    const contents: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> = [
+    const contents: { text?: string; inlineData?: { mimeType: string; data: string } }[] = [
       { text: prompt },
     ];
 
+    // Inline reference images
     for (const ref of references) {
       if (!ref.url) continue;
 
@@ -164,167 +115,159 @@ export async function POST(req: NextRequest) {
       const mime = fetched.headers.get("content-type") ?? "image/png";
 
       contents.push({
-        inlineData: {
-          mimeType: mime,
-          data: buf.toString("base64"),
-        },
+        inlineData: { mimeType: mime, data: buf.toString("base64") },
       });
     }
 
-    /* -------------------------------------------------------------
-     * 1) MASTER (print-ready artwork)
-     * ------------------------------------------------------------- */
-    const masterGen = (await ai.models.generateContent({
+    /* ---------------- Revision + Latest Paths ---------------- */
+    const genPath = `designs/${imageId}/gen-${generation}`;
+    const latestPath = `designs/${imageId}`;
+
+    /* ---------------------------------------------------------
+     * 1) MASTER (print-quality)
+     * --------------------------------------------------------- */
+    const masterResponse = (await ai.models.generateContent({
       model: "gemini-3-pro-image-preview",
       contents,
       config: {
         responseModalities: ["IMAGE"],
-        imageConfig: {
-          imageSize: "2K",
-          aspectRatio,
-        },
+        imageConfig: { imageSize: "2K", aspectRatio },
       },
-    })) as unknown as GeminiImageResponse;
+    })) as GeminiImageResponse;
 
-    const masterImg = extractInlineImage(masterGen);
-
-    if (!masterImg) {
+    const masterInline = extractInlineImage(masterResponse);
+    if (!masterInline) {
       return NextResponse.json(
         { error: "Gemini returned no master image" },
         { status: 500 }
       );
     }
 
-    const masterBuffer = Buffer.from(masterImg.data, "base64");
-    const safeId = imageId || `design-${Date.now()}`;
+    const masterBuffer = Buffer.from(masterInline.data, "base64");
 
+    // Save immutable revision
+    await uploadBuffer(`${genPath}/master.png`, masterBuffer, {
+      contentType: masterInline.mimeType,
+    });
+
+    // Save latest (overwrites allowed because filename is same)
     const masterUrl = await uploadBuffer(
-      `designs/${safeId}/master.png`,
+      `${latestPath}/master.png`,
       masterBuffer,
-      { contentType: masterImg.mimeType }
+      { contentType: masterInline.mimeType }
     );
 
-    /* -------------------------------------------------------------
+    /* ---------------------------------------------------------
      * 2) PREVIEW (watermarked)
-     * ------------------------------------------------------------- */
-
+     * --------------------------------------------------------- */
     const previewPrompt = `
-Reproduce the exact supplied artwork and overlay a diagonal semi-transparent watermark:
+Reproduce the supplied artwork exactly and overlay a diagonal semi-transparent watermark:
 "PREVIEW — NOT FOR PRINT"
-Nothing else should be changed.  
-Same aspect ratio.  
-No cropping or borders.
-    `;
+No cropping or modifications.
+`;
 
-    const previewGen = (await ai.models.generateContent({
+    const previewResponse = (await ai.models.generateContent({
       model: "gemini-3-pro-image-preview",
       contents: [
         { text: previewPrompt },
         {
           inlineData: {
-            mimeType: masterImg.mimeType,
-            data: masterImg.data,
+            mimeType: masterInline.mimeType,
+            data: masterInline.data,
           },
         },
       ],
       config: {
         responseModalities: ["IMAGE"],
-        imageConfig: {
-          imageSize: "1K",
-          aspectRatio,
-        },
+        imageConfig: { imageSize: "1K", aspectRatio },
       },
-    })) as unknown as GeminiImageResponse;
+    })) as GeminiImageResponse;
 
-    const previewImg = extractInlineImage(previewGen);
-    const previewBuffer = previewImg
-      ? Buffer.from(previewImg.data, "base64")
+    const previewInline = extractInlineImage(previewResponse);
+    const previewBuffer = previewInline
+      ? Buffer.from(previewInline.data, "base64")
       : masterBuffer;
 
+    await uploadBuffer(`${genPath}/preview.png`, previewBuffer, {
+      contentType: "image/png",
+    });
+
     const previewUrl = await uploadBuffer(
-      `designs/${safeId}/preview.png`,
+      `${latestPath}/preview.png`,
       previewBuffer,
       { contentType: "image/png" }
     );
 
-    /* -------------------------------------------------------------
+    /* ---------------------------------------------------------
      * 3) MOCKUP
-     * ------------------------------------------------------------- */
+     * --------------------------------------------------------- */
+    /* ---------------------------------------------------------
+ * 3) MOCKUP
+ * --------------------------------------------------------- */
+let mockupUrl = previewUrl;
 
-    const product = PRODUCTS.find(
-      (p) => p.productUID === productId || p.prodigiSku === productId
-    );
+const product = PRODUCTS.find(
+  (p) => p.productUID === productId || p.prodigiSku === productId
+);
 
-    const mock = product?.mockup;
+if (product?.mockup) {
+  // ---- FIX: treat mock object as flexible, optional fields allowed ----
+  const mock = product.mockup as {
+    prompt: string;
+    imageSize?: string;
+    aspectRatio?: string;
+    [key: string]: unknown;
+  };
 
-    if (!mock) {
-      console.warn("[design/generate] No mockup config for product:", productId);
-      return NextResponse.json({
-        masterUrl,
-        previewUrl,
-        mockupUrl: previewUrl,
-      });
-    }
-
-    const mockupGen = (await ai.models.generateContent({
-      model: "gemini-3-pro-image-preview",
-      contents: [
-        { text: mock.prompt },
-        {
-          inlineData: {
-            mimeType: "image/png",
-            data: previewBuffer.toString("base64"),
-          },
-        },
-      ],
-      config: {
-        responseModalities: ["IMAGE"],
-    
-        // ---- FIX: Remove `any`, replace with typed wrapper ----
-        imageConfig: {
-          // Allow mock to optionally include overrides:
-          ...(() => {
-            type MockupConfigLoose = {
-              imageSize?: string;
-              aspectRatio?: string;
-              prompt: string;
-              [key: string]: unknown;
-            };
-    
-            const m = mock as unknown as MockupConfigLoose;
-    
-            return {
-              imageSize: m.imageSize ?? "2K",
-              aspectRatio: m.aspectRatio ?? "4:3",
-            };
-          })(),
+  const mockResponse = (await ai.models.generateContent({
+    model: "gemini-3-pro-image-preview",
+    contents: [
+      { text: mock.prompt },
+      {
+        inlineData: {
+          mimeType: "image/png",
+          data: previewBuffer.toString("base64"),
         },
       },
-    })) as unknown as GeminiImageResponse;
-    
+    ],
+    config: {
+      responseModalities: ["IMAGE"],
+      imageConfig: {
+        imageSize: mock.imageSize ?? "2K",
+        aspectRatio: mock.aspectRatio ?? "4:3",
+      },
+    },
+  })) as GeminiImageResponse;
 
-    const mockImg = extractInlineImage(mockupGen);
-    const mockupBuffer = mockImg
-      ? Buffer.from(mockImg.data, "base64")
-      : previewBuffer;
+  const mockInline = extractInlineImage(mockResponse);
+  const mockBuffer = mockInline
+    ? Buffer.from(mockInline.data, "base64")
+    : previewBuffer;
 
-    const mockupUrl = await uploadBuffer(
-      `designs/${safeId}/mockup.png`,
-      mockupBuffer,
-      { contentType: "image/png" }
-    );
+  await uploadBuffer(`${genPath}/mockup.png`, mockBuffer, {
+    contentType: "image/png",
+  });
 
-    /* -------------------------------------------------------------
+  mockupUrl = await uploadBuffer(`${latestPath}/mockup.png`, mockBuffer, {
+    contentType: "image/png",
+  });
+}
+
+    /* ---------------------------------------------------------
      * RESPONSE
-     * ------------------------------------------------------------- */
+     * --------------------------------------------------------- */
     return NextResponse.json({
       masterUrl,
       previewUrl,
       mockupUrl,
+      generation,
+      revisionPath: genPath,
     });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    console.error("❌ /api/design/generate error", err);
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Unknown server error";
+
+    console.error("❌ Error in /api/design/generate:", err);
 
     return NextResponse.json({ error: message }, { status: 500 });
   }

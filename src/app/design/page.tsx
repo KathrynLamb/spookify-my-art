@@ -326,6 +326,7 @@ export default function DesignPage() {
     <main className="min-h-screen p-6 bg-black text-white max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* LEFT SIDE */}
       <div className="lg:col-span-1 space-y-4">
+      <div className="lg:col-span-1 space-y-4">
         <ProductInfo
           product={selectedProduct}
           previewUrl={previewUrl}
@@ -378,9 +379,9 @@ export default function DesignPage() {
           </div>
         )}
 
-        <div className="rounded-xl border border-white/10 bg-black/40 p-3 text-xs text-white/70 space-y-2">
-          {hasFinalDesign ? (
-            <>
+          {hasFinalDesign && (
+            <div className="rounded-xl border border-white/10 bg-black/40 p-3 text-xs text-white/70 space-y-2">
+
               <div className="text-white font-semibold text-sm">
                 Next step
               </div>
@@ -411,18 +412,9 @@ export default function DesignPage() {
                   {checkingOut ? "Opening PayPal…" : "I'm happy with it"}
                 </button>
               </div>
-            </>
-          ) : (
-            <>
-              <div className="text-white font-semibold text-sm">
-                How this works
-              </div>
-              <p>
-                Describe what you’d like. The assistant may request reference
-                photos, then create your artwork here.
-              </p>
-            </>
-          )}
+            </div>
+          )} 
+          
         </div>
 
         <ReferencePanel
@@ -433,6 +425,15 @@ export default function DesignPage() {
 
       {/* RIGHT SIDE */}
       <div className="lg:col-span-2 space-y-4">
+          <div>
+              <div className="text-white font-semibold text-sm">
+                How this works
+              </div>
+              <p>
+                Describe what you’d like. The assistant may request reference
+                photos, then create your artwork here.
+              </p>
+          </div>
         <ChatBox messages={messages} />
         <Composer onSend={sendMessage} disabled={uploading || generating} />
       </div>

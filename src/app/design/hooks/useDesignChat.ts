@@ -19,7 +19,14 @@ export function useDesignChat(
   imageId: string | null
 ) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [plan, setPlan] = useState<Plan>({});
+  const [plan, setPlan] = useState<Plan>({
+    references: [],
+    referencesNeeded: [],
+    userConfirmed: false,
+    finalizedPrompt: null,
+  });
+  
+
   const [productPlan, setProductPlan] = useState<ProductPlan | null>(null);
 
   /* -------------------------------------------------------------
@@ -195,6 +202,18 @@ const startGreeting = useCallback(async () => {
   if (data.productPlan) setProductPlan(data.productPlan);
 }, [selectedProduct]);
 
+/** ---------------------------------------------
+ * RESTORE PREVIOUS SESSION (loaded from Firestore)
+ * --------------------------------------------- */
+function restoreMessages(prev: ChatMessage[]) {
+  setMessages(prev);
+}
+
+function restorePlan(prev: Plan | null) {
+  if (prev) {
+    setPlan(prev);
+  }
+}
 
 
   /* -------------------------------------------------------------
@@ -207,5 +226,7 @@ const startGreeting = useCallback(async () => {
     sendMessage,
     startGreeting,
     addReference,
+    restoreMessages,   // 👈 ADD
+    restorePlan,   
   };
 }

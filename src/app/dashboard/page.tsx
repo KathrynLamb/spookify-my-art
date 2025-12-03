@@ -49,7 +49,7 @@ export default function DashboardPage() {
             key={p.id}
             variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }}
           >
-            <ProjectCard project={p} onClick={() => {}} />
+            <ProjectCard project={p} onClick={() => {console.log("Project", p)}} />
           </motion.div>
         ))}
       </motion.div>

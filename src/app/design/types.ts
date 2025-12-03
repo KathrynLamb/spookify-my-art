@@ -113,13 +113,15 @@ export type Plan = {
   avoid?: string[];
   textOverlay?: string;
   title?: string;
+  finalizedPrompt?: string | null;
 
   referencesNeeded?: string[];   // from GPT
   references?: Reference[];      // added by uploads
 
   orientation?: 'Horizontal' | 'Vertical' | 'Square' | null;
   targetAspect?: number | null;
-  finalizedPrompt?: string;
+
+  
   userConfirmed?: boolean;
 };
 
@@ -148,8 +150,9 @@ export type ChatMessage = {
   role: Role;
   content: string;
   images?: string[];
-  typing?: boolean
-};
+  typing?: boolean;
+
+}
 
 // export type ChatResponse = {
 //   content: string;

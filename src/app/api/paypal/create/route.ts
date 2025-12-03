@@ -4,46 +4,17 @@ import { ORDER_CTX } from "@/app/api/_order-kv";
 
 export const runtime = "nodejs";
 
-/* ---------------------------------------------
- * TYPES
- * --------------------------------------------- */
-
-type CreateOrderBody = {
-  amount: number;
-  currency?: string;
-  title?: string;
-  imageId: string;
-  fileUrl: string;
-  sku?: string;
-  vendor?: string;
-};
-
-type PayPalLink = {
-  href: string;
-  rel: string;
-  method: string;
-};
-
-type PayPalCreateResponse = {
-  id: string;
-  links: PayPalLink[];
-};
-
-/* ---------------------------------------------
- * MAIN ROUTE
- * --------------------------------------------- */
-
 export async function POST(req: Request) {
   try {
     const {
       amount,
       currency = "GBP",
-      title,
+      title = "Custom Artwork",
       imageId,
       fileUrl,
-      sku,
+      sku = "unknown",
       vendor = "prodigi",
-    } = (await req.json()) as CreateOrderBody;
+    } = await req.json();
 
     if (!imageId || !fileUrl) {
       return NextResponse.json(
@@ -53,22 +24,44 @@ export async function POST(req: Request) {
     }
 
     /* ---------------------------------------------
-     * PAYPAL AUTH
+     * CHECK ENV VARS
      * --------------------------------------------- */
-    const clientId = process.env.PAYPAL_CLIENT_ID!;
-    const secret = process.env.PAYPAL_SECRET!;
-    const auth = Buffer.from(`${clientId}:${secret}`).toString("base64");
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL;
+    if (!baseUrl) {
+      console.error("❌ Missing NEXT_PUBLIC_SITE_URL");
+      return NextResponse.json(
+        { error: "Server missing NEXT_PUBLIC_SITE_URL" },
+        { status: 500 }
+      );
+    }
+
+    const clientId = process.env.PAYPAL_CLIENT_ID;
+    const secret = process.env.PAYPAL_CLIENT_SECRET;
+
+    if (!clientId || !secret) {
+      console.error("❌ Missing PayPal keys");
+      return NextResponse.json(
+        { error: "PayPal credentials missing" },
+        { status: 500 }
+      );
+    }
+
+    /* ---------------------------------------------
+     * SANDBOX MODE (correct)
+     * --------------------------------------------- */
+    const PAYPAL_API =
+      process.env.PAYPAL_MODE === "live"
+        ? "https://api-m.paypal.com"
+        : "https://api-m.sandbox.paypal.com";
+
+    const authHeader = Buffer.from(`${clientId}:${secret}`).toString("base64");
 
     const invoiceId = `AI-${imageId}-${Date.now()}`;
 
-    /* ---------------------------------------------
-     * PURCHASE UNIT
-     * --------------------------------------------- */
     const purchaseUnit = {
       reference_id: imageId,
       custom_id: imageId,
       invoice_id: invoiceId,
-
       amount: {
         currency_code: currency,
         value: amount.toFixed(2),
@@ -79,10 +72,9 @@ export async function POST(req: Request) {
           },
         },
       },
-
       items: [
         {
-          name: title ?? "Custom Artwork",
+          name: title,
           quantity: "1",
           sku,
           unit_amount: {
@@ -97,45 +89,46 @@ export async function POST(req: Request) {
     };
 
     /* ---------------------------------------------
-     * CREATE PAYPAL ORDER
+     * CREATE ORDER
      * --------------------------------------------- */
-    const response = await fetch(
-      "https://api-m.paypal.com/v2/checkout/orders",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Basic ${auth}`,
-          "Content-Type": "application/json",
+    const paypalRes = await fetch(`${PAYPAL_API}/v2/checkout/orders`, {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${authHeader}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        intent: "CAPTURE",
+        purchase_units: [purchaseUnit],
+        application_context: {
+          brand_name: "AI Gifts",
+          landing_page: "BILLING",
+          user_action: "PAY_NOW",
+          shipping_preference: "NO_SHIPPING",
+          return_url: `${baseUrl}/paypal/return`,
+          cancel_url: `${baseUrl}/paypal/cancel`,
         },
-        body: JSON.stringify({
-          intent: "CAPTURE",
-          purchase_units: [purchaseUnit],
-          application_context: {
-            brand_name: "AI Gifts",
-            landing_page: "BILLING", // Guest checkout enabled
-            user_action: "PAY_NOW",
-            shipping_preference: "NO_SHIPPING",
-            return_url: `${process.env.NEXT_PUBLIC_URL}/paypal/return`,
-            cancel_url: `${process.env.NEXT_PUBLIC_URL}/paypal/cancel`,
-          },
-        }),
-      }
-    );
+      }),
+    });
 
-    const json = (await response.json()) as PayPalCreateResponse;
+    const data = await paypalRes.json();
 
-    if (!response.ok) {
-      console.error("PayPal Order Create Error:", json);
+    if (!paypalRes.ok) {
+      console.error("❌ PayPal Error:", data);
       return NextResponse.json(
-        { error: "PayPal order create failed", details: json },
+        { error: "PayPal order create failed", details: data },
         { status: 500 }
       );
     }
 
-    /* ---------------------------------------------
-     * SAVE ORDER CONTEXT
-     * --------------------------------------------- */
-    ORDER_CTX.set(json.id, {
+    type PayPalLink = { href: string; rel: string; method?: string };
+
+    const approve = (data.links as PayPalLink[]).find(
+      (l) => l.rel === "approve"
+    );
+    
+
+    ORDER_CTX.set(data.id, {
       imageId,
       fileUrl,
       sku,
@@ -144,20 +137,13 @@ export async function POST(req: Request) {
       status: "CREATED",
     });
 
-    /* ---------------------------------------------
-     * FIND APPROVAL LINK (strict typed)
-     * --------------------------------------------- */
-    const approveLink = json.links.find(
-      (l: PayPalLink) => l.rel === "approve"
-    );
-
     return NextResponse.json({
-      orderId: json.id,
-      invoiceId,
-      approveUrl: approveLink?.href,
+      ok: true,
+      orderId: data.id,
+      approveUrl: approve?.href,
     });
   } catch (err) {
-    console.error("PayPal Create Route Error:", err);
+    console.error("❌ PayPal Create Route Error:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

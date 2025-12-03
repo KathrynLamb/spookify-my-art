@@ -1,6 +1,7 @@
 // src/lib/authOptions.ts
 import type { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
+import { adminDb } from "./firebaseAdminApp";
 
 export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
@@ -44,7 +45,7 @@ export const authOptions: NextAuthOptions = {
   
     async signIn({ user }) {
       try {
-        const { adminDb } = await import("@/lib/firebase/admin");
+        // const { adminDb } = await import("@/lib/firebase/admin");
   
         if (!user.email) return true;
   

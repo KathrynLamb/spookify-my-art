@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useState } from "react";
 import CurrencySwitcher, { Currency } from "./CurrencySwitcher";
+import { SelectedProduct } from "../page";
 
 // import type { Currency, CurrencySwitcher } from "./CurrencySwitcher"; // <-- add this
 
@@ -11,27 +12,34 @@ import CurrencySwitcher, { Currency } from "./CurrencySwitcher";
  * TYPES
  * ------------------------------------------------------------- */
 type ProductInfoProps = {
-  product: {
-    title: string;
-    src: string;
-    description: string;
-    prices: Record<string, number>;
-    specs?: string[];
-    shippingTime?: {
-      uk?: string;
-      eu?: string;
-      us?: string;
-      [key: string]: string | undefined;
-    };
-    returnPolicy?: string;
-    care?: string[];
-  } | null;
 
+  
+  //   title: string;
+  //   src: string;
+  //   description: string;
+  //   prices: Record<string, number>;
+  //   specs?: string[];
+  //   shippingTime?: {
+  //     uk?: string;
+  //     eu?: string;
+  //     us?: string;
+  //     [key: string]: string | undefined;
+  //   };
+  //   returnPolicy?: string;
+  //   care?: string[];
+  // } | null;
+
+  // previewUrl: string | null;
+  // originalUrl: string | null;
+
+  // currency: Currency;                        // <-- updated
+  // onCurrencyChange: (c: Currency) => void;  
+  product: SelectedProduct | null;
   previewUrl: string | null;
   originalUrl: string | null;
+  currency: Currency;
+  onCurrencyChange: (c: Currency) => void;
 
-  currency: Currency;                        // <-- updated
-  onCurrencyChange: (c: Currency) => void;  
 };
 
 const SYMBOLS: Record<string, string> = {
@@ -69,7 +77,8 @@ export default function ProductInfo({
 
       {/* Price */}
       <div className="text-2xl font-semibold text-pink-400">
-        {SYMBOLS[currency] || currency} {price.toFixed(2)}
+      {SYMBOLS[currency] || currency} {(price ?? 0).toFixed(2)}
+
       </div>
 
       {/* Product Image */}

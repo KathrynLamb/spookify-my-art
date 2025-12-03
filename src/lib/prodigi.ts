@@ -6,7 +6,7 @@ type ShipMethod = "Budget" | "Standard" | "Express";
 export type PlaceProdigiArgs = {
   referenceId: string;
   sku: string;
-  assets: DraftAsset[];   
+  assets: DraftAsset[];
   shipmentMethod?: ShipMethod;
   shipping: {
     firstName: string;
@@ -16,6 +16,7 @@ export type PlaceProdigiArgs = {
     city: string;
     postalCode: string;
     countryCode: string;
+    stateOrCounty?: string; // optional, useful for US
     email?: string;
   };
 };
@@ -51,13 +52,18 @@ const PRODIGI_BASE =
 
 function buildPayload(a: PlaceProdigiArgs) {
   const recipientName =
-    [a.shipping.firstName, a.shipping.lastName].filter(Boolean).join(" ").trim() ||
-    "Customer";
+    [a.shipping.firstName, a.shipping.lastName]
+      .filter(Boolean)
+      .join(" ")
+      .trim() || "Customer";
 
   return {
     idempotencyId: a.referenceId,
-    shippingMethod: a.shipmentMethod || "Standard",
     merchantReference: a.referenceId,
+    shippingMethod: a.shipmentMethod || "Standard",
+    // Optional: enable test mode automatically outside live
+    // test: PRODIGI_ENV !== "live",
+
     recipient: {
       name: recipientName,
       email: a.shipping.email || "orders@aigifts.org",
@@ -67,16 +73,20 @@ function buildPayload(a: PlaceProdigiArgs) {
         postalOrZipCode: a.shipping.postalCode,
         countryCode: a.shipping.countryCode,
         townOrCity: a.shipping.city,
+        // Only send stateOrCounty if we have it
+        stateOrCounty: a.shipping.stateOrCounty || undefined,
       },
     },
+
     items: [
       {
         sku: a.sku,
         copies: 1,
         sizing: "fillPrintArea",
-        assets: a.assets.map((url) => ({
-          printArea: "default",
-          url,
+        assets: a.assets.map((asset) => ({
+          // use the asset's printArea if present, otherwise default
+          printArea: asset.printArea || "default",
+          url: asset.url,
         })),
       },
     ],

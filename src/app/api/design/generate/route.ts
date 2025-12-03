@@ -49,7 +49,6 @@ function extractInlineImage(result: GeminiImageResponse) {
   const part = result.candidates?.[0]?.content?.parts?.find(
     (p) => p.inlineData?.data
   );
-
   return part?.inlineData
     ? { data: part.inlineData.data, mimeType: part.inlineData.mimeType }
     : null;
@@ -59,31 +58,37 @@ function extractInlineImage(result: GeminiImageResponse) {
  * MAIN ROUTE
  * ------------------------------------------------------------- */
 export async function POST(req: NextRequest) {
-  try {
-    const body: {
-      imageId: string;
-      prompt: string;
-      productId?: string;
-      generation?: number;
-      printSpec?: ClientPrintSpec;
-      references?: ReferenceInput[];
-    } = await req.json();
+  const startTime = Date.now();
 
-    const {
-      imageId,
-      prompt,
-      productId,
-      generation = 1,
-      printSpec: clientPrintSpec,
-      references = [],
-    } = body;
+  try {
+    console.log("🎨 [START] /api/design/generate");
+
+    /* ---------------------------------------------
+     * Parse input
+     * --------------------------------------------- */
+    const body = await req.json();
+    console.log("📥 Incoming body:", JSON.stringify(body, null, 2));
+
+    const imageId: string = body.imageId;
+    const prompt: string = body.prompt;
+    const productId: string | undefined = body.productId;
+    const generation: number = body.generation ?? 1;
+    const clientPrintSpec: ClientPrintSpec | undefined = body.printSpec;
+    const references: ReferenceInput[] = body.references ?? [];
 
     if (!prompt) {
+      console.log("❌ Missing prompt");
       return NextResponse.json({ error: "Missing prompt" }, { status: 400 });
+    }
+
+    if (!imageId) {
+      console.log("❌ Missing imageId");
+      return NextResponse.json({ error: "Missing imageId" }, { status: 400 });
     }
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
+      console.log("❌ Missing GEMINI_API_KEY");
       return NextResponse.json(
         { error: "Missing GEMINI_API_KEY" },
         { status: 500 }
@@ -92,22 +97,42 @@ export async function POST(req: NextRequest) {
 
     const ai = new GoogleGenAI({ apiKey });
 
+    console.log("⚙️ Using Gemini key:", apiKey.slice(0, 5) + "...");
+
+    /* ---------------------------------------------
+     * Print specs
+     * --------------------------------------------- */
     const { finalWidthPx, finalHeightPx } = pickPrintSpec(
       productId,
       clientPrintSpec
     );
+
     const aspectRatio = aspectFromNumber(finalWidthPx / finalHeightPx);
 
+    console.log(
+      `📐 Print spec: ${finalWidthPx}x${finalHeightPx} (AR: ${aspectRatio})`
+    );
+
+    /* ---------------------------------------------
+     * Build inline contents
+     * --------------------------------------------- */
     const contents: {
       text?: string;
       inlineData?: { mimeType: string; data: string };
     }[] = [{ text: prompt }];
 
+    console.log(`🖼  Adding ${references.length} reference images…`);
+
     for (const ref of references) {
       if (!ref.url) continue;
 
+      console.log("↳ Fetching ref:", ref.url);
+
       const fetched = await fetch(ref.url);
-      if (!fetched.ok) continue;
+      if (!fetched.ok) {
+        console.log("❌ Error fetching reference:", ref.url);
+        continue;
+      }
 
       const buf = Buffer.from(await fetched.arrayBuffer());
       const mime = fetched.headers.get("content-type") ?? "image/png";
@@ -115,14 +140,29 @@ export async function POST(req: NextRequest) {
       contents.push({
         inlineData: { mimeType: mime, data: buf.toString("base64") },
       });
+
+      console.log(
+        `✓ Loaded reference (${mime}, ${Math.round(
+          buf.length / 1024
+        )} KB) from ${ref.url}`
+      );
     }
 
+    /* ---------------------------------------------
+     * Computed paths
+     * --------------------------------------------- */
     const genPath = `designs/${imageId}/gen-${generation}`;
     const latestPath = `designs/${imageId}`;
 
+    console.log("📁 genPath =", genPath);
+    console.log("📁 latestPath =", latestPath);
+
     /* ---------------------------------------------------------
-     * MASTER
+     * 1) MASTER
      * --------------------------------------------------------- */
+    console.log("🎨 Generating MASTER…");
+    const tMaster = Date.now();
+
     const masterResponse = (await ai.models.generateContent({
       model: "gemini-3-pro-image-preview",
       contents,
@@ -132,8 +172,12 @@ export async function POST(req: NextRequest) {
       },
     })) as GeminiImageResponse;
 
+    console.log("⏱ MASTER generation took", Date.now() - tMaster, "ms");
+
     const masterInline = extractInlineImage(masterResponse);
+
     if (!masterInline) {
+      console.log("❌ Gemini returned no master image");
       return NextResponse.json(
         { error: "Gemini returned no master image" },
         { status: 500 }
@@ -141,15 +185,22 @@ export async function POST(req: NextRequest) {
     }
 
     const masterBuffer = Buffer.from(masterInline.data, "base64");
+    console.log(
+      `✓ MASTER inline image extracted (${Math.round(
+        masterBuffer.length / 1024
+      )} KB)`
+    );
 
-    // Immutable revision (always unique)
+    /* Save immutable revision */
+    console.log("📤 Uploading MASTER revision…");
     await uploadBuffer(`${genPath}/master.png`, masterBuffer, {
       contentType: masterInline.mimeType,
       addRandomSuffix: true,
     });
 
-    // Latest (explicit overwrite)
-    const masterUrl = await uploadBuffer(
+    /* Save latest (overwrite) */
+    console.log("📤 Uploading MASTER latest…");
+    const rawMasterUrl = await uploadBuffer(
       `${latestPath}/master.png`,
       masterBuffer,
       {
@@ -158,9 +209,16 @@ export async function POST(req: NextRequest) {
       }
     );
 
+    // CACHE BUSTING
+    const masterUrl = `${rawMasterUrl}?v=${Date.now()}`;
+    console.log("🔗 masterUrl =", masterUrl);
+
     /* ---------------------------------------------------------
-     * PREVIEW
+     * 2) PREVIEW
      * --------------------------------------------------------- */
+    console.log("🎨 Generating PREVIEW…");
+    const tPreview = Date.now();
+
     const previewPrompt = `
 Reproduce the supplied artwork exactly and overlay a diagonal semi-transparent watermark:
 "PREVIEW — NOT FOR PRINT"
@@ -184,19 +242,29 @@ No cropping or modifications.
       },
     })) as GeminiImageResponse;
 
+    console.log("⏱ PREVIEW generation took", Date.now() - tPreview, "ms");
+
     const previewInline = extractInlineImage(previewResponse);
     const previewBuffer = previewInline
       ? Buffer.from(previewInline.data, "base64")
       : masterBuffer;
 
-    // Immutable revision
+    console.log(
+      `✓ PREVIEW buffer ready (${Math.round(
+        previewBuffer.length / 1024
+      )} KB)`
+    );
+
+    /* Upload preview revision */
+    console.log("📤 Uploading PREVIEW revision…");
     await uploadBuffer(`${genPath}/preview.png`, previewBuffer, {
       contentType: "image/png",
       addRandomSuffix: true,
     });
 
-    // Latest
-    const previewUrl = await uploadBuffer(
+    /* Upload preview latest */
+    console.log("📤 Uploading PREVIEW latest…");
+    const rawPreviewUrl = await uploadBuffer(
       `${latestPath}/preview.png`,
       previewBuffer,
       {
@@ -205,8 +273,11 @@ No cropping or modifications.
       }
     );
 
+    const previewUrl = `${rawPreviewUrl}?v=${Date.now()}`;
+    console.log("🔗 previewUrl =", previewUrl);
+
     /* ---------------------------------------------------------
-     * MOCKUP
+     * 3) MOCKUP
      * --------------------------------------------------------- */
     let mockupUrl = previewUrl;
 
@@ -215,12 +286,15 @@ No cropping or modifications.
     );
 
     if (product?.mockup) {
+      console.log("🎨 Generating MOCKUP…");
+
       const mock = product.mockup as {
         prompt: string;
         imageSize?: string;
         aspectRatio?: string;
-        [key: string]: unknown;
       };
+
+      const tMock = Date.now();
 
       const mockResponse = (await ai.models.generateContent({
         model: "gemini-3-pro-image-preview",
@@ -242,27 +316,48 @@ No cropping or modifications.
         },
       })) as GeminiImageResponse;
 
+      console.log("⏱ MOCKUP generation took", Date.now() - tMock, "ms");
+
       const mockInline = extractInlineImage(mockResponse);
       const mockBuffer = mockInline
         ? Buffer.from(mockInline.data, "base64")
         : previewBuffer;
 
-      // Immutable revision
+      console.log(
+        `✓ MOCKUP buffer ready (${Math.round(
+          mockBuffer.length / 1024
+        )} KB)`
+      );
+
+      /* Upload mockup revision */
+      console.log("📤 Uploading MOCKUP revision…");
       await uploadBuffer(`${genPath}/mockup.png`, mockBuffer, {
         contentType: "image/png",
         addRandomSuffix: true,
       });
 
-      // Latest
-      mockupUrl = await uploadBuffer(`${latestPath}/mockup.png`, mockBuffer, {
-        contentType: "image/png",
-        allowOverwrite: true,
-      });
+      /* Upload latest */
+      console.log("📤 Uploading MOCKUP latest…");
+      const rawMockupUrl = await uploadBuffer(
+        `${latestPath}/mockup.png`,
+        mockBuffer,
+        {
+          contentType: "image/png",
+          allowOverwrite: true,
+        }
+      );
+
+      mockupUrl = `${rawMockupUrl}?v=${Date.now()}`;
+      console.log("🔗 mockupUrl =", mockupUrl);
+    } else {
+      console.log("ℹ️ No mockup config for product:", productId);
     }
 
     /* ---------------------------------------------------------
-     * RESPONSE
+     * DONE
      * --------------------------------------------------------- */
+    console.log("✅ [DONE] Total time:", Date.now() - startTime, "ms");
+
     return NextResponse.json({
       masterUrl,
       previewUrl,
@@ -271,11 +366,9 @@ No cropping or modifications.
       revisionPath: genPath,
     });
   } catch (err) {
+    console.error("❌ ERROR in /api/design/generate:", err);
     const message =
       err instanceof Error ? err.message : "Unknown server error";
-
-    console.error("❌ Error in /api/design/generate:", err);
-
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

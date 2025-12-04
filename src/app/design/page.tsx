@@ -197,7 +197,7 @@ export default function DesignPage() {
       
         setSelectedProduct(prod);
         setOriginalUrl(prod.mockup?.template ?? null);
-        startGreeting();
+        // startGreeting();
         setLoading(false);
       }, [productParam, projectParam, router, startGreeting]);
       

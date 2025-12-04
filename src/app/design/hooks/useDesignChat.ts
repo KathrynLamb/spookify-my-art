@@ -170,6 +170,7 @@ export function useDesignChat(
 
 const startGreeting = useCallback(async () => {
   if (!selectedProduct) return;
+  if (messages.length > 0) return; // prevent duplicate greeting
 
   addTyping();
 
@@ -206,8 +207,12 @@ const startGreeting = useCallback(async () => {
  * RESTORE PREVIOUS SESSION (loaded from Firestore)
  * --------------------------------------------- */
 function restoreMessages(prev: ChatMessage[]) {
-  setMessages(prev);
+  setMessages((existing) => {
+    if (existing.length > 0) return existing;   // ← prevents overwrite loop
+    return prev;
+  });
 }
+
 
 function restorePlan(prev: Plan | null) {
   if (prev) {

@@ -168,7 +168,8 @@ export default function DesignPage() {
     setPrintUrl(project.finalImage ?? null);
     setReferences(project.references ?? []);
 
-    restoreMessages(project.messages ?? []);
+    restoreMessages(structuredClone(project.messages ?? []));
+
     restorePlan(project.plan ?? null);
 
     const found = PRODUCTS.find((p) => p.productUID === project.productId);
@@ -180,24 +181,26 @@ export default function DesignPage() {
   /* -------------------------------------------------------------
    * LOAD PRODUCT FOR NEW SESSION
    * ------------------------------------------------------------- */
-  const loadNewProduct = useCallback(() => {
-    if (!productParam) {
-      router.replace("/");
-      return;
-    }
 
-    const prod = PRODUCTS.find((p) => p.productUID === productParam);
-    if (!prod) {
-      router.replace("/");
-      return;
-    }
-
-    setSelectedProduct(prod);
-    setOriginalUrl(prod.mockup?.template ?? null);
-    startGreeting();
-    setLoading(false);
-  }, [productParam, router, startGreeting]);
-
+    const loadNewProduct = useCallback(() => {
+        if (projectParam) return;   // ← ADD THIS LINE
+        if (!productParam) {
+          router.replace("/");
+          return;
+        }
+      
+        const prod = PRODUCTS.find((p) => p.productUID === productParam);
+        if (!prod) {
+          router.replace("/");
+          return;
+        }
+      
+        setSelectedProduct(prod);
+        setOriginalUrl(prod.mockup?.template ?? null);
+        startGreeting();
+        setLoading(false);
+      }, [productParam, projectParam, router, startGreeting]);
+      
   /* INITIAL LOAD */
   useEffect(() => {
     if (!user) return;

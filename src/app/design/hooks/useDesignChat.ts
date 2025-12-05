@@ -61,23 +61,26 @@ export function useDesignChat(params: {
 
   const removeTyping = () =>
     setMessages((prev) => prev.filter((m) => !m.typing));
-
-  const mergePlan = (base: Plan, delta: Partial<Plan>): Plan => {
-    return {
-      ...base,
-      ...delta,
-      references:
-        delta.references && delta.references.length > 0
-          ? delta.references
-          : base.references,
-      referencesNeeded:
-        Array.isArray(delta.referencesNeeded) ||
-        delta.referencesNeeded === null
-          ? delta.referencesNeeded ?? undefined
-          : base.referencesNeeded,
+    const mergePlan = (base: Plan, delta: Partial<Plan>): Plan => {
+      const baseRefs = base.references ?? [];
+      const deltaRefs = delta.references ?? [];
+    
+      const byId = new Map<string, Reference>();
+      for (const r of baseRefs) byId.set(r.id, r);
+      for (const r of deltaRefs) byId.set(r.id, r);
+    
+      return {
+        ...base,
+        ...delta,
+        references: [...byId.values()],
+        referencesNeeded:
+          Array.isArray(delta.referencesNeeded) ||
+          delta.referencesNeeded === null
+            ? delta.referencesNeeded ?? undefined
+            : base.referencesNeeded,
+      };
     };
-  };
-
+    
   /* -------------------------------------------------------------
    * ADD REFERENCE
    * ------------------------------------------------------------- */

@@ -1,26 +1,43 @@
 "use client";
-import { motion } from "framer-motion";
+
+import { useEffect, useState } from "react";
+
+interface Particle {
+  x: number;
+  y: number;
+  size: number;
+  opacity: number;
+}
 
 export function Particles() {
+  const [particles, setParticles] = useState<Particle[]>([]);
+
+  useEffect(() => {
+    const TEMP: Particle[] = [];
+    for (let i = 0; i < 20; i++) {
+      TEMP.push({
+        x: Math.random() * window.innerWidth,
+        y: Math.random() * window.innerHeight,
+        size: Math.random() * 4 + 2,
+        opacity: Math.random(),
+      });
+    }
+    setParticles(TEMP);
+  }, []);
+
   return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden opacity-30">
-      {[...Array(18)].map((_, i) => (
-        <motion.div
+    <div className="fixed inset-0 overflow-hidden pointer-events-none">
+      {particles.map((p, i) => (
+        <div
           key={i}
-          className="absolute w-1.5 h-1.5 bg-pink-400 rounded-full"
-          initial={{
-            x: Math.random() * 800 - 400,
-            y: Math.random() * 800 - 400,
-            opacity: 0
-          }}
-          animate={{
-            y: ["0%", "-300%", "100%"],
-            opacity: [0.2, 0.5, 0],
-          }}
-          transition={{
-            duration: 12 + Math.random() * 10,
-            repeat: Infinity,
-            delay: i * 0.7,
+          className="absolute bg-pink-400 rounded-full blur-md"
+          style={{
+            width: p.size,
+            height: p.size,
+            left: p.x,
+            top: p.y,
+            opacity: p.opacity,
+            transition: "transform 8s linear",
           }}
         />
       ))}

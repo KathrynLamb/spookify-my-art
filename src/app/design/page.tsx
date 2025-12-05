@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Image from "next/image";
-
+import type { Reference } from "./types"; // adjust path if needed
 import type { Currency } from "./components/CurrencySwitcher";
 import { CanvasStage } from "./components/CanvasStage";
 import { ChatBox } from "./components/ChatBox";
@@ -318,26 +318,69 @@ const canOrder = !!_printUrl && !!projectId && !!selectedProduct;
   /* REFERENCE UPLOAD                                   */
   /* -------------------------------------------------- */
 
+
+
   const handleReferenceUpload = useCallback(
     async (label: string, file: File) => {
       setUploadError(null);
       const { imageId, url } = await handleUpload(file);
-
+  
+      // UI refs
       const next = [
         ...references.filter((r) => r.label !== label),
         { label, imageId, url },
       ];
-
       setReferences(next);
+  
+      // ✅ Build the exact plan we want the server to see
+      const base = chatPlan ?? {
+        references: [],
+        referencesNeeded: [],
+        finalizedPrompt: null,
+        userConfirmed: false,
+      };
+  
+      const nextRef: Reference = { id: imageId, url, label };
+  
+      const mergedRefs = [
+        ...(base.references ?? []).filter((r) => r.label !== label),
+        nextRef,
+      ];
+  
+      const remaining =
+        (base.referencesNeeded ?? []).filter((l) => l !== label);
+  
+      const overridePlan: Plan = {
+        ...base,
+        references: mergedRefs,
+        referencesNeeded: remaining.length ? remaining : undefined,
+      };
+  
+      // keep local plan in sync too
       addReference(label, imageId, url);
+  
+      // ✅ CRITICAL: send with override
       await sendMessage(
-        `I've uploaded the reference photo labeled "${label}". Please confirm you received it.`
+        `I've uploaded the reference photo labeled "${label}". Please confirm you received it.`,
+        overridePlan
       );
-      
-      updateProject({ references: next });
+  
+      // ✅ Persist BOTH shapes so reloads stay consistent
+      updateProject({
+        references: next,
+        plan: overridePlan,
+      });
     },
-    [references, handleUpload, addReference, updateProject, sendMessage]
+    [
+      references,
+      handleUpload,
+      addReference,
+      sendMessage,
+      updateProject,
+      chatPlan,
+    ]
   );
+  
 
   /* -------------------------------------------------- */
   /* PROJECT CREATION                                   */

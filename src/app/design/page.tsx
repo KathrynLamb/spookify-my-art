@@ -69,7 +69,7 @@ export default function DesignPage() {
   const productParam = search.get("product");
   const projectParam = search.get("projectId");
 
-  const { user } = useUser();
+  const { user, loading: userLoading } = useUser();
 
   const [loading, setLoading] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState<SelectedProduct | null>(null);
@@ -96,6 +96,27 @@ export default function DesignPage() {
 
   const [ordering, setOrdering] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
+
+  const redirectingRef = useRef(false);
+
+  useEffect(() => {
+    if (redirectingRef.current) return;
+    if (userLoading) return;
+    if (user) return;
+  
+    redirectingRef.current = true;
+  
+    const params = new URLSearchParams();
+    if (productParam) params.set("product", productParam);
+    if (projectParam) params.set("projectId", projectParam);
+  
+    const qs = params.toString();
+    const next = qs ? `/design?${qs}` : "/design";
+  
+    router.replace(`/login?next=${encodeURIComponent(next)}`);
+  }, [userLoading, user, router, productParam, projectParam]);
+  
+
 
   const hasFinalDesign = !!previewUrl && !generating;
 const canOrder = !!_printUrl && !!projectId && !!selectedProduct;
@@ -236,13 +257,13 @@ const canOrder = !!_printUrl && !!projectId && !!selectedProduct;
   /* -------------------------------------------------- */
 
   useEffect(() => {
+    if (userLoading) return;
     if (!user) return;
+  
     if (projectParam) loadExistingProject();
     else loadNewProduct();
-  }, [user, projectParam, loadExistingProject, loadNewProduct]);
-
-
-
+  }, [userLoading, user, projectParam, loadExistingProject, loadNewProduct]);
+  
 
     // --------------------------------------------------
   // PAY & ORDER (PayPal → Prodigi)
@@ -442,6 +463,24 @@ const canOrder = !!_printUrl && !!projectId && !!selectedProduct;
   /* UI                                                 */
   /* -------------------------------------------------- */
 
+
+  if (userLoading) {
+    return (
+      <main className="min-h-screen grid place-items-center text-white">
+        Loading…
+      </main>
+    );
+  }
+  
+  if (!user) {
+    // redirect effect will handle it
+    return (
+      <main className="min-h-screen grid place-items-center text-white">
+        Redirecting…
+      </main>
+    );
+  }
+  
   if (loading) {
     return (
       <main className="min-h-screen grid place-items-center text-white">
@@ -449,6 +488,7 @@ const canOrder = !!_printUrl && !!projectId && !!selectedProduct;
       </main>
     );
   }
+  
 
   // const hasFinalDesign = !!previewUrl && !generating;
 

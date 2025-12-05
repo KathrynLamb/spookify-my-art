@@ -18,8 +18,6 @@ export default function SiteHeaderClient({ session }: Props) {
   const [showDialog, setShowDialog] = useState(false);
   const [open, setOpen] = useState(false);
 
-  console.log("SESSION", session)
-
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
     window.addEventListener('scroll', onScroll, { passive: true });

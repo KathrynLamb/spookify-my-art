@@ -42,10 +42,16 @@ type DraftOrderContext = {
 
 /* -------------------- PAYPAL AUTH -------------------- */
 
+// const ENV =
+//   (process.env.PAYPAL_ENV ?? "sandbox").toLowerCase() === "live"
+//     ? "live"
+//     : "sandbox";
+
 const ENV =
-  (process.env.PAYPAL_ENV ?? "sandbox").toLowerCase() === "live"
-    ? "live"
-    : "sandbox";
+  (process.env.PAYPAL_MODE ?? "sandbox").toLowerCase() === "live"
+      ? "live"
+     : "sandbox";
+
 
 const BASE =
   ENV === "live"

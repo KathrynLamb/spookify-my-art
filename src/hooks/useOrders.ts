@@ -1,32 +1,15 @@
+// src/hooks/useOrders.ts
+"use client";
+
+import { OrderRecord } from "@/app/design/types/order";
 import { useEffect, useState } from "react";
 
-/* ---------------------------------------------
- * Types
- * --------------------------------------------- */
-export interface OrderAsset {
-  url: string;
-  [key: string]: unknown;
-}
 
-export interface PaypalInfo {
-  payer?: {
-    email_address?: string;
-  };
-  [key: string]: unknown;
-}
 
-export interface OrderRecord {
-  orderId: string;
-  status: "created" | "processing" | "fulfilled" | "error";
-  createdAt: string;
-  invoiceId?: string;
-  fileUrl?: string;
-  assets?: OrderAsset[];
-  paypal?: PaypalInfo;
-  userEmail: string | null;
-  amount?: number;
-  currency?: string;
-  [key: string]: unknown;
+interface OrdersResponse {
+  ok: boolean;
+  orders?: OrderRecord[];
+  error?: string;
 }
 
 export function useOrders(userEmail: string | null) {
@@ -36,14 +19,26 @@ export function useOrders(userEmail: string | null) {
   useEffect(() => {
     if (!userEmail) return;
 
+    const email = userEmail; // ✅ narrow to string
+
     async function load() {
       setLoading(true);
       try {
         const res = await fetch(
-          `/api/orders/list?email=${encodeURIComponent(userEmail as string)}`
+          `/api/orders/list?email=${encodeURIComponent(email)}`,
         );
-        const data: { orders?: OrderRecord[] } = await res.json();
+
+        if (!res.ok) {
+          console.error("Orders fetch failed with status", res.status);
+          setOrders([]);
+          return;
+        }
+
+        const data: OrdersResponse = await res.json();
         setOrders(data.orders ?? []);
+      } catch (err) {
+        console.error("Failed loading orders", err);
+        setOrders([]);
       } finally {
         setLoading(false);
       }
@@ -51,6 +46,7 @@ export function useOrders(userEmail: string | null) {
 
     load();
   }, [userEmail]);
+
 
   return { orders, loading };
 }

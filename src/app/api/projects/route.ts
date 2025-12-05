@@ -1,23 +1,36 @@
-import { NextResponse } from "next/server";
-import { getAdminApp } from "@/lib/firebaseAdminApp";
-import { getFirestore } from "firebase-admin/firestore";
+// src/app/api/projects/route.ts
 
-export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const email = searchParams.get("email");
+import { NextRequest, NextResponse } from "next/server";
+import { adminDb } from "@/lib/firebaseAdminApp";
 
-  if (!email) return NextResponse.json({ projects: [] });
+export const runtime = "nodejs";
 
-  const db = getFirestore(getAdminApp());
+export async function GET(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const email = searchParams.get("email");
 
-  const snap = await db
-    .collection("users")
-    .doc(email)
-    .collection("projects")
-    .orderBy("createdAt", "desc")
-    .get();
+    if (!email) {
+      return NextResponse.json(
+        { ok: false, projects: [], error: "Missing email parameter" },
+        { status: 400 }
+      );
+    }
 
-  const projects = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const userRef = adminDb.collection("users").doc(email);
+    const snap = await userRef
+      .collection("projects")
+      .orderBy("createdAt", "desc")
+      .get();
 
-  return NextResponse.json({ projects });
+    const projects = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+    return NextResponse.json({ ok: true, projects });
+  } catch (err) {
+    console.error("🔥 Projects list error:", err);
+    return NextResponse.json(
+      { ok: false, projects: [], error: "Internal server error" },
+      { status: 500 }
+    );
+  }
 }

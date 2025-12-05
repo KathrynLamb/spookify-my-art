@@ -9,6 +9,19 @@ export const PRODUCTS = [
     href: "/jollyfy/products?cat=mugs",
     name: "Mug",
     type: "Christmas",
+    greetings: [
+      "Hello! Ready to design a mug that spreads a little Christmas cheer? 🎄☕",
+      "Welcome back! Let’s create a cosy, festive mug together. Your ideas + holiday magic = perfection! ✨",
+      "Hey there! Ready to make a mug that feels like a warm December hug? Let’s do this! 🤗☕",
+      "Let’s craft something merry and bright! Your perfect Christmas mug starts here. 🎁",
+      "It’s mug-making time! I’m here to help you design something festive, fun, and uniquely YOU. ✨",
+      "Looking for Christmas inspiration? Don’t worry — we’ll create something magical together. 🎄",
+      "Ready to sprinkle a little holiday sparkle onto your mug design? Let’s get creative! ✨☕",
+      "Hello! Let’s turn your festive idea into a mug someone will treasure all season long. ❤️",
+      "Grab a cup of cocoa and let’s design a mug as warm and wonderful as December feels. ☕❄️",
+      "Whether you want cute, funny, sentimental or totally unique — your perfect Christmas mug starts here! 🎄💫"
+    ],
+    
 
     // this must match the ?product=… in your URL
     productUID: "mug_product_msz_11-oz_mmat_ceramic-white_cl_4-0",
@@ -125,9 +138,20 @@ export const PRODUCTS = [
     type: "Home Decor",
     category: "cushions",
     printProvider: "prodigi",
+    greetings: [
+      "Welcome! Ready to create a Christmas cushion that lights up the whole room? 🎄✨",
+      "Let’s make something festive and unforgettable — your perfect December sofa art starts here! 🖼️",
+      "Hey there! I’m excited to help you design a cushion full of warmth, joy, and holiday magic. ✨",
+      "Your cushion design journey starts now — festive, fun, and totally YOU. Let’s go! 🎄🖼️",
+      "Let’s turn your imagination into a beautiful Christmas keepsake. Ready when you are! ❄️✨",
+      "Want cosy winter vibes? Something bold and bright? I’m here to help bring your December vision to life! 🎨",
+      "Let’s create wall art that feels like a warm festive memory. You bring the idea — I’ll help with the magic. 🎄",
+      "Ready to design a canvas that becomes someone’s favourite Christmas decoration? Let’s do it! ❤️",
+      "Whether you’re going classic, cute, modern or whimsical — I’m here to help your Christmas canvas shine. ✨"
+    ],
 
     jollySrc: "/jollyfy/prod-cushion.png",
-    src: "/jollyfy/prod-cushion.png", // add your placeholder image
+    src: "/mockups/cushion_blank.jpg", // add your placeholder image
     href: "/jollyfy/products?cat=cushions",
 
     /* -------------------------------------------------------------

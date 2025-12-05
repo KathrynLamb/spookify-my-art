@@ -3,7 +3,8 @@
 import Image from "next/image";
 import { useState } from "react";
 import CurrencySwitcher, { Currency } from "./CurrencySwitcher";
-import { SelectedProduct } from "../page";
+import { SelectedProduct } from "../types";
+// import { SelectedProduct } from "../page";
 
 // import type { Currency, CurrencySwitcher } from "./CurrencySwitcher"; // <-- add this
 
@@ -12,35 +13,17 @@ import { SelectedProduct } from "../page";
  * TYPES
  * ------------------------------------------------------------- */
 type ProductInfoProps = {
-
-  
-  //   title: string;
-  //   src: string;
-  //   description: string;
-  //   prices: Record<string, number>;
-  //   specs?: string[];
-  //   shippingTime?: {
-  //     uk?: string;
-  //     eu?: string;
-  //     us?: string;
-  //     [key: string]: string | undefined;
-  //   };
-  //   returnPolicy?: string;
-  //   care?: string[];
-  // } | null;
-
-  // previewUrl: string | null;
-  // originalUrl: string | null;
-
-  // currency: Currency;                        // <-- updated
-  // onCurrencyChange: (c: Currency) => void;  
   product: SelectedProduct | null;
   previewUrl: string | null;
   originalUrl: string | null;
   currency: Currency;
   onCurrencyChange: (c: Currency) => void;
+  printUrl?: string | null;
+  canOrder?: boolean;
 
 };
+
+
 
 const SYMBOLS: Record<string, string> = {
   GBP: "£",
@@ -56,7 +39,9 @@ export default function ProductInfo({
   previewUrl,
   originalUrl,
   currency,
+  printUrl,
   onCurrencyChange,
+  canOrder
 }: ProductInfoProps) {
   /** ❗ Must always run */
   const [showDetails, setShowDetails] = useState(false);
@@ -66,6 +51,7 @@ export default function ProductInfo({
   if (!product) return null;
 
   const price = product.prices?.[currency] ?? product.prices?.GBP;
+  const productSrc = product.src ?? "/placeholder.png";
 
   return (
     <div className="space-y-4 rounded-xl border border-white/10 bg-black/20 p-5 backdrop-blur-sm">
@@ -84,7 +70,7 @@ export default function ProductInfo({
       {/* Product Image */}
       <div className="relative w-full aspect-square rounded-lg overflow-hidden border border-white/10 bg-black/40">
         <Image
-          src={product.src}
+          src={productSrc}
           alt={product.title}
           fill
           sizes="400px"
@@ -155,6 +141,15 @@ export default function ProductInfo({
           )}
         </div>
       )}
+{canOrder && printUrl && (
+  <button
+    className="w-full mt-3 px-4 py-2 rounded-lg bg-pink-500 text-sm font-semibold hover:bg-pink-600"
+    // onClick={() => router.push(`/checkout?projectId=${projectId}`)}
+    onClick={() => console.log("got to pay pal check out")}
+  >
+    I’m happy with it – continue to order
+  </button>
+)}
 
       <p className="text-xs text-white/40">
         Your artwork will appear here once generated.

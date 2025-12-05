@@ -25,13 +25,15 @@ export function useProjects() {
 
   useEffect(() => {
     if (!email) return;
-
+    console.log("email", email)
     async function load() {
       if (!email) return;
       setLoading(true);
       try {
         const res = await fetch(`/api/projects?email=${encodeURIComponent(email)}`);
+        console.log("res", res)
         const data: ProjectsResponse = await res.json();
+        console.log("data", data)
         setProjects(data.projects ?? []);
       } catch (e) {
         console.error("Failed loading projects", e);

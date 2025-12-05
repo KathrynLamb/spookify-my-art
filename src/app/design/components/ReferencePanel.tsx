@@ -1,18 +1,14 @@
-// app/design/components/ReferencePanel.tsx
 'use client';
 
 type ReferencePanelProps = {
-  referencesNeeded?: string[];
+  referencesNeeded?: string[];  // can be undefined, null, [], or ["label"]
   onUpload: (label: string, file: File) => void;
 };
 
 export function ReferencePanel({ referencesNeeded, onUpload }: ReferencePanelProps) {
+  // if the model isn’t asking for anything, hide the panel entirely
   if (!Array.isArray(referencesNeeded) || referencesNeeded.length === 0) {
-    return (
-      <div className="text-white/40 text-sm border border-white/10 rounded-xl p-6 text-center">
-        The assistant will ask for photos if needed.
-      </div>
-    );
+    return null;
   }
 
   return (
@@ -36,7 +32,7 @@ export function ReferencePanel({ referencesNeeded, onUpload }: ReferencePanelPro
               const file = e.target.files?.[0];
               if (file) {
                 onUpload(label, file);
-                e.target.value = ''; // let them re-upload same file
+                e.target.value = "";
               }
             }}
           />
@@ -45,3 +41,4 @@ export function ReferencePanel({ referencesNeeded, onUpload }: ReferencePanelPro
     </div>
   );
 }
+

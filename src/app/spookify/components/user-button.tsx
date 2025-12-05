@@ -128,14 +128,14 @@ export const UserButton = () => {
         </DropdownMenuItem> */}
         <div className="my-1 mx-2 h-px bg-white/10" />
 <DropdownMenuItem
-          onClick={() => router.push(`/projects/${session?.user.id}`)}
+          onClick={() => router.push(`/dashboard/`)}
           // onClick={() => console.log(session.user)}
           className="group h-10 cursor-pointer rounded-lg px-3 mx-2 text-sm
                      text-rose-200/90 hover:bg-rose-500/10 focus:bg-rose-500/10
                      focus:text-rose-100 transition"
         >
 
-          Your projects
+          Dashboard
         </DropdownMenuItem>
 
         <div className="my-1 mx-2 h-px bg-white/10" />

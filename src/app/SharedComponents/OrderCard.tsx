@@ -1,25 +1,8 @@
 "use client";
 
 import Image from "next/image";
-
-/* -------------------------------------------------------------
- * ORDER TYPE — matches what PayPal + Prodigi + Firestore store
- * ------------------------------------------------------------- */
-export type OrderAsset = {
-  url: string;
-  printArea?: string;
-};
-
-export type OrderRecord = {
-  orderId: string;
-  userEmail: string | null;
-  createdAt: string; // ISO date
-  status: "created" | "processing" | "fulfilled" | "error";
-  fileUrl?: string;
-  previewUrl?: string;
-  assets?: OrderAsset[];
-  sku?: string;
-};
+import { OrderRecord } from "../design/types/order";
+import { formatOrderDate } from "@/lib/formatOrderDate";
 
 /* -------------------------------------------------------------
  * ORDER CARD COMPONENT
@@ -31,7 +14,6 @@ export function OrderCard({ order }: { order: OrderRecord }) {
     order.fileUrl ||
     "/placeholder.png";
 
-  const createdDate = new Date(order.createdAt).toLocaleDateString();
 
   return (
     <div className="rounded-xl bg-white/5 border border-white/10 p-4 flex gap-4 hover:bg-white/10 transition">
@@ -46,7 +28,7 @@ export function OrderCard({ order }: { order: OrderRecord }) {
           Order #{order.orderId}
         </div>
 
-        <div className="text-xs text-white/60">{createdDate}</div>
+        <div className="text-xs text-white/60">Date: {formatOrderDate(order.createdAt)}</div>
 
         <div className="mt-1">
           <span className="px-2 py-1 rounded-full text-xs bg-white/10 border border-white/10 capitalize">

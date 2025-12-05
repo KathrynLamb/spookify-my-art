@@ -16,12 +16,11 @@ import { useUser } from "@/hooks/useUser";
 
 import ProductInfo from "./components/ProductInfo";
 import { PRODUCTS } from "@/lib/products_gallery_jolly";
-import { ChatMessage } from "./types";
+import { ChatMessage, Plan, SelectedProduct } from "./types";
 
-/* -------------------------------------------------------------
- * TYPES
- * ------------------------------------------------------------- */
-
+/* -------------------------------------------------- */
+/* TYPES                                               */
+/* -------------------------------------------------- */
 
 export interface ReferenceEntry {
   label: string;
@@ -29,42 +28,39 @@ export interface ReferenceEntry {
   url: string;
 }
 
-/** Option 1 project record */
 export interface LoadedProject {
-  id: string;
+  id?: string;
   title: string;
   productId: string;
   originalUrl: string | null;
-  previewUrl: string | null;
-  finalImage?: string | null;
+  previewUrl: string | null;   // art-only or mockup
+  mockupUrl?: string | null;   // explicit mockup if present
+  finalImage?: string | null;  // master print
+  resultUrl?: string | null;   // legacy alias
   messages: ChatMessage[];
   references: ReferenceEntry[];
-  plan?: DesignPlan | null;
-}
+  plan?: Plan | null;
 
-export interface PlanReference {
-  id: string;
-  label: string;
-  url: string;
-}
-
-export interface DesignPlan {
-  style?: string;
-  title?: string;
-  description?: string;
-  references?: PlanReference[];
-  referencesNeeded?: string[];
-  userConfirmed?: boolean;
-  finalizedPrompt?: string | null; // ← MUST MATCH Plan
 }
 
 
-/* Selected product type */
-export type SelectedProduct = typeof PRODUCTS[number];
+/* -------------------------------------------------- */
+/* RANDOM GREETING                                     */
+/* -------------------------------------------------- */
 
-/* -------------------------------------------------------------
- * COMPONENT
- * ------------------------------------------------------------- */
+function getRandomGreeting(
+  p: { greetings?: string[] } | null
+): string {
+  if (!p?.greetings?.length) return "Hello! Let's create something wonderful!";
+  const list = p.greetings;
+  return list[Math.floor(Math.random() * list.length)];
+}
+
+/* -------------------------------------------------- */
+/* DESIGN PAGE                                         */
+/* -------------------------------------------------- */
+
+
 
 export default function DesignPage() {
   const router = useRouter();
@@ -75,51 +71,39 @@ export default function DesignPage() {
 
   const { user } = useUser();
 
-  /* -------------------------------------------------------------
-   * STATE
-   * ------------------------------------------------------------- */
   const [loading, setLoading] = useState(true);
-
-  const [selectedProduct, setSelectedProduct] =
-    useState<SelectedProduct | null>(null);
-
+  const [selectedProduct, setSelectedProduct] = useState<SelectedProduct | null>(null);
   const [projectId, setProjectId] = useState<string | null>(null);
+
   const projectCreated = useRef(false);
+  const greetingSent = useRef(false);
 
   const [originalUrl, setOriginalUrl] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [_printUrl, setPrintUrl] = useState<string | null>(null);
 
   const [references, setReferences] = useState<ReferenceEntry[]>([]);
-  const [title, setTitle] = useState<string>("Untitled Project");
-  const [plan, setPlanState] = useState<DesignPlan | null>(null);
+  const [title, setTitle] = useState("Untitled Project");
+  const [savedPlan, setSavedPlan] = useState<Plan | null>(null);
 
   const [currency, setCurrency] = useState<Currency>("GBP");
   const [generating, setGenerating] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
+  const [debugOpen, setDebugOpen] = useState(false);
+
   const { uploading, progress, handleUpload } = useUploads();
 
-  /* DESIGN CHAT HOOK */
-  const {
-    messages,
-    plan: planFromChat,
-    sendMessage,
-    startGreeting,
-    addReference,
-    restoreMessages,
-    restorePlan,
-  } = useDesignChat(selectedProduct, null);
+  const [ordering, setOrdering] = useState(false);
+  const [orderError, setOrderError] = useState<string | null>(null);
 
-  /* Sync plan from chat */
-  useEffect(() => {
-    if (planFromChat) setPlanState(planFromChat);
-    console.log("printUrl", _printUrl)
-  }, [planFromChat, _printUrl]);
+  const hasFinalDesign = !!previewUrl && !generating;
+const canOrder = !!_printUrl && !!projectId && !!selectedProduct;
 
-  /* -------------------------------------------------------------
-   * UPDATE PROJECT (declared early for hook dependencies)
-   * ------------------------------------------------------------- */
+  /* -------------------------------------------------- */
+  /* updateProject is required BEFORE hook usage         */
+  /* -------------------------------------------------- */
+
   const updateProject = useCallback(
     async (changes: Record<string, unknown>) => {
       if (!projectId || !user?.email) return;
@@ -141,77 +125,178 @@ export default function DesignPage() {
     [projectId, user?.email]
   );
 
-  console.log("title", title)
+  /* -------------------------------------------------- */
+  /* HOOK: useDesignChat                                */
+  /* -------------------------------------------------- */
 
-  /* -------------------------------------------------------------
-   * LOAD EXISTING PROJECT
-   * ------------------------------------------------------------- */
+  const {
+    messages,
+    plan: chatPlan,              // ✅ renamed to avoid collision
+    sendMessage,
+    startGreeting,
+    addReference,
+    restoreMessages,
+    restorePlan,
+    newProjectName,
+  } = useDesignChat({
+    selectedProduct,
+    imageId: null,
+    projectId,
+    userEmail: user?.email ?? null,
+    updateProject,               // now correctly passed
+  });
+
+  /* Sync plan from chat → UI plan */
+  useEffect(() => {
+    if (chatPlan) setSavedPlan(chatPlan);
+  }, [chatPlan]);
+
+  /* Apply AI-generated projectName */
+  useEffect(() => {
+    if (newProjectName && projectId) {
+      updateProject({ title: newProjectName });
+      setTitle(newProjectName);
+    }
+  }, [newProjectName, projectId, updateProject]);
+
+  /* -------------------------------------------------- */
+  /* LOAD EXISTING PROJECT                              */
+  /* -------------------------------------------------- */
+
   const loadExistingProject = useCallback(async () => {
     if (!projectParam || !user?.email) return;
+  
+    try {
+      const res = await fetch(
+        `/api/projects/get?projectId=${projectParam}&email=${user.email}`
+      );
+  
+      const json = await res.json();
+  
+      if (!json.ok || !json.project) {
+        console.error("[design] loadExistingProject – no project found", json);
+        router.replace("/dashboard");
+        return;
+      }
+  
+      // Use projectParam as a guaranteed id fallback
+      const projectData = json.project as LoadedProject;
+  
+      const project: LoadedProject = {
+        id: projectData.id ?? projectParam,
+        ...projectData,
+      };
+  
+      setProjectId(project.id!);
+      setTitle(project.title);
+      setOriginalUrl(project.originalUrl);
+      setPreviewUrl(project.mockupUrl ?? project.previewUrl);
+      setPrintUrl(project.finalImage ?? project.resultUrl ?? null);
+      setReferences(project.references ?? []);
+  
+      restoreMessages(structuredClone(project.messages ?? []));
+      restorePlan(project.plan ?? null);
+  
+      const found = PRODUCTS.find((p) => p.productUID === project.productId);
+      if (found) setSelectedProduct(found);
+    } catch (err) {
+      console.error("[design] loadExistingProject error", err);
+      router.replace("/dashboard");
+    } finally {
+      // always clear loading, even if something went wrong
+      setLoading(false);
+    }
+  }, [projectParam, user?.email, router, restoreMessages, restorePlan]);
+  
 
-    const res = await fetch(
-      `/api/projects/get?projectId=${projectParam}&email=${user.email}`
-    );
-    const json = await res.json();
+  /* -------------------------------------------------- */
+  /* LOAD NEW PRODUCT                                   */
+  /* -------------------------------------------------- */
 
-    if (!json.ok) {
-      router.replace("/");
-      return;
+  const loadNewProduct = useCallback(() => {
+    if (projectParam) return;
+    if (!productParam) return router.replace("/");
+
+    const prod = PRODUCTS.find((p) => p.productUID === productParam);
+    if (!prod) return router.replace("/");
+
+    setSelectedProduct(prod);
+    setOriginalUrl(prod.mockup?.template ?? null);
+
+    if (!greetingSent.current) {
+      greetingSent.current = true;
+      startGreeting(getRandomGreeting(prod));
     }
 
-    const project: LoadedProject = json.project;
-
-    setProjectId(project.id);
-    setTitle(project.title);
-    setOriginalUrl(project.originalUrl);
-    setPreviewUrl(project.previewUrl);
-    setPrintUrl(project.finalImage ?? null);
-    setReferences(project.references ?? []);
-
-    restoreMessages(structuredClone(project.messages ?? []));
-
-    restorePlan(project.plan ?? null);
-
-    const found = PRODUCTS.find((p) => p.productUID === project.productId);
-    if (found) setSelectedProduct(found);
-
     setLoading(false);
-  }, [projectParam, user?.email, router, restoreMessages, restorePlan]);
+  }, [productParam, projectParam, router, startGreeting]);
 
-  /* -------------------------------------------------------------
-   * LOAD PRODUCT FOR NEW SESSION
-   * ------------------------------------------------------------- */
+  /* -------------------------------------------------- */
+  /* INITIAL LOAD                                       */
+  /* -------------------------------------------------- */
 
-    const loadNewProduct = useCallback(() => {
-        if (projectParam) return;   // ← ADD THIS LINE
-        if (!productParam) {
-          router.replace("/");
-          return;
-        }
-      
-        const prod = PRODUCTS.find((p) => p.productUID === productParam);
-        if (!prod) {
-          router.replace("/");
-          return;
-        }
-      
-        setSelectedProduct(prod);
-        setOriginalUrl(prod.mockup?.template ?? null);
-        // startGreeting();
-        setLoading(false);
-      }, [productParam, projectParam, router, startGreeting]);
-      
-  /* INITIAL LOAD */
   useEffect(() => {
     if (!user) return;
-
     if (projectParam) loadExistingProject();
     else loadNewProduct();
   }, [user, projectParam, loadExistingProject, loadNewProduct]);
 
-  /* -------------------------------------------------------------
-   * REFERENCE UPLOAD
-   * ------------------------------------------------------------- */
+
+
+
+    // --------------------------------------------------
+  // PAY & ORDER (PayPal → Prodigi)
+  // --------------------------------------------------
+  const handleOrderClick = useCallback(async () => {
+    if (!_printUrl || !projectId || !selectedProduct) return;
+
+    try {
+      setOrderError(null);
+      setOrdering(true);
+
+      // 🔎 Adjust this line to match how your product stores prices
+      const unitPrice: number =
+      selectedProduct.prices?.[currency] ??
+      selectedProduct.prices?.GBP ??
+      15;
+    
+
+      const res = await fetch("/api/paypal/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: unitPrice,
+          currency,
+          title: title || selectedProduct.name || "Custom Artwork",
+          imageId: projectId,         // becomes PayPal reference_id / invoice prefix
+          fileUrl: _printUrl,         // 👈 final print file for Prodigi
+          sku: selectedProduct.prodigiSku ?? selectedProduct.productUID,
+          vendor: "prodigi",
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json.ok || !json.approveUrl) {
+        console.error("PayPal create failed", json);
+        setOrderError(json.error || "Could not start payment");
+        return;
+      }
+
+      // ✅ send user to PayPal
+      window.location.href = json.approveUrl as string;
+    } catch (err) {
+      console.error("handleOrderClick error", err);
+      setOrderError("Something went wrong starting the order.");
+    } finally {
+      setOrdering(false);
+    }
+  }, [_printUrl, projectId, selectedProduct, currency, title]);
+
+
+  /* -------------------------------------------------- */
+  /* REFERENCE UPLOAD                                   */
+  /* -------------------------------------------------- */
+
   const handleReferenceUpload = useCallback(
     async (label: string, file: File) => {
       setUploadError(null);
@@ -224,21 +309,21 @@ export default function DesignPage() {
 
       setReferences(next);
       addReference(label, imageId, url);
-
-      if (projectId) updateProject({ references: next });
+      await sendMessage(
+        `I've uploaded the reference photo labeled "${label}". Please confirm you received it.`
+      );
+      
+      updateProject({ references: next });
     },
-    [references, handleUpload, addReference, updateProject, projectId]
+    [references, handleUpload, addReference, updateProject, sendMessage]
   );
 
-  /* -------------------------------------------------------------
-   * CREATE PROJECT (only for fresh session)
-   * ------------------------------------------------------------- */
+  /* -------------------------------------------------- */
+  /* PROJECT CREATION                                   */
+  /* -------------------------------------------------- */
 
   const cleanMessage = useCallback((raw: ChatMessage): ChatMessage => {
-    return {
-      role: raw.role ?? "assistant",
-      content: raw.content ?? "",
-    };
+    return { role: raw.role ?? "assistant", content: raw.content ?? "" };
   }, []);
 
   const createProject = useCallback(
@@ -273,7 +358,6 @@ export default function DesignPage() {
     [user?.email, projectParam, cleanMessage, originalUrl, selectedProduct]
   );
 
-  /* Trigger new project creation */
   useEffect(() => {
     if (projectParam) return;
     if (!selectedProduct) return;
@@ -286,56 +370,77 @@ export default function DesignPage() {
     createProject("Untitled Project", first.content);
   }, [messages, selectedProduct, createProject, projectParam]);
 
-  /* -------------------------------------------------------------
-   * IMAGE GENERATION — DISABLED FOR RESTORED PROJECTS
-   * ------------------------------------------------------------- */
+  /* -------------------------------------------------- */
+  /* IMAGE GENERATION                                   */
+  /* -------------------------------------------------- */
+
+
   useEffect(() => {
     if (projectParam) return;
-    if (!plan?.userConfirmed) return;
-    if (!plan.finalizedPrompt) return;
-
+    if (!projectId) return;
+    if (!savedPlan?.userConfirmed) return;
+    if (!savedPlan.finalizedPrompt) return;
+  
     const run = async () => {
       try {
         setGenerating(true);
         setUploadError(null);
-
+  
         const res = await fetch("/api/design/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            prompt: plan.finalizedPrompt,
+            imageId: projectId,
+            userId: user?.email ?? null,
+            title,
+            prompt: savedPlan.finalizedPrompt,
             productId: selectedProduct?.productUID,
             references,
             mockup: selectedProduct?.mockup,
             printSpec: selectedProduct?.printSpec,
           }),
         });
-
+  
         const json = await res.json();
         if (!res.ok) {
           setUploadError(json.error || "Generation failed");
           return;
         }
-
+  
+        // what the UI uses right now
         setPreviewUrl(json.mockupUrl);
         setPrintUrl(json.masterUrl);
-
+  
+        // what the rest of the app / checkout can key off
         updateProject({
-          previewUrl: json.mockupUrl,
-          finalImage: json.masterUrl,
+          previewUrl: json.previewUrl ?? json.mockupUrl ?? null,
+          mockupUrl: json.mockupUrl ?? null,
+          finalImage: json.masterUrl ?? null,
+          resultUrl: json.masterUrl ?? null,
+          status: "done",
           updatedAt: Date.now(),
         });
       } finally {
         setGenerating(false);
       }
     };
-
+  
     run();
-  }, [plan, projectParam, references, selectedProduct, updateProject]);
+  }, [
+    savedPlan,
+    projectParam,
+    projectId,
+    references,
+    selectedProduct,
+    updateProject,
+    user?.email,
+    title,
+  ]);
+  
 
-  /* -------------------------------------------------------------
-   * UI
-   * ------------------------------------------------------------- */
+  /* -------------------------------------------------- */
+  /* UI                                                 */
+  /* -------------------------------------------------- */
 
   if (loading) {
     return (
@@ -345,27 +450,35 @@ export default function DesignPage() {
     );
   }
 
-  const hasFinalDesign = !!previewUrl && !generating;
+  // const hasFinalDesign = !!previewUrl && !generating;
+
+  // // ✅ only show order button when we actually have a final print file & project id
+  // const canOrder = !!_printUrl && !!projectId;
 
   return (
     <main className="min-h-screen p-6 bg-black text-white max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+
       {/* LEFT */}
       <div className="lg:col-span-1 space-y-4">
+
         <ProductInfo
           product={selectedProduct}
           previewUrl={previewUrl}
           originalUrl={originalUrl}
           currency={currency}
+          printUrl={_printUrl}
+          canOrder={!!_printUrl && !!savedPlan?.userConfirmed}
           onCurrencyChange={(c) => {
             setCurrency(c);
             localStorage.setItem("currency", c);
           }}
         />
 
-        {/* Canvas ALWAYS shows mockup template unless previewUrl exists */}
+
+
         <CanvasStage original={originalUrl} result={previewUrl} />
 
-        {/* Reference thumbnails */}
+        {/* references */}
         {references.length > 0 && (
           <div className="grid grid-cols-3 gap-2">
             {references.map((ref) => (
@@ -373,53 +486,81 @@ export default function DesignPage() {
                 key={ref.imageId}
                 className="relative aspect-square rounded-md overflow-hidden border border-white/10"
               >
-                <Image
-                  src={ref.url}
-                  alt={ref.label}
-                  fill
-                  className="object-cover"
-                />
+                <Image src={ref.url} alt={ref.label} fill className="object-cover" />
               </div>
             ))}
           </div>
         )}
 
-        {uploading && (
-          <div className="text-sm text-center">Uploading… {progress}%</div>
-        )}
-        {generating && (
-          <div className="text-sm text-center">Creating your design…</div>
-        )}
-        {uploadError && (
-          <div className="text-red-400 text-sm text-center">{uploadError}</div>
-        )}
+        {uploading && <div className="text-sm text-center">Uploading… {progress}%</div>}
+        {generating && <div className="text-sm text-center">Creating your design…</div>}
+        {uploadError && <div className="text-red-400 text-sm text-center">{uploadError}</div>}
 
         {hasFinalDesign && (
-          <div className="p-3 bg-white/5 border border-white/10 rounded-xl text-xs">
+          <div className="p-3 bg-white/5 border border-white/10 rounded-xl text-xs space-y-2">
             <div className="font-semibold mb-1">Next step</div>
-            <p>You can ask for design tweaks anytime.</p>
+            <p>
+              Your design is ready. You can ask for tweaks anytime, or go ahead and order this mug.
+            </p>
+
+            {canOrder && (
+              <button
+                onClick={handleOrderClick}
+                disabled={ordering}
+                className="mt-1 inline-flex items-center justify-center rounded-lg bg-pink-500 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-pink-400 disabled:opacity-60 disabled:cursor-not-allowed transition"
+              >
+                {ordering
+                  ? "Opening PayPal…"
+                  : "I’m happy with it – order this mug"}
+              </button>
+            )}
+
+            {orderError && (
+              <p className="text-[11px] text-red-400 mt-1">
+                {orderError}
+              </p>
+            )}
           </div>
         )}
 
+
+
+
         <ReferencePanel
-          referencesNeeded={plan?.referencesNeeded}
+          referencesNeeded={savedPlan?.referencesNeeded}
           onUpload={handleReferenceUpload}
         />
       </div>
 
       {/* RIGHT */}
       <div className="lg:col-span-2 space-y-4">
+
         <div>
           <div className="font-semibold text-sm">How this works</div>
-          <p>
-            {`Describe what you'd like. The assistant may request reference photos
-            and will generate your artwork on the product.`}
-          </p>
+          <p>{`Describe what you'd like. The assistant may request reference photos.`}</p>
         </div>
 
         <ChatBox messages={messages} />
         <Composer onSend={sendMessage} disabled={uploading || generating} />
       </div>
+
+      {/* DEBUG PANEL */}
+      {debugOpen && (
+        <div className="fixed bottom-4 right-4 bg-neutral-900 p-4 rounded-xl border border-white/20 max-w-md max-h-[70vh] overflow-auto text-xs">
+          <h2 className="font-bold mb-2">DEBUG</h2>
+          <pre className="whitespace-pre-wrap text-[11px] opacity-80">
+{JSON.stringify({ projectId, selectedProduct, plan: savedPlan, messages }, null, 2)}
+          </pre>
+        </div>
+      )}
+
+      <button
+        onClick={() => setDebugOpen((x) => !x)}
+        className="fixed bottom-4 left-4 px-3 py-1 bg-white/10 rounded-md text-xs border border-white/20 hover:bg-white/20"
+      >
+        Debug
+      </button>
+
     </main>
   );
 }

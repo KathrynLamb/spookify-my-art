@@ -22,9 +22,11 @@ export default function OrdersDashboard() {
       )}
 
       <div className="space-y-4">
-        {orders.map((order) => (
-          <OrderCard key={order.orderId} order={order} />
-        ))}
+
+          {orders.map((order) => (
+            <OrderCard key={order.orderId} order={order} />
+          ))}
+
       </div>
     </main>
   );

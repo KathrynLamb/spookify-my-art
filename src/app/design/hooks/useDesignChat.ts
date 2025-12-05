@@ -5,32 +5,53 @@ import {
   ChatMessage,
   ChatResponse,
   Plan,
-  Reference,
   ProductPlan,
-} from "../types";
+  Reference,
+  SelectedProduct,
+} from "@/app/design/types";
 import { extractJsonFence } from "../utils/parse";
-import { SelectedProduct } from "../types";
 
-/* =====================================================================
-   useDesignChat
-   ===================================================================== */
-export function useDesignChat(
-  selectedProduct: SelectedProduct | null,
-  imageId: string | null
-) {
+/* -------------------------------------------------------------
+ * Hook return type
+ * ------------------------------------------------------------- */
+export function useDesignChat(params: {
+  selectedProduct: SelectedProduct | null;
+  imageId: string | null;
+  projectId: string | null;
+  userEmail: string | null;
+  updateProject: (u: Record<string, unknown>) => Promise<void>;
+}): {
+  messages: ChatMessage[];
+  plan: Plan;
+  productPlan: ProductPlan | null;
+  sendMessage: (content: string, override?: Plan) => Promise<void>;
+  startGreeting: (msg: string) => void;
+  addReference: (label: string, id: string, url: string) => void;
+  restoreMessages: (msgs: ChatMessage[]) => void;
+  restorePlan: (prev: Plan | null) => void;
+  newProjectName: string | null;
+} {
+  const { selectedProduct, imageId, projectId, userEmail, updateProject } =
+    params;
+
+  /* -------------------------------------------------------------
+   * STATE
+   * ------------------------------------------------------------- */
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [plan, setPlan] = useState<Plan>({
     references: [],
     referencesNeeded: [],
-    userConfirmed: false,
     finalizedPrompt: null,
+    userConfirmed: false,
   });
-  
 
   const [productPlan, setProductPlan] = useState<ProductPlan | null>(null);
 
+  // NEW: store updated project name from AI
+  const [newProjectName, setNewProjectName] = useState<string | null>(null);
+
   /* -------------------------------------------------------------
-   *  UI helpers
+   * HELPERS
    * ------------------------------------------------------------- */
   const addTyping = () =>
     setMessages((prev) => [
@@ -41,47 +62,38 @@ export function useDesignChat(
   const removeTyping = () =>
     setMessages((prev) => prev.filter((m) => !m.typing));
 
-  /* -------------------------------------------------------------
-   *  Merge plan updates
-   * ------------------------------------------------------------- */
   const mergePlan = (base: Plan, delta: Partial<Plan>): Plan => {
     return {
       ...base,
       ...delta,
-
-      // prefer fresh references if provided
       references:
-        Array.isArray(delta.references) && delta.references.length > 0
+        delta.references && delta.references.length > 0
           ? delta.references
           : base.references,
-
       referencesNeeded:
         Array.isArray(delta.referencesNeeded) ||
         delta.referencesNeeded === null
-          ? delta.referencesNeeded || undefined
+          ? delta.referencesNeeded ?? undefined
           : base.referencesNeeded,
     };
   };
 
   /* -------------------------------------------------------------
-   * addReference (client-side only)
+   * ADD REFERENCE
    * ------------------------------------------------------------- */
   const addReference = useCallback(
     (label: string, id: string, url: string) => {
       setPlan((prev) => {
-        const prevRefs = prev.references ?? [];
-        const nextRef: Reference = { id, url, label };
-        const nextRefs = [
-          ...prevRefs.filter((r) => r.label !== label),
-          nextRef,
-        ];
+        const existing = prev.references ?? [];
+        const next: Reference = { id, url, label };
+        const merged = [...existing.filter((r) => r.label !== label), next];
 
         const remaining =
           prev.referencesNeeded?.filter((l) => l !== label) ?? [];
 
         return {
           ...prev,
-          references: nextRefs,
+          references: merged,
           referencesNeeded: remaining.length ? remaining : undefined,
         };
       });
@@ -90,139 +102,128 @@ export function useDesignChat(
   );
 
   /* -------------------------------------------------------------
-   * sendMessage (supports optional planOverride)
+   * SEND MESSAGE
    * ------------------------------------------------------------- */
   const sendMessage = useCallback(
-    async (content: string, planOverride?: Plan): Promise<void> => {
+    async (content: string, overridePlan?: Plan) => {
       if (!content.trim()) return;
 
       const userMsg: ChatMessage = { role: "user", content };
-      const newMsgs = [...messages, userMsg];
+      const updatedMessages = [...messages, userMsg];
 
-      setMessages(newMsgs);
+      setMessages(updatedMessages);
       addTyping();
 
-      const planToSend = planOverride ?? plan;
+      const planToSend = overridePlan ?? plan;
 
       const res = await fetch("/api/chat", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           id: imageId,
-          messages: newMsgs,
+          projectId,
+          email: userEmail,
+          messages: updatedMessages,
           selectedProduct,
           plan: planToSend,
         }),
-        headers: { "Content-Type": "application/json" },
       });
 
       const data: ChatResponse = await res.json();
       removeTyping();
 
-      // Parse plan delta in content if present
+      /* ---------------- Parse planDelta ---------------- */
       const fenced = data.content ? extractJsonFence(data.content) : {};
-      const cfg: Partial<Plan> = data.plan ?? fenced ?? {};
-      
+      const planDelta = data.planDelta ?? fenced ?? {};
+      const merged = mergePlan(plan, planDelta);
 
-      const mergedPlan = mergePlan(plan, cfg);
 
-      // finalizedPrompt
       if (data.finalizedPrompt) {
-        mergedPlan.finalizedPrompt = data.finalizedPrompt;
+        merged.finalizedPrompt = data.finalizedPrompt;
       }
 
-      // userConfirmed — SAFE narrow (no any)
       if (typeof data.userConfirmed === "boolean") {
-        mergedPlan.userConfirmed = data.userConfirmed;
+        merged.userConfirmed = data.userConfirmed;
       }
 
-      setPlan(mergedPlan);
+      // NEW — capture projectName
+      const nameFromDelta =
+        typeof data.planDelta?.projectName === "string"
+          ? data.planDelta.projectName
+          : null;
+
+      const nameFromField =
+        typeof data.projectTitle === "string"
+          ? data.projectTitle
+          : null;
+
+      const finalName = nameFromDelta || nameFromField;
+
+      if (finalName) {
+        merged.projectName = finalName;
+        setNewProjectName(finalName);
+      }
+
+      setPlan(merged);
       setProductPlan(data.productPlan ?? null);
 
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: data.content ?? "" },
-      ]);
-      
+      /* ---------------- Add assistant message ---------------- */
+      const assistantMsg: ChatMessage = {
+        role: "assistant",
+        content: data.content ?? "",
+      };
+
+      const finalMsgs = [...updatedMessages, assistantMsg];
+      setMessages(finalMsgs);
+
+      /* ---------------- Auto-save ---------------- */
+      if (projectId && userEmail) {
+        await updateProject({
+          messages: finalMsgs,
+          plan: merged,
+          title: merged.projectName ?? "Untitled Project",
+          updatedAt: Date.now(),
+        });
+      }
     },
-    [messages, plan, selectedProduct, imageId]
+    [
+      messages,
+      plan,
+      selectedProduct,
+      imageId,
+      projectId,
+      userEmail,
+      updateProject,
+    ]
   );
 
   /* -------------------------------------------------------------
-   * Greeting
+   * GREETING
    * ------------------------------------------------------------- */
- /* -------------------------------------------------------------
- * Greeting (FIRST assistant message must be JSON)
- * ------------------------------------------------------------- */
-// inside useDesignChat.ts
+  const startGreeting = useCallback((msg: string) => {
+    setMessages((prev) => {
+      if (prev.length > 0) return prev;
+      return [{ role: "assistant", content: msg }];
+    });
+  }, []);
 
-// export type ChatResponse = {
-//   ok?: boolean;
-//   content?: string;
-//   message?: string;
-//   plan?: Plan;
-//   productPlan?: ProductPlan;
-//   finalizedPrompt?: string;
-//   userConfirmed?: boolean;
-//   projectTitle?: string;
-// };
+  /* -------------------------------------------------------------
+   * RESTORE (from Firestore)
+   * ------------------------------------------------------------- */
+  const restoreMessages = (prev: ChatMessage[]) => {
+    setMessages((existing) => {
+      if (existing.length > 0) return existing;
+      return prev;
+    });
+  };
 
-// ...
-
-const startGreeting = useCallback(async () => {
-  if (!selectedProduct) return;
-  if (messages.length > 0) return; // prevent duplicate greeting
-
-  addTyping();
-
-  const res = await fetch("/api/chat", {
-    method: "POST",
-    body: JSON.stringify({
-      messages: [{ role: "user", content: "Kickoff greeting only." }],
-      selectedProduct,
-    }),
-    headers: { "Content-Type": "application/json" },
-  });
-
-  const data: ChatResponse = await res.json();
-  removeTyping();
-
-  // Be defensive about where the text lives
-  const assistantText =
-    data.content ??
-    (typeof data.message === "string" ? data.message : "") ??
-    "";
-
-  if (assistantText) {
-    setMessages([{ role: "assistant", content: assistantText }]);
-  } else {
-    console.warn("[chat] Greeting response without content/message", data);
-    setMessages([]);
-  }
-
-  if (data.plan) setPlan(data.plan);
-  if (data.productPlan) setProductPlan(data.productPlan);
-}, [selectedProduct]);
-
-/** ---------------------------------------------
- * RESTORE PREVIOUS SESSION (loaded from Firestore)
- * --------------------------------------------- */
-function restoreMessages(prev: ChatMessage[]) {
-  setMessages((existing) => {
-    if (existing.length > 0) return existing;   // ← prevents overwrite loop
-    return prev;
-  });
-}
-
-
-function restorePlan(prev: Plan | null) {
-  if (prev) {
-    setPlan(prev);
-  }
-}
+  const restorePlan = (prev: Plan | null) => {
+    if (prev) setPlan(prev);
+  };
 
 
   /* -------------------------------------------------------------
-   * EXPORT
+   * RETURN API
    * ------------------------------------------------------------- */
   return {
     messages,
@@ -231,7 +232,9 @@ function restorePlan(prev: Plan | null) {
     sendMessage,
     startGreeting,
     addReference,
-    restoreMessages,   // 👈 ADD
-    restorePlan,   
+    restoreMessages,
+    restorePlan,
+    newProjectName,
   };
+  
 }

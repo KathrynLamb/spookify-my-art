@@ -1,5 +1,7 @@
 // app/design/types.ts
 
+// import { Plan } from "../api/chat/route";
+
 export type Role = 'user' | 'assistant';
 
 export type Orientation = 'Horizontal' | 'Vertical' | 'Square';
@@ -114,7 +116,7 @@ export type Plan = {
   textOverlay?: string;
   title?: string;
   finalizedPrompt?: string | null;
-
+  projectName?: string;
   referencesNeeded?: string[];   // from GPT
   references?: Reference[];      // added by uploads
 
@@ -172,4 +174,32 @@ export type ChatResponse = {
   finalizedPrompt?: string;
   userConfirmed?: boolean;
   projectTitle?: string;
+  planDelta?: PlanDelta
 };
+export type LLMContentPart =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string } };
+
+export type LLMMessage =
+  | { role: "system"; content: string }
+  | { role: "assistant"; content: string }
+  | { role: "user"; content: string | LLMContentPart[] };
+
+
+  export type PlanDelta = Partial<Pick<
+  Plan,
+  | "projectName"
+  | "intent"
+  | "vibe"
+  | "elements"
+  | "palette"
+  | "avoid"
+  | "textOverlay"
+  | "orientation"
+  | "targetAspect"
+  | "references"
+  | "referencesNeeded"
+  | "finalizedPrompt"
+  | "userConfirmed"
+>>;
+

@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import { OrderRecord } from "@/app/design/types/order";
+import { formatOrderDate } from "@/lib/formatOrderDate";
 
 /* ---------------------------------------------
  * Types
@@ -18,17 +20,6 @@ export type PaypalInfo = {
   [key: string]: unknown;
 };
 
-export type OrderRecord = {
-  orderId: string;
-  status: "created" | "processing" | "fulfilled" | "error";
-  invoiceId?: string;
-  createdAt: string;
-  fileUrl?: string;
-  assets?: OrderAsset[];
-  paypal?: PaypalInfo;
-  userEmail: string | null;
-  [key: string]: unknown;
-};
 
 /* ---------------------------------------------
  * Page Component
@@ -67,7 +58,8 @@ export default function OrderDetail({
       <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-2">
         <div>Status: {order.status}</div>
         {order.invoiceId && <div>Invoice: {order.invoiceId}</div>}
-        <div>Date: {new Date(order.createdAt).toLocaleString()}</div>
+        <div>Date: {formatOrderDate(order.createdAt)}</div>
+
         <div>Email: {order.paypal?.payer?.email_address ?? "—"}</div>
       </div>
 

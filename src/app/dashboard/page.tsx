@@ -66,6 +66,9 @@ export default function DashboardPage() {
   const email = user?.email ?? null;
   const { orders } = useOrders(email);
 
+  console.log("user", user);
+  console.log("projects", projects)
+
   return (
     <main className="relative min-h-screen p-8 text-white max-w-6xl mx-auto">
       <Particles />
@@ -75,7 +78,7 @@ export default function DashboardPage() {
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
       >
-        👋 Welcome back!
+        👋 Welcome back {user && user.name && user.name}!
       </motion.h1>
 
       {/* PROJECTS */}
@@ -99,7 +102,7 @@ export default function DashboardPage() {
             <div className="rounded-xl bg-white/5 border border-white/10 p-4 hover:bg-white/10 transition cursor-pointer">
               {/* Title */}
               <div className="text-lg font-semibold">
-                {proj.title || "Untitled Project"}
+                {proj.title || proj.id}
               </div>
 
               {/* Date */}

@@ -204,10 +204,10 @@ export default function ThankYouPage() {
           Browse More Products
         </a>
         <button
-          onClick={() => router.push('/upload')}
+          onClick={() => router.push('/dashboard')}
           className="rounded-lg border border-white/20 bg-transparent px-5 py-2.5 font-semibold text-white/80 hover:bg-white/10"
         >
-          Spookify Another Image
+          Go To Dashboard
         </button>
       </div>
 

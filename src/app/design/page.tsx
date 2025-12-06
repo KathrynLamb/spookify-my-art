@@ -99,6 +99,53 @@ export default function DesignPage() {
 
   const redirectingRef = useRef(false);
 
+
+  const handleTestProdigiBypass = useCallback(async () => {
+    try {
+      const sku =
+        selectedProduct?.prodigiSku ??
+        selectedProduct?.productUID ??
+        null;
+  
+      const fileUrl = _printUrl ?? null;
+  
+      if (!sku) {
+        alert("Missing sku (selected product has no prodigiSku/productUID).");
+        return;
+      }
+  
+      if (!fileUrl) {
+        alert("Missing fileUrl (no final print file yet).");
+        return;
+      }
+  
+      const res = await fetch("/api/prodigi/test-place-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sku,
+          fileUrl,
+          email: user?.email ?? undefined,
+          shipmentMethod: "Standard",
+        }),
+      });
+  
+      const json = await res.json();
+  
+      if (!res.ok || json.ok === false) {
+        alert(`Prodigi error ${res.status}: ${json.error ?? "Unknown error"}`);
+        return;
+      }
+  
+      alert("✅ Prodigi test order placed (bypass PayPal).");
+      console.log("[test-prodigi] result", json);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      alert(`Prodigi test failed: ${msg}`);
+    }
+  }, [selectedProduct, _printUrl, user?.email]);
+  
+
   useEffect(() => {
     if (redirectingRef.current) return;
     if (userLoading) return;
@@ -643,6 +690,19 @@ const canOrder = !!_printUrl && !!projectId && !!selectedProduct;
       >
         Debug
       </button>
+
+      {/* {process.env.NEXT_PUBLIC_ENABLE_TEST_PRODIGI_ORDER === "1" && projectId && user?.email && (
+
+  <button
+  onClick={handleTestProdigiBypass}
+  disabled={!selectedProduct || !_printUrl}
+  className="mt-3 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-white/80 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
+>
+  🧪 Test Prodigi Order (bypass PayPal)
+</button>
+
+)} */}
+
 
     </main>
   );

@@ -94,7 +94,6 @@ export async function POST(req: Request) {
 
     // ---- Save to Firebase or your bucket ----
     // const savedUrl = await saveGeneratedImage(imageId, buffer);
-    console.log("Not saved thought was not a real route", response)
 
     return Response.json({
       ok: true,

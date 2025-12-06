@@ -52,9 +52,9 @@ export async function POST(req: NextRequest) {
     // ✅ read ctx INSIDE the handler
     const ctx = ORDER_CTX.get(id) as { fileUrl?: string; imageId?: string } | undefined;
 
-    console.log("CTX", ctx)
+
     const fileUrlCtx = ctx?.fileUrl;
-    console.log("fileUrlCtx", fileUrlCtx)
+
     const imageIdCtx = ctx?.imageId;
 
     const token = await getAccessToken();

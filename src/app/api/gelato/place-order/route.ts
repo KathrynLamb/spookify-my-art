@@ -43,7 +43,6 @@ async function tryPost(url: string, body: unknown) {
     body: JSON.stringify(body),
   })
   const text = await res.text()
-  console.log('[Gelato raw response]', text.slice(0, 300))
   let json: unknown
   try {
     json = JSON.parse(text)
@@ -94,7 +93,6 @@ export async function POST(req: NextRequest) {
     }
 
     // 3) Attempt STAGING then PROD
-    console.log('[Gelato] Sending order → STAGING')
     let res = await tryPost(STAGING, orderBody)
     if (!res.ok) {
       console.warn('[Gelato] Staging failed; retrying PROD', res.status, res.json)

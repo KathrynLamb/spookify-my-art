@@ -34,7 +34,6 @@ export async function GET(req: NextRequest) {
 
     const upstream = `${PRODUCT_BASE}/products?${qs.toString()}`
     if (process.env.NODE_ENV !== 'production') {
-      console.log('[gelato/products] →', upstream)
     }
 
     const resp = await fetch(upstream, {
@@ -45,7 +44,6 @@ export async function GET(req: NextRequest) {
     const ctype = resp.headers.get('content-type') || ''
     const isJson = ctype.includes('application/json')
     if (process.env.NODE_ENV !== 'production') {
-      console.log('[gelato/products] status', resp.status, 'ctype', ctype)
     }
 
     if (!isJson) {

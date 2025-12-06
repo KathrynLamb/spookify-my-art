@@ -100,7 +100,7 @@ try {
 
     // Fire the worker (non-blocking); client will poll /status
     const base = getBaseUrl(req);
-    console.log("BASE", base)
+
     fetch(`${base}/api/spookify/worker`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },

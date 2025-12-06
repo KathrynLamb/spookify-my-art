@@ -248,9 +248,6 @@ async function placeProdigiOrder(input: {
     | { ok?: boolean; error?: string; prodigi?: unknown }
     | Record<string, unknown>;
 
-  console.log("[capture] prodigi status", r.status);
-  console.log("[capture] prodigi response", prodigiJson);
-
   if (!r.ok || prodigiJson?.ok === false) {
     const err =
       typeof (prodigiJson as { error?: unknown })?.error === "string"

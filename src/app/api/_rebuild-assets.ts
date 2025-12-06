@@ -6,7 +6,7 @@ export type Asset = {
   };
   
   export async function rebuildAssets(sku: string, fileUrl: string): Promise<Asset[]> {
-    console.log("[_rebuild-assets] rebuilding assets for sku:", sku, "file:", fileUrl);
+
   
     return [
       {

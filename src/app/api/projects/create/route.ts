@@ -7,8 +7,6 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-    console.log("📥 CREATE PROJECT BODY:", body);
-
     const {
       email,
       title,

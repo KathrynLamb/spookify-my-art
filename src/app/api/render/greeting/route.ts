@@ -6,7 +6,7 @@ import { renderGreetingPng } from "@/lib/renderGreetingPng";
 
 async function uploadBuffer(buf: Buffer, filename: string): Promise<string> {
   const b64 = buf.toString("base64");
-  console.log(filename)
+
   return `data:image/png;base64,${b64}`;
 }
 

@@ -58,13 +58,12 @@ export async function POST(req: NextRequest) {
   // const startTime = Date.now();
 
   try {
-    console.log("🎨 [START] /api/design/generate");
+
 
     /* ---------------------------------------------
      * Parse input
      * --------------------------------------------- */
     const body = await req.json();
-    console.log("📥 Incoming body:", body);
 
     const imageId: string = body.imageId;
     const prompt: string = body.prompt;

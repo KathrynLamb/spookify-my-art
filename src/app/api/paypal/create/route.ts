@@ -201,6 +201,37 @@ export async function POST(req: Request) {
 
     const invoiceId = `AI-${imageId}-${Date.now()}`;
 
+    // const purchaseUnit = {
+    //   reference_id: imageId,
+    //   custom_id: imageId,
+    //   invoice_id: invoiceId,
+    //   amount: {
+    //     currency_code: currency,
+    //     value: amount.toFixed(2),
+    //     breakdown: {
+    //       item_total: {
+    //         currency_code: currency,
+    //         value: amount.toFixed(2),
+    //       },
+    //     },
+    //   },
+    //   items: [
+    //     {
+    //       name: title,
+    //       quantity: "1",
+    //       sku,
+    //       category: "PHYSICAL_GOODS",
+    //       unit_amount: {
+    //         currency_code: currency,
+    //         value: amount.toFixed(2),
+    //       },
+    //       description:
+    //         "AI-generated custom artwork. Includes production-ready print file.",
+    //       image_url: fileUrl,
+    //     },
+    //   ],
+    // };
+
     const purchaseUnit = {
       reference_id: imageId,
       custom_id: imageId,
@@ -231,6 +262,19 @@ export async function POST(req: Request) {
         },
       ],
     };
+    
+    body: JSON.stringify({
+      intent: "CAPTURE",
+      purchase_units: [purchaseUnit],
+      application_context: {
+        brand_name: "AI Gifts",
+        landing_page: "NO_PREFERENCE",
+        user_action: "PAY_NOW",
+        return_url: `${baseUrl}/paypal/return`,
+        cancel_url: `${baseUrl}/paypal/cancel`,
+      },
+    });
+    
 
     const paypalRes = await fetch(`${PAYPAL_API}/v2/checkout/orders`, {
       method: "POST",
@@ -243,7 +287,7 @@ export async function POST(req: Request) {
         purchase_units: [purchaseUnit],
         application_context: {
           brand_name: "AI Gifts",
-          landing_page: "BILLING",
+          landing_page: "NO_PREFERENCE",
           user_action: "PAY_NOW",
           // ✅ Let PayPal collect shipping
           shipping_preference: "GET_FROM_FILE",

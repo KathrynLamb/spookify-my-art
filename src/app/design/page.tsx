@@ -3,9 +3,9 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Image from "next/image";
-import type { Reference } from "./types"; // adjust path if needed
+import type { Reference } from "./types";
 import type { Currency } from "./components/CurrencySwitcher";
-import { CanvasStage } from "./components/CanvasStage";
+
 import { ChatBox } from "./components/ChatBox";
 import { Composer } from "./components/Composer";
 import { ReferencePanel } from "./components/ReferencePanel";
@@ -33,24 +33,20 @@ export interface LoadedProject {
   title: string;
   productId: string;
   originalUrl: string | null;
-  previewUrl: string | null;   // art-only or mockup
-  mockupUrl?: string | null;   // explicit mockup if present
-  finalImage?: string | null;  // master print
-  resultUrl?: string | null;   // legacy alias
+  previewUrl: string | null;
+  mockupUrl?: string | null;
+  finalImage?: string | null;
+  resultUrl?: string | null;
   messages: ChatMessage[];
   references: ReferenceEntry[];
   plan?: Plan | null;
-
 }
-
 
 /* -------------------------------------------------- */
 /* RANDOM GREETING                                     */
 /* -------------------------------------------------- */
 
-function getRandomGreeting(
-  p: { greetings?: string[] } | null
-): string {
+function getRandomGreeting(p: { greetings?: string[] } | null): string {
   if (!p?.greetings?.length) return "Hello! Let's create something wonderful!";
   const list = p.greetings;
   return list[Math.floor(Math.random() * list.length)];
@@ -59,8 +55,6 @@ function getRandomGreeting(
 /* -------------------------------------------------- */
 /* DESIGN PAGE                                         */
 /* -------------------------------------------------- */
-
-
 
 export default function DesignPage() {
   const router = useRouter();
@@ -72,7 +66,8 @@ export default function DesignPage() {
   const { user, loading: userLoading } = useUser();
 
   const [loading, setLoading] = useState(true);
-  const [selectedProduct, setSelectedProduct] = useState<SelectedProduct | null>(null);
+  const [selectedProduct, setSelectedProduct] =
+    useState<SelectedProduct | null>(null);
   const [projectId, setProjectId] = useState<string | null>(null);
 
   const projectCreated = useRef(false);
@@ -98,78 +93,42 @@ export default function DesignPage() {
   const [orderError, setOrderError] = useState<string | null>(null);
 
   const redirectingRef = useRef(false);
+  const initialLoadDone = useRef(false);
 
+  // ✅ track prompt to allow regen on change
+  const lastPromptRef = useRef<string | null>(null);
 
-  const handleTestProdigiBypass = useCallback(async () => {
-    try {
-      const sku =
-        selectedProduct?.prodigiSku ??
-        selectedProduct?.productUID ??
-        null;
-  
-      const fileUrl = _printUrl ?? null;
-  
-      if (!sku) {
-        alert("Missing sku (selected product has no prodigiSku/productUID).");
-        return;
-      }
-  
-      if (!fileUrl) {
-        alert("Missing fileUrl (no final print file yet).");
-        return;
-      }
-  
-      const res = await fetch("/api/prodigi/test-place-order", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sku,
-          fileUrl,
-          email: user?.email ?? undefined,
-          shipmentMethod: "Standard",
-        }),
-      });
-  
-      const json = await res.json();
-  
-      if (!res.ok || json.ok === false) {
-        alert(`Prodigi error ${res.status}: ${json.error ?? "Unknown error"}`);
-        return;
-      }
-  
-      alert("✅ Prodigi test order placed (bypass PayPal).");
-      console.log("[test-prodigi] result", json);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Unknown error";
-      alert(`Prodigi test failed: ${msg}`);
-    }
-  }, [selectedProduct, _printUrl, user?.email]);
-  
+  /* -------------------------------------------------- */
+  /* AUTH REDIRECT                                      */
+  /* -------------------------------------------------- */
 
   useEffect(() => {
     if (redirectingRef.current) return;
     if (userLoading) return;
     if (user) return;
-  
+
     redirectingRef.current = true;
-  
+
     const params = new URLSearchParams();
     if (productParam) params.set("product", productParam);
     if (projectParam) params.set("projectId", projectParam);
-  
+
     const qs = params.toString();
     const next = qs ? `/design?${qs}` : "/design";
-  
+
     router.replace(`/login?next=${encodeURIComponent(next)}`);
   }, [userLoading, user, router, productParam, projectParam]);
-  
-
 
   const hasFinalDesign = !!previewUrl && !generating;
-const canOrder = !!_printUrl && !!projectId && !!selectedProduct;
+
+  const canOrder =
+    !!_printUrl &&
+    !!projectId &&
+    !!selectedProduct &&
+    !!savedPlan?.userConfirmed;
 
   /* -------------------------------------------------- */
-  /* updateProject is required BEFORE hook usage         */
+  /* updateProject                                      */
   /* -------------------------------------------------- */
 
   const updateProject = useCallback(
@@ -199,7 +158,7 @@ const canOrder = !!_printUrl && !!projectId && !!selectedProduct;
 
   const {
     messages,
-    plan: chatPlan,              // ✅ renamed to avoid collision
+    plan: chatPlan,
     sendMessage,
     startGreeting,
     addReference,
@@ -211,15 +170,13 @@ const canOrder = !!_printUrl && !!projectId && !!selectedProduct;
     imageId: null,
     projectId,
     userEmail: user?.email ?? null,
-    updateProject,               // now correctly passed
+    updateProject,
   });
 
-  /* Sync plan from chat → UI plan */
   useEffect(() => {
     if (chatPlan) setSavedPlan(chatPlan);
   }, [chatPlan]);
 
-  /* Apply AI-generated projectName */
   useEffect(() => {
     if (newProjectName && projectId) {
       updateProject({ title: newProjectName });
@@ -233,49 +190,46 @@ const canOrder = !!_printUrl && !!projectId && !!selectedProduct;
 
   const loadExistingProject = useCallback(async () => {
     if (!projectParam || !user?.email) return;
-  
+
     try {
       const res = await fetch(
         `/api/projects/get?projectId=${projectParam}&email=${user.email}`
       );
-  
+
       const json = await res.json();
-  
+
       if (!json.ok || !json.project) {
         console.error("[design] loadExistingProject – no project found", json);
         router.replace("/dashboard");
         return;
       }
-  
-      // Use projectParam as a guaranteed id fallback
+
       const projectData = json.project as LoadedProject;
-  
+
       const project: LoadedProject = {
         id: projectData.id ?? projectParam,
         ...projectData,
       };
-  
+
       setProjectId(project.id!);
       setTitle(project.title);
       setOriginalUrl(project.originalUrl);
       setPreviewUrl(project.mockupUrl ?? project.previewUrl);
       setPrintUrl(project.finalImage ?? project.resultUrl ?? null);
       setReferences(project.references ?? []);
-  
+
       restoreMessages(structuredClone(project.messages ?? []));
       restorePlan(project.plan ?? null);
-  
+
       const found = PRODUCTS.find((p) => p.productUID === project.productId);
       if (found) setSelectedProduct(found);
     } catch (err) {
       console.error("[design] loadExistingProject error", err);
       router.replace("/dashboard");
     } finally {
-      // always clear loading, even if something went wrong
       setLoading(false);
     }
   }, [projectParam, user?.email, router, restoreMessages, restorePlan]);
-  
 
   /* -------------------------------------------------- */
   /* LOAD NEW PRODUCT                                   */
@@ -300,21 +254,24 @@ const canOrder = !!_printUrl && !!projectId && !!selectedProduct;
   }, [productParam, projectParam, router, startGreeting]);
 
   /* -------------------------------------------------- */
-  /* INITIAL LOAD                                       */
+  /* INITIAL LOAD (guard against loops)                 */
   /* -------------------------------------------------- */
 
   useEffect(() => {
     if (userLoading) return;
     if (!user) return;
-  
+    if (initialLoadDone.current) return;
+
+    initialLoadDone.current = true;
+
     if (projectParam) loadExistingProject();
     else loadNewProduct();
   }, [userLoading, user, projectParam, loadExistingProject, loadNewProduct]);
-  
 
-    // --------------------------------------------------
-  // PAY & ORDER (PayPal → Prodigi)
-  // --------------------------------------------------
+  /* -------------------------------------------------- */
+  /* PAY & ORDER (PayPal → Prodigi)                     */
+  /* -------------------------------------------------- */
+
   const handleOrderClick = useCallback(async () => {
     if (!_printUrl || !projectId || !selectedProduct) return;
 
@@ -322,12 +279,10 @@ const canOrder = !!_printUrl && !!projectId && !!selectedProduct;
       setOrderError(null);
       setOrdering(true);
 
-      // 🔎 Adjust this line to match how your product stores prices
       const unitPrice: number =
-      selectedProduct.prices?.[currency] ??
-      selectedProduct.prices?.GBP ??
-      15;
-    
+        selectedProduct.prices?.[currency] ??
+        selectedProduct.prices?.GBP ??
+        15;
 
       const res = await fetch("/api/paypal/create", {
         method: "POST",
@@ -336,8 +291,8 @@ const canOrder = !!_printUrl && !!projectId && !!selectedProduct;
           amount: unitPrice,
           currency,
           title: title || selectedProduct.name || "Custom Artwork",
-          imageId: projectId,         // becomes PayPal reference_id / invoice prefix
-          fileUrl: _printUrl,         // 👈 final print file for Prodigi
+          imageId: projectId,
+          fileUrl: _printUrl,
           sku: selectedProduct.prodigiSku ?? selectedProduct.productUID,
           vendor: "prodigi",
         }),
@@ -350,7 +305,6 @@ const canOrder = !!_printUrl && !!projectId && !!selectedProduct;
         return;
       }
 
-      // ✅ send user to PayPal
       window.location.href = json.approveUrl as string;
     } catch (err) {
       console.error("handleOrderClick error", err);
@@ -360,59 +314,51 @@ const canOrder = !!_printUrl && !!projectId && !!selectedProduct;
     }
   }, [_printUrl, projectId, selectedProduct, currency, title]);
 
-
   /* -------------------------------------------------- */
   /* REFERENCE UPLOAD                                   */
   /* -------------------------------------------------- */
-
-
 
   const handleReferenceUpload = useCallback(
     async (label: string, file: File) => {
       setUploadError(null);
       const { imageId, url } = await handleUpload(file);
-  
-      // UI refs
+
       const next = [
         ...references.filter((r) => r.label !== label),
         { label, imageId, url },
       ];
       setReferences(next);
-  
-      // ✅ Build the exact plan we want the server to see
+
       const base = chatPlan ?? {
         references: [],
         referencesNeeded: [],
         finalizedPrompt: null,
         userConfirmed: false,
       };
-  
+
       const nextRef: Reference = { id: imageId, url, label };
-  
+
       const mergedRefs = [
         ...(base.references ?? []).filter((r) => r.label !== label),
         nextRef,
       ];
-  
+
       const remaining =
         (base.referencesNeeded ?? []).filter((l) => l !== label);
-  
+
       const overridePlan: Plan = {
         ...base,
         references: mergedRefs,
         referencesNeeded: remaining.length ? remaining : undefined,
       };
-  
-      // keep local plan in sync too
+
       addReference(label, imageId, url);
-  
-      // ✅ CRITICAL: send with override
+
       await sendMessage(
         `I've uploaded the reference photo labeled "${label}". Please confirm you received it.`,
         overridePlan
       );
-  
-      // ✅ Persist BOTH shapes so reloads stay consistent
+
       updateProject({
         references: next,
         plan: overridePlan,
@@ -427,7 +373,6 @@ const canOrder = !!_printUrl && !!projectId && !!selectedProduct;
       chatPlan,
     ]
   );
-  
 
   /* -------------------------------------------------- */
   /* PROJECT CREATION                                   */
@@ -482,47 +427,64 @@ const canOrder = !!_printUrl && !!projectId && !!selectedProduct;
   }, [messages, selectedProduct, createProject, projectParam]);
 
   /* -------------------------------------------------- */
-  /* IMAGE GENERATION                                   */
+  /* IMAGE GENERATION (supports edits + existing loads) */
   /* -------------------------------------------------- */
 
-
   useEffect(() => {
-    if (projectParam) return;
     if (!projectId) return;
-    if (!savedPlan?.userConfirmed) return;
-    if (!savedPlan.finalizedPrompt) return;
-  
+    if (!user?.email) return;
+    if (!selectedProduct) return;
+
+    const prompt = savedPlan?.finalizedPrompt ?? null;
+    const confirmed = !!savedPlan?.userConfirmed;
+
+    if (!confirmed || !prompt) return;
+    if (generating) return;
+
+    const promptChanged = lastPromptRef.current !== prompt;
+    const hasOutputs = !!previewUrl || !!_printUrl;
+
+    // ✅ If we've already generated AND prompt didn't change, stop.
+    if (hasOutputs && !promptChanged) return;
+
+    // ✅ Record prompt to avoid repeat loops
+    lastPromptRef.current = prompt;
+
+    // Optional: clear current visuals when re-generating
+    if (promptChanged) {
+      setPreviewUrl(null);
+      setPrintUrl(null);
+    }
+
     const run = async () => {
       try {
         setGenerating(true);
         setUploadError(null);
-  
+
         const res = await fetch("/api/design/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             imageId: projectId,
-            userId: user?.email ?? null,
+            userId: user.email,
             title,
-            prompt: savedPlan.finalizedPrompt,
-            productId: selectedProduct?.productUID,
+            prompt,
+            productId: selectedProduct.productUID,
             references,
-            mockup: selectedProduct?.mockup,
-            printSpec: selectedProduct?.printSpec,
+            mockup: selectedProduct.mockup,
+            printSpec: selectedProduct.printSpec,
           }),
         });
-  
+
         const json = await res.json();
         if (!res.ok) {
           setUploadError(json.error || "Generation failed");
           return;
         }
-  
-        // what the UI uses right now
+
         setPreviewUrl(json.mockupUrl);
         setPrintUrl(json.masterUrl);
-  
-        // what the rest of the app / checkout can key off
+
         updateProject({
           previewUrl: json.previewUrl ?? json.mockupUrl ?? null,
           mockupUrl: json.mockupUrl ?? null,
@@ -535,24 +497,25 @@ const canOrder = !!_printUrl && !!projectId && !!selectedProduct;
         setGenerating(false);
       }
     };
-  
+
     run();
   }, [
-    savedPlan,
-    projectParam,
     projectId,
-    references,
-    selectedProduct,
-    updateProject,
     user?.email,
+    selectedProduct,
+    savedPlan?.userConfirmed,
+    savedPlan?.finalizedPrompt,
+    previewUrl,
+    _printUrl,
+    generating,
     title,
+    references,
+    updateProject,
   ]);
-  
 
   /* -------------------------------------------------- */
   /* UI                                                 */
   /* -------------------------------------------------- */
-
 
   if (userLoading) {
     return (
@@ -561,16 +524,15 @@ const canOrder = !!_printUrl && !!projectId && !!selectedProduct;
       </main>
     );
   }
-  
+
   if (!user) {
-    // redirect effect will handle it
     return (
       <main className="min-h-screen grid place-items-center text-white">
         Redirecting…
       </main>
     );
   }
-  
+
   if (loading) {
     return (
       <main className="min-h-screen grid place-items-center text-white">
@@ -578,37 +540,28 @@ const canOrder = !!_printUrl && !!projectId && !!selectedProduct;
       </main>
     );
   }
-  
-
-  // const hasFinalDesign = !!previewUrl && !generating;
-
-  // // ✅ only show order button when we actually have a final print file & project id
-  // const canOrder = !!_printUrl && !!projectId;
 
   return (
     <main className="min-h-screen p-6 bg-black text-white max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
-
       {/* LEFT */}
       <div className="lg:col-span-1 space-y-4">
-
         <ProductInfo
           product={selectedProduct}
           previewUrl={previewUrl}
           originalUrl={originalUrl}
           currency={currency}
           printUrl={_printUrl}
-          canOrder={!!_printUrl && !!savedPlan?.userConfirmed}
+          canOrder={canOrder}
+          ordering={ordering}
+          orderError={orderError}
+          onOrder={handleOrderClick}
           onCurrencyChange={(c) => {
             setCurrency(c);
             localStorage.setItem("currency", c);
           }}
         />
 
-
-
-        <CanvasStage original={originalUrl} result={previewUrl} />
-
-        {/* references */}
+        {/* references thumbnails */}
         {references.length > 0 && (
           <div className="grid grid-cols-3 gap-2">
             {references.map((ref) => (
@@ -622,39 +575,22 @@ const canOrder = !!_printUrl && !!projectId && !!selectedProduct;
           </div>
         )}
 
-        {uploading && <div className="text-sm text-center">Uploading… {progress}%</div>}
-        {generating && <div className="text-sm text-center">Creating your design…</div>}
-        {uploadError && <div className="text-red-400 text-sm text-center">{uploadError}</div>}
-
-        {hasFinalDesign && (
-          <div className="p-3 bg-white/5 border border-white/10 rounded-xl text-xs space-y-2">
-            <div className="font-semibold mb-1">Next step</div>
-            <p>
-              Your design is ready. You can ask for tweaks anytime, or go ahead and order this mug.
-            </p>
-
-            {canOrder && (
-              <button
-                onClick={handleOrderClick}
-                disabled={ordering}
-                className="mt-1 inline-flex items-center justify-center rounded-lg bg-pink-500 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-pink-400 disabled:opacity-60 disabled:cursor-not-allowed transition"
-              >
-                {ordering
-                  ? "Opening PayPal…"
-                  : "I’m happy with it – order this mug"}
-              </button>
-            )}
-
-            {orderError && (
-              <p className="text-[11px] text-red-400 mt-1">
-                {orderError}
-              </p>
-            )}
-          </div>
+        {uploading && (
+          <div className="text-sm text-center">Uploading… {progress}%</div>
+        )}
+        {generating && (
+          <div className="text-sm text-center">Creating your design…</div>
+        )}
+        {uploadError && (
+          <div className="text-red-400 text-sm text-center">{uploadError}</div>
         )}
 
-
-
+        {/* tiny contextual hint */}
+        {hasFinalDesign && !canOrder && (
+          <div className="p-3 bg-white/5 border border-white/10 rounded-xl text-xs">
+            Your design is ready. Confirm the plan to enable ordering.
+          </div>
+        )}
 
         <ReferencePanel
           referencesNeeded={savedPlan?.referencesNeeded}
@@ -664,7 +600,6 @@ const canOrder = !!_printUrl && !!projectId && !!selectedProduct;
 
       {/* RIGHT */}
       <div className="lg:col-span-2 space-y-4">
-
         <div>
           <div className="font-semibold text-sm">How this works</div>
           <p>{`Describe what you'd like. The assistant may request reference photos.`}</p>
@@ -679,7 +614,7 @@ const canOrder = !!_printUrl && !!projectId && !!selectedProduct;
         <div className="fixed bottom-4 right-4 bg-neutral-900 p-4 rounded-xl border border-white/20 max-w-md max-h-[70vh] overflow-auto text-xs">
           <h2 className="font-bold mb-2">DEBUG</h2>
           <pre className="whitespace-pre-wrap text-[11px] opacity-80">
-{JSON.stringify({ projectId, selectedProduct, plan: savedPlan, messages }, null, 2)}
+            {JSON.stringify({ projectId, selectedProduct, plan: savedPlan, messages }, null, 2)}
           </pre>
         </div>
       )}
@@ -690,8 +625,6 @@ const canOrder = !!_printUrl && !!projectId && !!selectedProduct;
       >
         Debug
       </button>
-
-
     </main>
   );
 }

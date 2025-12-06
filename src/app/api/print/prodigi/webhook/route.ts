@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 // Upsert status into your DB; keep idempotent.
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
+  console.log(body)
   // Typical props you’ll see: { orderId, merchantReference, status, tracking, items: [...] }
   // Store status: 'received' | 'inProduction' | 'shipped' | 'delivered' | 'cancelled' | 'error'
   // Verify signature if your account supports it. Otherwise, at least check source IP allow-list.

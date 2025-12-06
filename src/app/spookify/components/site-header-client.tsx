@@ -88,14 +88,14 @@ export default function SiteHeaderClient({ session }: Props) {
             )}
 
             {/* Mobile menu button */}
-            <button
+            {/* <button
               type="button"
               aria-label={open ? 'Close menu' : 'Open menu'}
               onClick={() => setOpen((v) => !v)}
               className="ml-1 inline-flex items-center rounded-lg p-2 text-white/80 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500 md:hidden"
             >
               {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-            </button>
+            </button> */}
           </div>
         </div>
 

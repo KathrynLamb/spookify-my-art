@@ -691,18 +691,6 @@ const canOrder = !!_printUrl && !!projectId && !!selectedProduct;
         Debug
       </button>
 
-      {/* {process.env.NEXT_PUBLIC_ENABLE_TEST_PRODIGI_ORDER === "1" && projectId && user?.email && (
-
-  <button
-  onClick={handleTestProdigiBypass}
-  disabled={!selectedProduct || !_printUrl}
-  className="mt-3 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-white/80 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
->
-  🧪 Test Prodigi Order (bypass PayPal)
-</button>
-
-)} */}
-
 
     </main>
   );

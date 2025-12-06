@@ -198,7 +198,7 @@ export const PRODUCTS = [
      * MOCKUP CONFIG (optional — if you want mockups)
      * ------------------------------------------------------------- */
     mockup: {
-      template: "/mockups/prod_cushion.png",
+      template: "/mockups/cushion_blank.jpg",
       cushionWidthPx: 2000,
       cushionHeightPx: 2000,
 

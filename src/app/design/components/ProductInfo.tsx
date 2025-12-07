@@ -42,7 +42,7 @@ export default function ProductInfo(props: ProductInfoProps) {
 
   const [showDetails, setShowDetails] = useState(false);
 
-  // ❗ Hooks MUST stay above any conditional return
+  // ✅ Hook must be above conditional returns
   const deliveryLines = useMemo(() => {
     if (!product?.shippingTime) return [];
     const t = product.shippingTime;
@@ -54,7 +54,6 @@ export default function ProductInfo(props: ProductInfoProps) {
     return arr;
   }, [product?.shippingTime]);
 
-  // Now it's safe to return early
   if (!product) return null;
 
   const price = product.prices?.[currency] ?? product.prices?.GBP ?? 0;
@@ -64,8 +63,7 @@ export default function ProductInfo(props: ProductInfoProps) {
 
   return (
     <div className="space-y-4 rounded-xl border border-white/10 bg-black/20 p-5 backdrop-blur-sm">
-
-      {/* Title */}
+      {/* Title & Currency */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-semibold text-white">{product.title}</h2>
@@ -103,9 +101,17 @@ export default function ProductInfo(props: ProductInfoProps) {
         <p className="text-sm text-white/70">{product.description}</p>
       )}
 
-      {/* Confidence bullets */}
-      <div className="grid grid-cols-1 gap-2 text-xs text-white/70">
+            {/* Expandable details */}
+            <button
+        className="text-xs text-pink-400 underline"
+        onClick={() => setShowDetails((s) => !s)}
+      >
+        {showDetails ? "Hide details" : "Show details"}
+      </button>
 
+      {/* Confidence bullets */}
+      {showDetails && (
+      <div className="grid grid-cols-1 gap-2 text-xs text-white/70">
         <div className="rounded-lg border border-white/10 bg-white/5 p-2">
           <span className="text-white font-medium">What you get:</span>{" "}
           Your custom AI artwork printed on {itemName}.
@@ -123,18 +129,11 @@ export default function ProductInfo(props: ProductInfoProps) {
           </div>
         )}
       </div>
+      )}
 
-      {/* Expandable details */}
-      <button
-        className="text-xs text-pink-400 underline"
-        onClick={() => setShowDetails((s) => !s)}
-      >
-        {showDetails ? "Hide details" : "Show details"}
-      </button>
 
       {showDetails && (
         <div className="space-y-4 text-white/70 text-xs border-t border-white/10 pt-4">
-
           {!!product.specs?.length && (
             <div>
               <h3 className="text-white font-medium mb-1 text-sm">Specs</h3>

@@ -221,6 +221,13 @@ export default function DesignPage() {
       restoreMessages(structuredClone(project.messages ?? []));
       restorePlan(project.plan ?? null);
 
+      // ✅ CRITICAL FIX:
+      // Seed lastPromptRef from the stored plan so the generation
+      // effect doesn't think a restore is a user prompt change.
+      if (project.plan?.finalizedPrompt) {
+        lastPromptRef.current = project.plan.finalizedPrompt;
+      }
+
       const found = PRODUCTS.find((p) => p.productUID === project.productId);
       if (found) setSelectedProduct(found);
     } catch (err) {
@@ -427,7 +434,7 @@ export default function DesignPage() {
   }, [messages, selectedProduct, createProject, projectParam]);
 
   /* -------------------------------------------------- */
-  /* IMAGE GENERATION (supports edits + existing loads) */
+  /* IMAGE GENERATION (safe, stable, no restore wipe)   */
   /* -------------------------------------------------- */
 
   useEffect(() => {
@@ -435,23 +442,28 @@ export default function DesignPage() {
     if (!user?.email) return;
     if (!selectedProduct) return;
 
-    const prompt = savedPlan?.finalizedPrompt ?? null;
+    const prompt = savedPlan?.finalizedPrompt ?? "";
     const confirmed = !!savedPlan?.userConfirmed;
 
     if (!confirmed || !prompt) return;
     if (generating) return;
 
-    const promptChanged = lastPromptRef.current !== prompt;
-    const hasOutputs = !!previewUrl || !!_printUrl;
+    const currentPrompt = prompt;
+    const previousPrompt = lastPromptRef.current ?? "";
 
-    // ✅ If we've already generated AND prompt didn't change, stop.
-    if (hasOutputs && !promptChanged) return;
+    const promptChanged = currentPrompt !== previousPrompt;
+    const hasOutput = Boolean(previewUrl || _printUrl);
 
-    // ✅ Record prompt to avoid repeat loops
-    lastPromptRef.current = prompt;
+    // If already have output and prompt hasn't changed, do nothing
+    if (hasOutput && !promptChanged) return;
 
-    // Optional: clear current visuals when re-generating
-    if (promptChanged) {
+    // Record prompt now
+    lastPromptRef.current = currentPrompt;
+
+    // ✅ CRITICAL FIX:
+    // Only clear if we truly had a previous prompt (i.e., not first restore)
+    if (promptChanged && hasOutput && previousPrompt) {
+      console.log("Prompt changed — clearing previous images");
       setPreviewUrl(null);
       setPrintUrl(null);
     }
@@ -569,7 +581,13 @@ export default function DesignPage() {
                 key={ref.imageId}
                 className="relative aspect-square rounded-md overflow-hidden border border-white/10"
               >
-                <Image src={ref.url} alt={ref.label} fill className="object-cover" />
+                <Image
+                  src={ref.url}
+                  alt={ref.label}
+                  fill
+                  sizes="120px"
+                  className="object-cover"
+                />
               </div>
             ))}
           </div>
@@ -585,7 +603,6 @@ export default function DesignPage() {
           <div className="text-red-400 text-sm text-center">{uploadError}</div>
         )}
 
-        {/* tiny contextual hint */}
         {hasFinalDesign && !canOrder && (
           <div className="p-3 bg-white/5 border border-white/10 rounded-xl text-xs">
             Your design is ready. Confirm the plan to enable ordering.
@@ -614,7 +631,11 @@ export default function DesignPage() {
         <div className="fixed bottom-4 right-4 bg-neutral-900 p-4 rounded-xl border border-white/20 max-w-md max-h-[70vh] overflow-auto text-xs">
           <h2 className="font-bold mb-2">DEBUG</h2>
           <pre className="whitespace-pre-wrap text-[11px] opacity-80">
-            {JSON.stringify({ projectId, selectedProduct, plan: savedPlan, messages }, null, 2)}
+            {JSON.stringify(
+              { projectId, selectedProduct, plan: savedPlan, messages },
+              null,
+              2
+            )}
           </pre>
         </div>
       )}

@@ -321,9 +321,18 @@ export default function DesignPage() {
     }
   }, [_printUrl, projectId, selectedProduct, currency, title]);
 
+
+
   /* -------------------------------------------------- */
   /* REFERENCE UPLOAD                                   */
   /* -------------------------------------------------- */
+
+  const norm = (s: string) =>
+  s
+    .trim()
+    .toLowerCase()
+    .replaceAll("’", "'"); // normalize curly apostrophes
+
 
   const handleReferenceUpload = useCallback(
     async (label: string, file: File) => {
@@ -336,12 +345,15 @@ export default function DesignPage() {
       ];
       setReferences(next);
 
-      const base = chatPlan ?? {
+      const base =
+      savedPlan ??
+      chatPlan ?? {
         references: [],
         referencesNeeded: [],
         finalizedPrompt: null,
         userConfirmed: false,
       };
+    
 
       const nextRef: Reference = { id: imageId, url, label };
 
@@ -351,25 +363,30 @@ export default function DesignPage() {
       ];
 
       const remaining =
-        (base.referencesNeeded ?? []).filter((l) => l !== label);
+      (base.referencesNeeded ?? []).filter((l) => norm(l) !== norm(label));
+    
 
-      const overridePlan: Plan = {
-        ...base,
-        references: mergedRefs,
-        referencesNeeded: remaining.length ? remaining : undefined,
-      };
-
-      addReference(label, imageId, url);
-
-      await sendMessage(
-        `I've uploaded the reference photo labeled "${label}". Please confirm you received it.`,
-        overridePlan
-      );
-
-      updateProject({
-        references: next,
-        plan: overridePlan,
-      });
+        const overridePlan: Plan = {
+          ...base,
+          references: mergedRefs,
+          referencesNeeded: remaining.length ? remaining : undefined,
+        };
+        
+        // ✅ This is the missing piece for the UI
+        setSavedPlan(overridePlan);
+        
+        addReference(label, imageId, url);
+        
+        await sendMessage(
+          `I've uploaded the reference photo labeled "${label}". Please confirm you received it.`,
+          overridePlan
+        );
+        
+        updateProject({
+          references: next,
+          plan: overridePlan,
+        });
+        
     },
     [
       references,
@@ -525,6 +542,13 @@ export default function DesignPage() {
     updateProject,
   ]);
 
+  const effectiveReferencesNeeded = (() => {
+    const needed = savedPlan?.referencesNeeded ?? [];
+    const uploaded = new Set(references.map((r) => r.label));
+    return needed.filter((l) => !uploaded.has(l));
+  })();
+  
+
   /* -------------------------------------------------- */
   /* UI                                                 */
   /* -------------------------------------------------- */
@@ -571,6 +595,7 @@ export default function DesignPage() {
             setCurrency(c);
             localStorage.setItem("currency", c);
           }}
+          generating={generating}
         />
 
         {/* references thumbnails */}
@@ -610,7 +635,7 @@ export default function DesignPage() {
         )}
 
         <ReferencePanel
-          referencesNeeded={savedPlan?.referencesNeeded}
+          referencesNeeded={effectiveReferencesNeeded}
           onUpload={handleReferenceUpload}
         />
       </div>

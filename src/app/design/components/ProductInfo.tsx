@@ -12,7 +12,7 @@ type ProductInfoProps = {
   originalUrl: string | null;
   currency: Currency;
   onCurrencyChange: (c: Currency) => void;
-
+  generating?: boolean;
   printUrl?: string | null;
   canOrder?: boolean;
   onOrder?: () => void;
@@ -38,6 +38,7 @@ export default function ProductInfo(props: ProductInfoProps) {
     onOrder,
     ordering,
     orderError,
+    generating
   } = props;
 
   const [showDetails, setShowDetails] = useState(false);
@@ -78,6 +79,15 @@ export default function ProductInfo(props: ProductInfoProps) {
       <div className="text-2xl font-semibold text-pink-400">
         {SYMBOLS[currency] || currency} {price.toFixed(2)}
       </div>
+
+      {generating && (
+          <div className="rounded-lg border border-pink-500/30 bg-pink-500/10 px-3 py-2 text-xs text-pink-200">
+            <span className="animate-pulse">
+              Your project is being designed…
+            </span>
+          </div>
+        )}
+
 
       {/* Product image before AI generates */}
       {showHeroImage && (
@@ -171,26 +181,36 @@ export default function ProductInfo(props: ProductInfoProps) {
 
       {/* CTA */}
       {canOrder && printUrl ? (
-        <div className="space-y-2">
-          <button
-            className="w-full mt-3 px-4 py-2 rounded-lg bg-pink-500 text-sm font-semibold hover:bg-pink-600 disabled:opacity-60 disabled:cursor-not-allowed"
-            onClick={onOrder}
-            disabled={!onOrder || ordering}
-          >
-            {ordering
-              ? "Opening PayPal…"
-              : `I’m happy with it – order this ${itemName}`}
-          </button>
+  <div className="space-y-2">
+    <button
+      className="w-full mt-3 px-4 py-2 rounded-lg bg-pink-500 text-sm font-semibold hover:bg-pink-600 disabled:opacity-60 disabled:cursor-not-allowed"
+      onClick={onOrder}
+      disabled={!onOrder || ordering}
+    >
+      {ordering
+        ? "Opening PayPal…"
+        : `I’m happy with it – order this ${itemName}`}
+    </button>
 
-          {!!orderError && (
-            <p className="text-[11px] text-red-400">{orderError}</p>
-          )}
-        </div>
-      ) : (
-        <p className="text-xs text-white/40">
-          Your preview will appear here once generated.
-        </p>
-      )}
+    {!!orderError && (
+      <p className="text-[11px] text-red-400">{orderError}</p>
+    )}
+  </div>
+) : generating ? (
+  <div className="mt-2 rounded-lg border border-pink-500/30 bg-pink-500/10 px-3 py-2">
+    <p className="text-xs text-pink-200">
+      <span className="animate-pulse">Your project is being designed…</span>
+    </p>
+    <p className="text-[11px] text-white/50 mt-1">
+      This usually takes a moment. Your preview will appear here automatically.
+    </p>
+  </div>
+) : (
+  <p className="text-xs text-white/40">
+    Your preview will appear here once generated.
+  </p>
+)}
+
     </div>
   );
 }

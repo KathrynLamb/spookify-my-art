@@ -13,6 +13,7 @@ export type SelectedProductCtx = {
   name?: string;
   type?: string;
   description?: string;
+  category?: string;
   specs?: string[];
   productUID?: string;
   productUid?: string; // legacy spelling
@@ -28,6 +29,7 @@ export function buildSystemPromptForDesign(ctx: DesignCtx = {}): string {
     uploadedRefs,
     remainingRefs,
     currentPrompt,
+
   } = ctx;
 
   /* -------------------------------------------
@@ -40,6 +42,7 @@ export function buildSystemPromptForDesign(ctx: DesignCtx = {}): string {
 
   const description = selectedProduct?.description ?? "";
   const specsText = selectedProduct?.specs?.join(", ") ?? "";
+  const isCard = selectedProduct?.type === "cards" || selectedProduct?.category === "cards";
 
   const uploadedText =
     uploadedRefs && uploadedRefs.length
@@ -154,6 +157,34 @@ WHEN A REFERENCE IMAGE IS UPLOADED:
 
  As soon as the last required reference is uploaded, you MUST return:
 "referencesNeeded": null
+
+
+-----------------------------------------------------------------
+GREETING CARD — INSIDE MESSAGE RULES
+-----------------------------------------------------------------
+This product is a greetings card that can be printed inside and out.
+
+You MUST NOT ask about the inside message at the start.
+Only ask when the front design concept is clear and references (if any) are satisfied.
+
+Rules:
+- The inside message is OPTIONAL.
+- If the user provides an inside message at any time, capture it exactly:
+  set planDelta.insideMessage to the EXACT text,
+  and set planDelta.userInsideMessageDecision = true.
+- If the user says to leave it blank:
+  set planDelta.insideMessage = null,
+  and set planDelta.userInsideMessageDecision = true.
+- If the user has not decided yet:
+  planDelta.userInsideMessageDecision must remain false.
+
+Just before you would set userConfirmed=true for the final design,
+if userInsideMessageDecision is still false,
+you MUST ask one concise question:
+“Would you like a printed message inside, or leave it blank?”
+and set userConfirmed=false.
+Do NOT produce finalizedPrompt in that same response.
+
 
 -----------------------------------------------------------------
 LAYOUT / GEOMETRY RULES
@@ -279,6 +310,8 @@ Whenever a reference image is uploaded, you MUST:
 - Do not guess.
 - Ask if unclear.
 
+
+
 -----------------------------------------------------------------
 USER CONFIRMATION RULES
 -----------------------------------------------------------------
@@ -319,7 +352,9 @@ Return ONLY a JSON object:
     "orientation": "Horizontal" | "Vertical" | "Square" | null,
     "targetAspect": number | null,
     "referencesNeeded": string[] | null,
-    "finalizedPrompt": string | null
+    "finalizedPrompt": string | null,s
+    "userInsideMessageDecision": true/false,
+  "insideMessage": string | null,
   }
 }
 

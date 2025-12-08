@@ -115,66 +115,8 @@ export function useDesignChat(params: {
       setMessages(updatedMessages);
       addTyping();
 
-      /* =============================================================
-       * 1) GREETING CARD SPECIAL BRANCH — Inside Message
-       * ============================================================= */
-      const isCard = selectedProduct?.category === "cards";
       const planToSend = overridePlan ?? plan;
 
-      if (isCard && !planToSend.userInsideMessageDecision) {
-        removeTyping();
-
-        const lower = content.toLowerCase();
-        const answeredBlank =
-          lower.includes("blank") ||
-          lower.includes("leave it blank") ||
-          lower.includes("no") ||
-          lower.includes("none");
-
-        const answeredMessage =
-          lower.includes("yes") ||
-          lower.includes("write") ||
-          lower.includes("add") ||
-          lower.includes("message");
-
-        const updatedPlan = { ...planToSend };
-
-        // User chooses "leave blank"
-        if (answeredBlank) {
-          updatedPlan.userInsideMessageDecision = true;
-          updatedPlan.insideMessage = null;
-        }
-        // User gives custom message
-        else if (answeredMessage) {
-          updatedPlan.userInsideMessageDecision = true;
-          updatedPlan.insideMessage = content;
-        }
-        // User answered something unclear → ask again
-        else {
-          const askAgain: ChatMessage = {
-            role: "assistant",
-            content:
-              "Would you like any printed message on the inside of the card? Say “Leave it blank” or type the exact message.",
-          };
-
-          const msgList = [...updatedMessages, askAgain];
-          setMessages(msgList);
-
-          if (projectId && userEmail) {
-            await updateProject({
-              messages: msgList,
-              plan: updatedPlan,
-              updatedAt: Date.now(),
-            });
-          }
-
-          setPlan(updatedPlan);
-          return;
-        }
-
-        // Save the newly updated plan & proceed to chat completion
-        setPlan(updatedPlan);
-      }
 
       /* =============================================================
        * 2) SEND TO /api/chat

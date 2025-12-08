@@ -510,6 +510,8 @@ export default function DesignPage() {
             references,
             mockup: selectedProduct.mockup,
             printSpec: selectedProduct.printSpec,
+            insideMessage: activePlan?.insideMessage ?? null,
+            userInsideMessageDecision: !!activePlan?.userInsideMessageDecision,
           }),
         });
 

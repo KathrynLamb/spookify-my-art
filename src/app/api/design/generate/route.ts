@@ -30,6 +30,7 @@ type PrintSpecWithRules = Partial<ClientPrintSpec> & {
 function aspectFromNumber(n: number): string {
   const a = Number(n || 1);
   if (Math.abs(a - 1) < 0.05) return "1:1";
+  if (a > 2.6) return "21:9";
   if (a > 1.8) return "21:9";
   if (a > 1.6) return "16:9";
   if (a > 1.3) return "3:2";
@@ -56,20 +57,23 @@ function extractInlineImage(result: GeminiImageResponse) {
     : null;
 }
 
-function getPrintRulesForProduct(productId?: string): string[] {
-  if (!productId) return [];
-  const product = PRODUCTS.find(
-    (p) => p.productUID === productId || p.prodigiSku === productId
+function getProduct(productId?: string) {
+  if (!productId) return null;
+  return (
+    PRODUCTS.find(
+      (p) => p.productUID === productId || p.prodigiSku === productId
+    ) ?? null
   );
+}
+
+function getPrintRulesForProduct(productId?: string): string[] {
+  const product = getProduct(productId);
   const spec = (product?.printSpec ?? {}) as PrintSpecWithRules;
   return Array.isArray(spec.llmPrintRules) ? spec.llmPrintRules : [];
 }
 
 function isCardProduct(productId?: string): boolean {
-  if (!productId) return false;
-  const product = PRODUCTS.find(
-    (p) => p.productUID === productId || p.prodigiSku === productId
-  );
+  const product = getProduct(productId);
   return product?.category === "cards";
 }
 
@@ -90,27 +94,39 @@ export async function POST(req: NextRequest) {
     const clientPrintSpec: ClientPrintSpec | undefined = body.printSpec;
     const references: ReferenceInput[] = body.references ?? [];
 
+    // Card extras from client (optional)
+    const insideMessage: string | null = body.insideMessage ?? null;
+    const userInsideMessageDecision: boolean =
+      typeof body.userInsideMessageDecision === "boolean"
+        ? body.userInsideMessageDecision
+        : !!insideMessage;
+
     // Required for Firestore saving
     const userId: string | undefined = body.userId;
     const productTitle: string = body.title ?? "Generated Design";
 
-    if (!prompt)
+    if (!prompt) {
       return NextResponse.json({ error: "Missing prompt" }, { status: 400 });
-    if (!imageId)
+    }
+    if (!imageId) {
       return NextResponse.json({ error: "Missing imageId" }, { status: 400 });
+    }
 
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey)
+    if (!apiKey) {
       return NextResponse.json(
         { error: "Missing GEMINI_API_KEY" },
         { status: 500 }
       );
+    }
 
     const ai = new GoogleGenAI({ apiKey });
 
     /* ---------------------------------------------
-     * Print specs
+     * Product + Print specs
      * --------------------------------------------- */
+    const product = getProduct(productId);
+
     const { finalWidthPx, finalHeightPx } = pickPrintSpec(
       productId,
       clientPrintSpec
@@ -123,13 +139,15 @@ export async function POST(req: NextRequest) {
     const isCard = isCardProduct(productId);
     const printRules = getPrintRulesForProduct(productId);
 
+    // Strong anti-mockup prefix to prevent "table edges"
     const cardMasterPrefix = [
-      "You are generating a FLAT 2D PRINT FILE, not a mockup and not a photograph.",
-      "Output a clean digital print layout only.",
-      "NO table, NO environment, NO shadows, NO lighting effects, NO perspective.",
-      "NO props, NO envelope, NO hands, NO room scene, NO studio backdrop.",
-      "NO frames, NO borders, NO extra margins outside the design area.",
-      "The result must look like a pure print-ready layout on a blank digital canvas.",
+      "You are generating a FLAT 2D DIGITAL PRINT FILE for a greetings card.",
+      "This is NOT a mockup, NOT a photo, NOT a product-in-room scene.",
+      "The output must be a clean, rectangular, full-bleed layout on a pure digital canvas.",
+      "NO environment, NO table, NO shadows, NO lighting, NO depth, NO perspective.",
+      "NO props, NO envelope, NO hands, NO studio backdrop.",
+      "Do not add borders, frames, artificial margins, or background textures outside the artwork.",
+      "Do not include fold guides, labels, dashed lines, or template marks.",
     ].join(" ");
 
     const rulesBlock =
@@ -137,8 +155,17 @@ export async function POST(req: NextRequest) {
         ? `\nPRINT RULES:\n- ${printRules.join("\n- ")}`
         : "";
 
+    const insideBlock =
+      isCard && userInsideMessageDecision
+        ? insideMessage
+          ? `\nINSIDE MESSAGE:\n- Print this exact message in the Inside Right panel: ${JSON.stringify(
+              insideMessage
+            )}`
+          : `\nINSIDE MESSAGE:\n- Inside Right panel: leave blank.`
+        : "";
+
     const masterPrompt = isCard
-      ? `${cardMasterPrefix}${rulesBlock}\n\nARTWORK BRIEF:\n${prompt}`
+      ? `${cardMasterPrefix}${rulesBlock}${insideBlock}\n\nARTWORK BRIEF (front cover concept):\n${prompt}`
       : prompt;
 
     /* ---------------------------------------------
@@ -182,11 +209,12 @@ export async function POST(req: NextRequest) {
     })) as GeminiImageResponse;
 
     const masterInline = extractInlineImage(masterResponse);
-    if (!masterInline)
+    if (!masterInline) {
       return NextResponse.json(
         { error: "No master image generated" },
         { status: 500 }
       );
+    }
 
     const masterBuffer = Buffer.from(masterInline.data, "base64");
 
@@ -207,12 +235,13 @@ export async function POST(req: NextRequest) {
     const masterUrl = `${rawMasterUrl}?v=${Date.now()}`;
 
     /* ---------------------------------------------------------
-     * 2) PREVIEW GENERATION
+     * 2) PREVIEW GENERATION (watermarked)
      * --------------------------------------------------------- */
     const previewPrefix = isCard
       ? [
-          "This is a flat digital proof of a print file.",
+          "This is a FLAT digital proof of a greetings card print file.",
           "Do not add mockup styling, shadows, environment, table, props, or perspective.",
+          "Preserve the exact flat layout.",
         ].join(" ")
       : "";
 
@@ -261,33 +290,28 @@ export async function POST(req: NextRequest) {
      * --------------------------------------------------------- */
     let mockupUrl = previewUrl;
 
-    const product = PRODUCTS.find(
-      (p) => p.productUID === productId || p.prodigiSku === productId
-    );
-
     if (product?.mockup) {
-      const mock = product.mockup;
+      const mockPrompt = isCard
+        ? `
+Create a clean photorealistic mockup of a premium SQUARE GLOSS GREETING CARD.
+The card is FOLDED and standing upright at a gentle 3/4 angle.
+Place a kraft envelope beside it.
+Neutral studio background, soft diffuse lighting.
+Show ONLY the OUTER FRONT artwork from the provided image.
+Do NOT show the flat 4-panel print sheet.
+Do NOT add extra text, logos, watermarks, or new artwork.
+          `.trim()
+        : product.mockup.prompt;
 
-  //     const mockPrompt = isCard
-  //     ? `
-  // Create a clean photorealistic mockup of a FOLDED square greeting card.
-  // Standing upright, 3/4 angle.
-  // Include a kraft envelope beside it.
-  // Neutral studio background.
-  // Use ONLY the provided image on the OUTER FRONT face.
-  // Do NOT show the flat print sheet.
-  // Do NOT add new text/logos/watermarks.
-  //     `.trim()
-  //     : mock.prompt;
-
+      // ✅ Use MASTER as the input to mockup (not watermarked preview)
       const mockResponse = (await ai.models.generateContent({
         model: "gemini-3-pro-image-preview",
         contents: [
-          { text: mock.prompt },
+          { text: mockPrompt },
           {
             inlineData: {
-              mimeType: "image/png",
-              data: previewBuffer.toString("base64"),
+              mimeType: masterInline.mimeType,
+              data: masterInline.data,
             },
           },
         ],
@@ -342,6 +366,7 @@ export async function POST(req: NextRequest) {
               resultUrl: masterUrl,
               mockupUrl,
               productId,
+              insideMessage: insideMessage ?? null,
               updatedAt: new Date().toISOString(),
               createdAt: new Date().toISOString(),
             },

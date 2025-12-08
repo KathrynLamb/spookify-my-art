@@ -352,7 +352,7 @@ export const PRODUCTS = [
         previewWidthPx: 2048,
     
         llmPrintRules: [
-          "Produce artwork exactly at 6732×1713 pixels.",
+          "Produce artwork exactly at 6732×1712 pixels.",
           "This is a 4-panel horizontal greetings card print sheet.",
           "Treat the artwork as FOUR equal panels across the width.",
           "Panel order LEFT → RIGHT:",
@@ -360,21 +360,26 @@ export const PRODUCTS = [
           "Panel 2: Outer Front (main cover artwork)",
           "Panel 3: Inside Left",
           "Panel 4: Inside Right (user message goes here if provided)",
-    
+        
+          "IMPORTANT PANEL GEOMETRY:",
+          "Each panel's WIDTH is exactly 1/4 of the total width (about 1683px).",
+          "Although the full file height is 1712px, the intended finished card faces are SQUARE.",
+          "Therefore, compose each panel's MAIN DESIGN inside a centered square live area roughly 1683×1683px.",
+          "Center this square vertically within each panel.",
+          "Extend background colors/patterns to fill the full panel height to the edges.",
+        
           "Do NOT create one continuous scene spanning multiple panels.",
           "Do NOT let characters, objects, or text cross panel boundaries.",
           "Only Panel 2 should contain the full illustrated scene unless the user requests otherwise.",
           "Keep Panels 1, 3, and 4 minimal or subtle unless otherwise instructed.",
           "Never place text across panel boundaries.",
-    
+        
           "Do NOT include templates, fold guides, labels, dashed lines, or watermarks.",
-          "Do NOT add panel boxes, divider lines, or outer frames.",
           "No borders or transparency.",
           "Fill each panel edge-to-edge with artwork or subtle clean color.",
-          "Keep important faces/text comfortably away from panel edges (use ~80px safety).",
-          "This must be a flat 2D print file — not a mockup, not photographed, no shadows, no environment.",
+          "Keep important faces/text comfortably away from panel edges."
         ],
-      },
+      },        
     
       /* -------------------------------------------------------------
        * MOCKUP

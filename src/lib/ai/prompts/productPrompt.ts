@@ -242,6 +242,12 @@ Set "userConfirmed": true ONLY WHEN:
 3. Design concept is agreed.
 4. You include a non-empty finalizedPrompt.
 
+If the user requests a revision to an already-planned design,
+you MUST output an updated planDelta.finalizedPrompt
+and set userConfirmed=false,
+and your content MUST ask:
+“Would you like me to generate this updated version?”
+
 If unsure → userConfirmed = false.
 
 If the user's message is unclear (e.g. "ok", "sounds good", "make it funny"),

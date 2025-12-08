@@ -119,13 +119,7 @@ export default function DesignPage() {
     router.replace(`/login?next=${encodeURIComponent(next)}`);
   }, [userLoading, user, router, productParam, projectParam]);
 
-  const hasFinalDesign = !!previewUrl && !generating;
 
-  const canOrder =
-    !!_printUrl &&
-    !!projectId &&
-    !!selectedProduct &&
-    !!savedPlan?.userConfirmed;
 
   /* -------------------------------------------------- */
   /* updateProject                                      */
@@ -172,6 +166,18 @@ export default function DesignPage() {
     userEmail: user?.email ?? null,
     updateProject,
   });
+
+
+  const hasFinalDesign = !!previewUrl && !generating;
+
+  // ✅ Prefer the most recent plan source
+  const activePlan = savedPlan ?? chatPlan;
+
+  const canOrder =
+    !!_printUrl &&
+    !!projectId &&
+    !!selectedProduct &&
+    !!activePlan?.userConfirmed;
 
   useEffect(() => {
     if (chatPlan) setSavedPlan(chatPlan);

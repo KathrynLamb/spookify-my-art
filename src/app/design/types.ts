@@ -6,6 +6,52 @@ export type Role = 'user' | 'assistant';
 
 export type Orientation = 'Horizontal' | 'Vertical' | 'Square';
 
+export type MockupPlacement = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+export type MockupSpec = {
+  template: string;
+  prompt?: string;
+
+  // product-specific optional fields
+  mugWidthPx?: number;
+  mugHeightPx?: number;
+
+  cushionWidthPx?: number;
+  cushionHeightPx?: number;
+
+  // ✅ make optional because cards won't have it
+  placement?: MockupPlacement;
+};
+
+export type PrintSpec = {
+  provider: string;
+  surfaceName?: string;
+  finalWidthPx: number;
+  finalHeightPx: number;
+  dpi: number;
+  targetAspect: number;
+  widthMm?: number;
+  heightMm?: number;
+  safeZonePx?: {
+    top: number;
+    bottom: number;
+    left: number;
+    right: number;
+  };
+  previewWidthPx?: number;
+  llmPrintRules?: string[];
+  panelLayout?: {
+    panels: number;
+    panelWidthPx: number;
+    panelHeightPx: number;
+  };
+};
+
 export interface SelectedProduct {
   title: string;
   printProvider?: string;
@@ -43,20 +89,7 @@ export interface SelectedProduct {
     llmPrintRules?: string[];
   };
 
-  mockup?: {
-    template: string;
-    mugWidthPx?: number;
-    mugHeightPx?: number;
-    cushionWidthPx?: number;
-    cushionHeightPx?: number;
-    placement: {
-      x: number;
-      y: number;
-      width: number;
-      height: number;
-    };
-    prompt: string;
-  };
+  mockup?: MockupSpec;
 
   creativeGuidance?: string[];
   generationNotes?: string[];
@@ -76,7 +109,8 @@ export interface SelectedProduct {
     EUR?: number;
   };
 
-  shippingTime?: Record<string, string>;
+  shippingTime?: Record<string, string | undefined>;
+
   shippingRegions?: string[];
   returnPolicy?: string;
   care?: string[];
@@ -119,6 +153,8 @@ export type Plan = {
   projectName?: string;
   referencesNeeded?: string[];   // from GPT
   references?: Reference[];      // added by uploads
+  userInsideMessageDecision: boolean;
+  insideMessage: string | null;
 
   orientation?: 'Horizontal' | 'Vertical' | 'Square' | null;
   targetAspect?: number | null;

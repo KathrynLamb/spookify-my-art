@@ -8,7 +8,6 @@ import Image from 'next/image';
 import type { Session } from 'next-auth';
 import { Button } from '@/components/ui/button';
 import { UserButton } from './user-button';
-import { Menu, X } from 'lucide-react';
 import { AuthDialog } from './auth-dialog';
 
 type Props = { session: Session | null };

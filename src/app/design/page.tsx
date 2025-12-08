@@ -395,6 +395,7 @@ export default function DesignPage() {
       sendMessage,
       updateProject,
       chatPlan,
+      savedPlan,  
     ]
   );
 

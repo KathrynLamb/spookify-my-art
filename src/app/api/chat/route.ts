@@ -33,12 +33,40 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 }
 
 function mergePlan(base: Partial<Plan>, delta: Partial<Plan>): Plan {
+  const mergedRefs = mergeRefs(base.references, delta.references);
+
   return {
-    ...base,
-    ...delta,
-    references: mergeRefs(base.references, delta.references),
+    // existing plan shape (whatever else you already support)
+    intent: delta.intent ?? base.intent,
+    vibe: delta.vibe ?? base.vibe,
+    elements: delta.elements ?? base.elements,
+    palette: delta.palette ?? base.palette,
+    avoid: delta.avoid ?? base.avoid,
+    textOverlay: delta.textOverlay ?? base.textOverlay,
+    title: delta.title ?? base.title,
+
+    // core fields
+    references: mergedRefs,
+    referencesNeeded:
+      delta.referencesNeeded !== undefined ? delta.referencesNeeded : base.referencesNeeded,
+    finalizedPrompt: delta.finalizedPrompt ?? base.finalizedPrompt ?? null,
+    userConfirmed: delta.userConfirmed ?? base.userConfirmed ?? false,
+
+    // ✅ greeting card additions — HARD DEFAULTS
+    userInsideMessageDecision:
+      delta.userInsideMessageDecision ??
+      base.userInsideMessageDecision ??
+      false,
+
+    insideMessage:
+      delta.insideMessage ??
+      base.insideMessage ??
+      null,
+
+    // if you have any other Plan fields, add them here with ?? defaults
   };
 }
+
 
 interface ParsedResponse {
   content?: string;

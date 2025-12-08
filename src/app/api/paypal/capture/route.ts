@@ -81,6 +81,20 @@ type PayPalOrderDetails = {
 
 /* -------------------- HELPERS -------------------- */
 
+function hasCompleteShipping(
+  s: ShippingAddress | null | undefined
+): s is ShippingAddress {
+  return !!(
+    s &&
+    s.firstName &&
+    s.address1 &&
+    s.city &&
+    s.postalCode &&
+    s.countryCode
+  );
+}
+
+
 async function getAccessToken(): Promise<string> {
   const auth = Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString("base64");
 
@@ -292,34 +306,54 @@ export async function POST(req: NextRequest) {
         console.error("[capture] Firestore recovery failed", err);
       }
     }
+/* -------------------------------------------------------
+ * 5) Build assets → ALWAYS required for Prodigi
+ * ------------------------------------------------------- */
+const skuStr =
+  typeof sku === "string" && sku.trim().length > 0 ? sku.trim() : null;
 
-    /* -------------------------------------------------------
-     * 5) Build assets → ALWAYS required for Prodigi
-     * ------------------------------------------------------- */
-    const assets =
-      sku && fileUrl ? await rebuildAssets(sku, fileUrl) : [];
+const fileUrlStr =
+  typeof fileUrl === "string" && fileUrl.trim().length > 0
+    ? fileUrl.trim()
+    : null;
 
-    /* -------------------------------------------------------
-     * 6) Send Prodigi order ONLY IF shipping exists
-     * ------------------------------------------------------- */
-    let prodigi: {
-      ok: boolean;
-      error?: string;
-      raw?: unknown;
-      data?: unknown;
-    } = { ok: false, error: "Shipping missing", raw: null };
-    
+const assets =
+  skuStr && fileUrlStr ? await rebuildAssets(skuStr, fileUrlStr) : [];
 
-    if (
-      shipping &&
-      shipping.firstName &&
-      shipping.address1 &&
-      shipping.city &&
-      shipping.postalCode &&
-      shipping.countryCode
-    ) {
-      prodigi = await callProdigi(orderID, sku!, assets, shipping);
-    }
+if (!assets.length) {
+  console.warn("[capture] Empty assets after rebuildAssets", {
+    orderID,
+    hasSku: !!skuStr,
+    hasFileUrl: !!fileUrlStr,
+  });
+}
+
+/* -------------------------------------------------------
+ * 6) Send Prodigi order ONLY IF we truly have everything
+ * ------------------------------------------------------- */
+let prodigi: {
+  ok: boolean;
+  error?: string;
+  raw?: unknown;
+  data?: unknown;
+} = { ok: false, error: "Not attempted", raw: null };
+
+if (!hasCompleteShipping(shipping)) {
+  prodigi = { ok: false, error: "Shipping missing or incomplete" };
+} else if (!skuStr) {
+  prodigi = { ok: false, error: "SKU missing (could not recover)" };
+} else if (!fileUrlStr) {
+  prodigi = { ok: false, error: "File URL missing (could not recover)" };
+} else if (!assets.length) {
+  prodigi = {
+    ok: false,
+    error:
+      "Assets missing after rebuildAssets. Likely print area mismatch for SKU.",
+  };
+} else {
+  // ✅ TS-safe: skuStr is string AND shipping is ShippingAddress here
+  prodigi = await callProdigi(orderID, skuStr, assets, shipping);
+}
 
     /* -------------------------------------------------------
      * 7) Store final captured order in memory

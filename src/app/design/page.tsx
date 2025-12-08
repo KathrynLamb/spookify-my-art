@@ -466,8 +466,9 @@ export default function DesignPage() {
     if (!user?.email) return;
     if (!selectedProduct) return;
 
-    const prompt = savedPlan?.finalizedPrompt ?? "";
-    const confirmed = !!savedPlan?.userConfirmed;
+    const prompt = activePlan?.finalizedPrompt ?? "";
+    const confirmed = !!activePlan?.userConfirmed;
+
 
     if (!confirmed || !prompt) return;
     if (generating) return;
@@ -518,6 +519,11 @@ export default function DesignPage() {
           return;
         }
 
+        console.log("[generate] returned mockupUrl:", json.mockupUrl);
+        console.log("[generate] current previewUrl:", previewUrl);
+        console.log("[generate] same?", json.mockupUrl === previewUrl);
+
+
         setPreviewUrl(json.mockupUrl);
         setPrintUrl(json.masterUrl);
 
@@ -539,8 +545,8 @@ export default function DesignPage() {
     projectId,
     user?.email,
     selectedProduct,
-    savedPlan?.userConfirmed,
-    savedPlan?.finalizedPrompt,
+    activePlan?.userConfirmed,
+    activePlan?.finalizedPrompt,
     previewUrl,
     _printUrl,
     generating,
@@ -550,10 +556,11 @@ export default function DesignPage() {
   ]);
 
   const effectiveReferencesNeeded = (() => {
-    const needed = savedPlan?.referencesNeeded ?? [];
+    const needed = activePlan?.referencesNeeded ?? [];
     const uploaded = new Set(references.map((r) => r.label));
     return needed.filter((l) => !uploaded.has(l));
   })();
+
   
 
   /* -------------------------------------------------- */

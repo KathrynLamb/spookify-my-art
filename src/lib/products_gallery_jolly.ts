@@ -369,7 +369,7 @@ export const PRODUCTS = [
        * You can add a real blank mockup later.
        * ------------------------------------------------------------- */
       mockup: {
-        template: "/mockups/greeting-card-6x6-blank.jpg",
+        template: "/mockups/blank_card.png",
         prompt: `
   Create a photorealistic mockup of a premium square gloss greeting card.
   Show the provided artwork on the front.
@@ -499,7 +499,7 @@ export const PRODUCTS = [
       },
   
       mockup: {
-        template: "/mockups/greeting-card-6x6-blank.jpg",
+        template: "/mockups/blank_cards_10.png",
         prompt: `
   Create a photorealistic mockup of a premium square gloss greeting card.
   Show the provided artwork on the front.

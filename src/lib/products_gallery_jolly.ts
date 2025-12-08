@@ -302,113 +302,109 @@ export const PRODUCTS = [
       type: "Christmas",
       category: "cards",
       printProvider: "prodigi",
-  
+    
       // gallery art
       jollySrc: "/jollyfy/cards.png",
       // your own blank placeholder (create this asset)
       src: "/prodigi/cards/gloss-6x6-blank.png",
       href: "/jollyfy/products?cat=cards",
-  
+    
       /* -------------------------------------------------------------
        * APP IDENTIFIER (unique for your UI)
        * ------------------------------------------------------------- */
       productUID: "gre_card_6x6_gloss_mail4me_single",
-  
+    
       /* -------------------------------------------------------------
-       * PRODIGI IDENTIFIERS (confirmed by you)
+       * PRODIGI IDENTIFIERS
        * ------------------------------------------------------------- */
       prodigiSku: "GLOBAL-GRE-GLOS-6X6-DIR",
-  
+    
       /* -------------------------------------------------------------
        * PRINT GENERATION CONFIG
-       * IMPORTANT: 4-panel layout - NOT a single panorama.
+       * 4-panel flat sheet, LEFT → RIGHT:
+       * 1) Outer Back, 2) Outer Front, 3) Inside Left, 4) Inside Right
        * ------------------------------------------------------------- */
       printSpec: {
         provider: "prodigi",
         surfaceName: "Fine art greetings card 6x6 gloss (Mail4Me Direct)",
-  
-        // From your Prodigi image requirements
+    
         finalWidthPx: 6732,
         finalHeightPx: 1712,
-        dpi: 300,
         targetAspect: 6732 / 1712,
-  
-        widthMm: 140,
-        heightMm: 140,
-  
-        // This is a multi-panel flat sheet for outside + inside.
-        // We do not hard-assert panel order here — the model should
-        // follow the template's panel labels.
-        safeZonePx: {
-          top: 80,
-          bottom: 80,
-          left: 80,
-          right: 80,
-        },
-  
+
+        dpi: 300,
+
+    
         previewWidthPx: 2048,
-  
+    
         llmPrintRules: [
           "Produce artwork exactly at 6732×1712 pixels.",
-          "This file is a multi-panel greetings card print sheet.",
-          "Treat it as 4 equal panels across the width.",
+          "This is a 4-panel horizontal greetings card print sheet.",
+          "Treat the artwork as FOUR equal panels across the width.",
+          "Panel order LEFT → RIGHT:",
+          "Panel 1: Outer Back",
+          "Panel 2: Outer Front (main cover artwork)",
+          "Panel 3: Inside Left",
+          "Panel 4: Inside Right (user message goes here if provided)",
+    
           "Do NOT create one continuous scene spanning multiple panels.",
-          "Follow the panel order and labels from the template.",
-          "Place the main front design only in the front-cover panel.",
-          "Keep the back panel minimal (small mark/signature optional).",
-          "Keep inside panels readable for any inside message.",
+          "Do NOT let characters, objects, or text cross panel boundaries.",
+          "Only Panel 2 should contain the full illustrated scene unless the user requests otherwise.",
+          "Keep Panels 1, 3, and 4 minimal or subtle unless otherwise instructed.",
           "Never place text across panel boundaries.",
-          "Avoid placing important text/faces within ~80px of any panel edge.",
+    
           "Do NOT include templates, fold guides, labels, dashed lines, or watermarks.",
-          "Full-bleed artwork only; no transparency or borders.",
+          "No borders or transparency.",
+          "Fill each panel edge-to-edge with artwork or subtle clean color.",
+          "Keep important faces/text comfortably away from panel edges."
         ],
       },
-  
+    
       /* -------------------------------------------------------------
-       * MOCKUP (optional)
-       * You can add a real blank mockup later.
+       * MOCKUP
        * ------------------------------------------------------------- */
       mockup: {
         template: "/mockups/blank_card.png",
         prompt: `
-  Create a photorealistic mockup of a premium square gloss greeting card.
-  Show the provided artwork on the front.
-  Include a kraft envelope nearby.
-  Soft festive setting, warm lighting.
-  Do not add extra text, logos, or new artwork.
-  Use only the provided image for the card print area.
+    Create a photorealistic mockup of a premium square gloss greeting card.
+    Show the provided artwork on the front cover only.
+    The card should be standing upright.
+    Include a kraft envelope beside it.
+    Simple studio or soft festive setting with warm lighting.
+    Do not add extra text, logos, or new artwork.
+    Use only the provided image for the card print area.
         `.trim(),
       },
-  
+    
       greetings: [
         "Hello! Let’s make a 6×6” card that feels thoughtful, fun, and totally personal. ✨",
         "Ready to create the perfect last-minute card? I’ll help you make it look premium and heartfelt. 💌",
         "Let’s design a card that looks like it came from a boutique — but it’s all you. 🎄",
         "Want cute, funny, or elegant? We can nail the vibe in a few minutes. ✨",
       ],
-  
+    
       creativeGuidance: [
         "Ask who the card is for (friend, coworker, partner, family).",
         "Offer 3 quick style paths: cute, funny, elegant.",
         "Ask if they want inside text printed (direct delivery).",
         "Keep this fast and light for last-minute gifting.",
       ],
-  
+    
       generationNotes: [
         "This product uses a 4-panel layout: Outer Back, Outer Front, Inside Left, Inside Right.",
-        "The main artwork belongs only on the Outer Front panel.",
+        "The main artwork belongs on the Outer Front panel unless the user wants a full multi-panel concept.",
         "Other panels should be subtle or blank unless the user specifies otherwise.",
-        "Ask the user if they want a printed inside message on the Inside Right panel.",
+        "Ask the user if they want a printed inside message for the Inside Right panel.",
       ],
-  
+    
       requirePhotos: {
         min: 0,
         labels: [],
       },
-  
+    
       description:
         "A premium 6×6\" gloss greetings card printed inside and out. Ideal for Secret Santa and last-minute thoughtful gifting.",
-  
+    
       specs: [
         "Square 6×6\" greetings card",
         "280gsm gloss paper",
@@ -416,148 +412,152 @@ export const PRODUCTS = [
         "Kraft envelope included",
         "Mail4Me Direct Delivery (single card)",
       ],
-  
+    
       prices: {
         GBP: 3.99,
         USD: 5.99,
         EUR: 5.49,
       },
-  
+    
       shippingTime: {
         uk: "Made in 1–3 business days",
       },
-  
+    
       shippingRegions: ["UK"],
-  
+    
       returnPolicy:
         "Printed-on-demand items are not returnable unless faulty or damaged.",
-  
+    
       care: [],
-  
+    
       inStock: true,
     },
-  
+    
     {
       title: "Greeting card (6×6\") — Pack of 10",
       name: "Square Gloss Greeting Card (10-pack)",
       type: "Christmas",
       category: "cards",
       printProvider: "prodigi",
-  
+    
       jollySrc: "/jollyfy/cards.png",
       src: "/prodigi/cards/gloss-6x6-blank.png",
       href: "/jollyfy/products?cat=cards",
-  
+    
       /* -------------------------------------------------------------
        * APP IDENTIFIER (unique)
        * ------------------------------------------------------------- */
       productUID: "gre_card_6x6_gloss_mail4me_pack10",
-  
+    
       /* -------------------------------------------------------------
-       * PRODIGI IDENTIFIERS (same SKU; order quantity=10)
+       * PRODIGI IDENTIFIERS
+       * Same SKU; your order flow should set quantity=10
        * ------------------------------------------------------------- */
       prodigiSku: "GLOBAL-GRE-GLOS-6X6-DIR",
-  
+    
+      // Optional metadata for your UI / ordering logic
+      packSize: 10,
+    
       /* Same print spec as single */
       printSpec: {
         provider: "prodigi",
         surfaceName: "Fine art greetings card 6x6 gloss (Mail4Me Direct)",
-  
+    
         finalWidthPx: 6732,
         finalHeightPx: 1712,
-        dpi: 300,
         targetAspect: 6732 / 1712,
-  
-        widthMm: 140,
-        heightMm: 140,
-  
-        safeZonePx: {
-          top: 80,
-          bottom: 80,
-          left: 80,
-          right: 80,
-        },
-  
+        dpi: 300,
         previewWidthPx: 2048,
-  
+    
         llmPrintRules: [
           "Produce artwork exactly at 6732×1712 pixels.",
-          "This is a 4-panel horizontal card layout, LEFT → RIGHT:",
+          "This is a 4-panel horizontal greetings card print sheet.",
+          "Treat the artwork as FOUR equal panels across the width.",
+          "Panel order LEFT → RIGHT:",
           "Panel 1: Outer Back",
           "Panel 2: Outer Front (main cover artwork)",
           "Panel 3: Inside Left",
           "Panel 4: Inside Right (user message goes here if provided)",
-          "Do NOT create one continuous scene across panels.",
-          "Do NOT let characters/objects cross between panels.",
+    
+          "Do NOT create one continuous scene spanning multiple panels.",
+          "Do NOT let characters, objects, or text cross panel boundaries.",
           "Only Panel 2 should contain the full illustrated scene unless the user requests otherwise.",
-          "Keep Panels 1, 3, and 4 minimal unless otherwise instructed.",
-          "No fold marks, templates, borders, or design guides.",
-          "Fill all panels edge-to-edge with color or artwork.",
-          "Keep important details ~80px inside each edge.",
+          "Keep Panels 1, 3, and 4 minimal or subtle unless otherwise instructed.",
+          "Never place text across panel boundaries.",
+    
+          "Do NOT include templates, fold guides, labels, dashed lines, or watermarks.",
+          "No borders or transparency.",
+          "Fill each panel edge-to-edge with artwork or subtle clean color.",
+          "Keep important faces/text comfortably away from panel edges."
         ],
-        
       },
-  
+    
       mockup: {
         template: "/mockups/blank_cards_10.png",
         prompt: `
-  Create a photorealistic mockup of a premium square gloss greeting card.
-  Show the provided artwork on the front.
-  Include a small, neat stack of cards to imply multi-quantity.
-  Soft festive setting, warm lighting.
-  Do not add extra text, logos, or new artwork.
-  Use only the provided image for the card print area.
+    Create a photorealistic mockup of a neat stack of ten premium square gloss greeting cards.
+    Show the provided artwork on the top card's front cover only.
+    Include a kraft envelope beside the stack.
+    Clean studio or soft festive setting with warm lighting.
+    Do not add extra text, logos, or new artwork.
+    Use only the provided image for the card print area.
         `.trim(),
       },
-  
+    
       greetings: [
-        "Want a 10-pack for coworkers or friends? Let’s make a design that looks amazing in a set. 🎁",
-        "We can make a classy or funny batch in minutes — perfect for Secret Santa season. 💌",
+        "Let’s create a beautiful 10-pack of 6×6” cards — perfect for gifting or sending out this season. 💌✨",
+        "Want your own mini set of boutique-style cards? Let’s make a 10-pack that looks premium and personal. 🎄",
       ],
-  
+    
       creativeGuidance: [
-        "Ask if they want a universal message or a name-free front design.",
-        "Offer style shortcuts: cute set, minimal set, funny set.",
+        "Ask who the cards are for and what tone they want.",
+        "Offer 3 quick style paths: cute, funny, elegant.",
+        "Ask if they want inside text printed for all cards.",
+        "Keep it fast and friendly.",
       ],
-  
+    
       generationNotes: [
-        "Same print file as the single card.",
-        "Your order integration should send quantity=10.",
+        "This product uses a 4-panel layout: Outer Back, Outer Front, Inside Left, Inside Right.",
+        "The main artwork belongs on the Outer Front panel unless the user wants a full multi-panel concept.",
+        "Other panels should be subtle or blank unless the user specifies otherwise.",
+        "Ask the user if they want a printed inside message for the Inside Right panel.",
       ],
-  
+    
       requirePhotos: {
         min: 0,
         labels: [],
       },
-  
+    
       description:
-        "A 10-pack of premium 6×6\" gloss greetings cards printed inside and out. Great for teams, classrooms, and last-minute holiday wins.",
-  
+        "A premium 10-pack of 6×6\" gloss greetings cards printed inside and out. Great for holiday cards, thank-yous, and last-minute gifting.",
+    
       specs: [
-        "Square 6×6\" greetings cards",
+        "Pack of 10 square 6×6\" greetings cards",
         "280gsm gloss paper",
         "Printed inside and out",
         "Kraft envelopes included",
-        "Pack of 10 (quantity controlled in your checkout)",
+        "Mail4Me Direct Delivery (10 cards)",
       ],
-  
+    
       prices: {
-        GBP: 19.99,
-        USD: 29.99,
-        EUR: 26.99,
+        GBP: 24.99,
+        USD: 34.99,
+        EUR: 32.99,
       },
-  
+    
       shippingTime: {
         uk: "Made in 1–3 business days",
       },
-  
+    
       shippingRegions: ["UK"],
-  
+    
       returnPolicy:
         "Printed-on-demand items are not returnable unless faulty or damaged.",
-  
+    
       care: [],
-  
+    
       inStock: true,
     },
-  ]  
+    
+  
+  ]

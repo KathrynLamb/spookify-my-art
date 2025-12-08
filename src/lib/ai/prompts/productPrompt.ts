@@ -206,6 +206,48 @@ Include the updated projectName **every time you output a planDelta**, even if n
 
 -----------------------------------------------------------------
 
+//-----------------------------------------------------------------
+//  SPECIAL PRODUCT OVERRIDE — GREETING CARDS
+//-----------------------------------------------------------------
+
+If the selected product is a greeting card (keywords include: "card",
+"greetings card", "greeting card", "fine art greetings card") then you MUST
+switch into **Card Spread Mode**.
+
+CARD SPREAD MODE RULES
+-----------------------------------------------------------------
+You must produce artwork intended for a **full unfolded card spread**.
+
+This spread consists of FOUR panels arranged horizontally:
+
+1. Outer back  (leftmost)
+2. Outer front
+3. Inner front
+4. Inner back  (rightmost)
+
+Your *finalizedPrompt* MUST describe **all four connected panels** in a single
+unbroken horizontal artwork.
+
+IMPORTANT:
+- Do NOT describe printing, bleed, safe areas, DPI, trimming or templates.
+- Do NOT mention physical folds, but DO describe the visual intentions of each panel.
+- The layout MUST be a single continuous horizontal artwork with four conceptual zones.
+- The leftmost panel is the card back. The next is the front cover. The next two are the inside.
+- If the user provides an inside message, place it ONLY on the “inner front” panel.
+- If the user wants the inside blank, inside should be visually clean, subtle paper texture only.
+
+If insideMessage exists, you MUST include it verbatim in the “inner front” panel
+description inside finalizedPrompt.
+
+EXAMPLE OF CORRECT STRUCTURE (NOT to be output literally):
+
+“One continuous horizontal artwork divided conceptually into four equal panels:
+left panel (outer back)… second panel (outer front)… third panel (inner front)…
+fourth panel (inner back)…”
+
+For greeting cards, your *finalizedPrompt* MUST follow this structure.
+
+For all OTHER products (mugs, cushions, posters) continue with normal rules.
 
 -----------------------------------------------------------------
 FINAL ARTWORK PROMPT RULES
@@ -217,8 +259,12 @@ REQUIRED:
 - Describe exactly ONE clear artwork.
 - Mention main subject, background, mood, colors, and style.
 - If user photos were uploaded and matter visually, include:
-  "matching the uploaded references".
-- Describe only the artwork itself — NOT the product.
+Describe only the artwork itself — NOT the physical product.
+
+EXCEPTION FOR GREETING CARDS:
+You ARE allowed to describe the four connected panels (outer back, outer front,
+inner front, inner back) because this is part of the artwork itself.
+
 
 FORBIDDEN in finalizedPrompt:
 - Any mention of a physical product.

@@ -366,15 +366,26 @@ export const PRODUCTS = [
       mockup: {
         template: "/mockups/blank_card.png",
         prompt: `
-    Create a photorealistic mockup of a premium square gloss greeting card.
-    Show the provided artwork on the front cover only.
-    The card should be standing upright.
-    Include a kraft envelope beside it.
-    Simple studio or soft festive setting with warm lighting.
-    Do not add extra text, logos, or new artwork.
-    Use only the provided image for the card print area.
+      Create a clean, photorealistic studio mockup of a premium square folded greeting card.
+      
+      COMPOSITION:
+      - The card must be FOLDED and STANDING upright.
+      - 3/4 angle view, slightly offset.
+      - Include a matching kraft envelope placed beside the card.
+      - Neutral soft studio background (no table styling, no room scene, no props).
+      
+      ARTWORK RULES:
+      - Apply the provided image ONLY to the OUTER FRONT panel of the folded card.
+      - Do not add any new text, graphics, logos, patterns, or watermarks.
+      - Do not alter the artwork content.
+      - Do not show the flat print sheet.
+      - Do not show inside panels unless explicitly instructed.
+      
+      RESULT:
+      - The card should clearly look like a real folded card product photo.
         `.trim(),
       },
+      
     
       greetings: [
         "Hello! Let’s make a 6×6” card that feels thoughtful, fun, and totally personal. ✨",

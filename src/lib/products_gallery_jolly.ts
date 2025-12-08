@@ -323,22 +323,36 @@ export const PRODUCTS = [
        * PRINT GENERATION CONFIG
        * 4-panel flat sheet, LEFT → RIGHT:
        * 1) Outer Back, 2) Outer Front, 3) Inside Left, 4) Inside Right
+       *
+       * IMPORTANT:
+       * Prodigi UI for this SKU shows recommended size 6732×1713px @ 300dpi.
+       * Use 1713 to match the provider's validator.
        * ------------------------------------------------------------- */
       printSpec: {
         provider: "prodigi",
         surfaceName: "Fine art greetings card 6x6 gloss (Mail4Me Direct)",
     
         finalWidthPx: 6732,
-        finalHeightPx: 1712,
-        targetAspect: 6732 / 1712,
-
+        finalHeightPx: 1713,
         dpi: 300,
-
+        targetAspect: 6732 / 1713,
+    
+        // Optional physical hints (harmless + useful elsewhere)
+        widthMm: 140,
+        heightMm: 140,
+    
+        // Optional safety hint for text/faces
+        safeZonePx: {
+          top: 80,
+          bottom: 80,
+          left: 80,
+          right: 80,
+        },
     
         previewWidthPx: 2048,
     
         llmPrintRules: [
-          "Produce artwork exactly at 6732×1712 pixels.",
+          "Produce artwork exactly at 6732×1713 pixels.",
           "This is a 4-panel horizontal greetings card print sheet.",
           "Treat the artwork as FOUR equal panels across the width.",
           "Panel order LEFT → RIGHT:",
@@ -354,38 +368,41 @@ export const PRODUCTS = [
           "Never place text across panel boundaries.",
     
           "Do NOT include templates, fold guides, labels, dashed lines, or watermarks.",
+          "Do NOT add panel boxes, divider lines, or outer frames.",
           "No borders or transparency.",
           "Fill each panel edge-to-edge with artwork or subtle clean color.",
-          "Keep important faces/text comfortably away from panel edges."
+          "Keep important faces/text comfortably away from panel edges (use ~80px safety).",
+          "This must be a flat 2D print file — not a mockup, not photographed, no shadows, no environment.",
         ],
       },
     
       /* -------------------------------------------------------------
        * MOCKUP
+       * Use preview image as input; show a FOLDED card product shot.
        * ------------------------------------------------------------- */
       mockup: {
         template: "/mockups/blank_card.png",
         prompt: `
-      Create a clean, photorealistic studio mockup of a premium square folded greeting card.
-      
-      COMPOSITION:
-      - The card must be FOLDED and STANDING upright.
-      - 3/4 angle view, slightly offset.
-      - Include a matching kraft envelope placed beside the card.
-      - Neutral soft studio background (no table styling, no room scene, no props).
-      
-      ARTWORK RULES:
-      - Apply the provided image ONLY to the OUTER FRONT panel of the folded card.
-      - Do not add any new text, graphics, logos, patterns, or watermarks.
-      - Do not alter the artwork content.
-      - Do not show the flat print sheet.
-      - Do not show inside panels unless explicitly instructed.
-      
-      RESULT:
-      - The card should clearly look like a real folded card product photo.
+    Create a clean, photorealistic studio mockup of a premium square folded greeting card.
+    
+    COMPOSITION:
+    - The card must be FOLDED and STANDING upright.
+    - 3/4 angle view.
+    - Include a matching kraft envelope beside the card.
+    - Neutral seamless studio background (no table, no room scene, no extra props).
+    - Soft even lighting.
+    
+    ARTWORK RULES:
+    - Apply the provided image ONLY to the OUTER FRONT face of the folded card.
+    - Do not add any new text, graphics, logos, patterns, or watermarks.
+    - Do not alter the artwork content.
+    - Do not show the flat print sheet.
+    - Do not show inside panels unless explicitly instructed.
+    
+    RESULT:
+    - The card should clearly look like a real folded card product photo.
         `.trim(),
       },
-      
     
       greetings: [
         "Hello! Let’s make a 6×6” card that feels thoughtful, fun, and totally personal. ✨",
@@ -397,15 +414,14 @@ export const PRODUCTS = [
       creativeGuidance: [
         "Ask who the card is for (friend, coworker, partner, family).",
         "Offer 3 quick style paths: cute, funny, elegant.",
-        "Ask if they want inside text printed (direct delivery).",
-        "Keep this fast and light for last-minute gifting.",
+        "Only ask about inside text near finalization (avoid early interruptions).",
       ],
     
       generationNotes: [
         "This product uses a 4-panel layout: Outer Back, Outer Front, Inside Left, Inside Right.",
         "The main artwork belongs on the Outer Front panel unless the user wants a full multi-panel concept.",
         "Other panels should be subtle or blank unless the user specifies otherwise.",
-        "Ask the user if they want a printed inside message for the Inside Right panel.",
+        "Inside Right is the default location for a printed message if provided.",
       ],
     
       requirePhotos: {
@@ -443,6 +459,7 @@ export const PRODUCTS = [
     
       inStock: true,
     },
+    
     
     {
       title: "Greeting card (6×6\") — Pack of 10",

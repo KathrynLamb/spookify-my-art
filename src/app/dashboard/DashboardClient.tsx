@@ -40,6 +40,11 @@ function isFirestoreTimestamp(value: unknown): value is FirestoreTimestampLike {
   );
 }
 
+function asStringOrUndefined(v: unknown): string | undefined {
+  return typeof v === "string" && v.trim().length > 0 ? v : undefined;
+}
+
+
 // Type guard for serialized timestamp objects
 function isFirestoreSerializedTimestamp(
   value: unknown
@@ -173,16 +178,20 @@ export default function DashboardClient() {
             href={`/design?projectId=${proj.id}`}
             className="block"
           >
-            <ProjectCard
+       <ProjectCard
               project={{
-                id: proj.id,
-                title: proj.title,
-                previewUrl: proj.previewUrl,
-                dateText,
-              }}
-              deleting={deletingId === proj.id}
-              onDelete={(id) => handleDelete(id, proj.title)}
-            />
+                  id: proj.id,
+                  title: proj.title,
+                  previewUrl: asStringOrUndefined(
+                    (proj as { mockupUrl?: unknown; previewUrl?: unknown }).mockupUrl ??
+                    (proj as { previewUrl?: unknown }).previewUrl
+                  ),
+                  dateText,
+                }}
+                deleting={deletingId === proj.id}
+                onDelete={(id) => handleDelete(id, proj.title)}
+              />
+
           </Link>
         );
       })}

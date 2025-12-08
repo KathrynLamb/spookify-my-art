@@ -37,7 +37,7 @@ export function ProjectCard({
     if (!deleting) onDelete?.(project.id);
   };
 
-  // console.log("project card", project)
+  console.log("project card", project)
 
   return (
     <motion.div

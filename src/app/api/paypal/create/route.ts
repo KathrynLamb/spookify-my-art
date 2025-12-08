@@ -4,17 +4,48 @@ import { ORDER_CTX } from "@/app/api/_order-kv";
 
 export const runtime = "nodejs";
 
+function toMoneyString(n: number) {
+  // PayPal expects string money values with 2 decimals
+  return Number.isFinite(n) ? n.toFixed(2) : "0.00";
+}
+
+function calcItemTotal(
+  items: Array<{ unit_amount: { value: string }; quantity: string }>
+) {
+  const total = items.reduce((sum, i) => {
+    const unit = Number(i.unit_amount.value);
+    const qty = Number(i.quantity);
+    return sum + unit * qty;
+  }, 0);
+
+  return toMoneyString(total);
+}
+
 export async function POST(req: Request) {
   try {
-    const {
-      amount,
-      currency = "GBP",
-      title = "Custom Artwork",
-      imageId,
-      fileUrl,
-      sku = "unknown",
-      vendor = "prodigi",
-    } = await req.json();
+    const body = await req.json();
+
+    const amountRaw = body.amount;
+    const amount =
+      typeof amountRaw === "number"
+        ? amountRaw
+        : typeof amountRaw === "string"
+        ? Number(amountRaw)
+        : NaN;
+
+    const currency = body.currency ?? "GBP";
+    const title = body.title ?? "Custom Artwork";
+    const imageId = body.imageId;
+    const fileUrl = body.fileUrl;
+    const sku = body.sku ?? "unknown";
+    const vendor = body.vendor ?? "prodigi";
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return NextResponse.json(
+        { error: "Missing or invalid amount" },
+        { status: 400 }
+      );
+    }
 
     if (!imageId || !fileUrl) {
       return NextResponse.json(
@@ -52,29 +83,52 @@ export async function POST(req: Request) {
 
     const invoiceId = `AI-${imageId}-${Date.now()}`;
 
+    // ------------------------------------------------------------
+    // ✅ Build items FIRST
+    // ------------------------------------------------------------
+    const items = [
+      {
+        name: title,
+        quantity: "1",
+        sku,
+        category: "PHYSICAL_GOODS",
+        unit_amount: {
+          currency_code: currency,
+          value: toMoneyString(amount),
+        },
+        description:
+          "AI-generated custom artwork. Includes production-ready print file.",
+        // NOTE: PayPal Orders v2 doesn't officially document `image_url` here,
+        // but leaving it won't break the item_total requirement.
+        image_url: fileUrl,
+      },
+    ];
+
+    // ✅ REQUIRED when `items` are present
+    const itemTotal = calcItemTotal(
+      items.map((i) => ({
+        unit_amount: { value: i.unit_amount.value },
+        quantity: i.quantity,
+      }))
+    );
+
     const purchaseUnit = {
       reference_id: imageId,
       custom_id: imageId,
       invoice_id: invoiceId,
       amount: {
         currency_code: currency,
-        value: amount.toFixed(2),
-      },
-      items: [
-        {
-          name: title,
-          quantity: "1",
-          sku,
-          category: "PHYSICAL_GOODS",
-          unit_amount: {
+        value: itemTotal,
+        breakdown: {
+          item_total: {
             currency_code: currency,
-            value: amount.toFixed(2),
+            value: itemTotal,
           },
-          description:
-            "AI-generated custom artwork. Includes production-ready print file.",
-          image_url: fileUrl,
+          // If you later add shipping/tax, add them here and ensure
+          // the sum matches amount.value exactly.
         },
-      ],
+      },
+      items,
     };
 
     const paypalRes = await fetch(`${PAYPAL_API}/v2/checkout/orders`, {
@@ -90,7 +144,7 @@ export async function POST(req: Request) {
           brand_name: "AI Gifts",
           landing_page: "NO_PREFERENCE",
           user_action: "PAY_NOW",
-          shipping_preference: "GET_FROM_FILE", // CRITICAL FOR PRODIGI
+          shipping_preference: "GET_FROM_FILE", // keep for Prodigi
           return_url: `${baseUrl}/paypal/return`,
           cancel_url: `${baseUrl}/paypal/cancel`,
         },
@@ -112,7 +166,6 @@ export async function POST(req: Request) {
     const approve = (data.links as PayPalLink[]).find(
       (l) => l.rel === "approve"
     );
-    
 
     // Save draft order context
     ORDER_CTX.set(data.id, {
@@ -131,6 +184,9 @@ export async function POST(req: Request) {
     });
   } catch (err) {
     console.error("❌ PayPal Create Route Error:", err);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Server error" },
+      { status: 500 }
+    );
   }
 }

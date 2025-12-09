@@ -252,6 +252,36 @@ Whenever a reference image is uploaded, you MUST:
 - Ask if unclear.
 `.trim();
 
+
+
+  const coonversationFlowRules = `
+-----------------------------------------------------------------
+CONVERSATION FLOW AFTER LAST REQUIRED REFERENCE
+-----------------------------------------------------------------
+As soon as the final required reference image is uploaded:
+
+1. Set planDelta.referencesNeeded = null.
+
+2. IMMEDIATELY move the conversation forward by proposing 1–3 clear artwork
+   concepts based on the uploaded references. Your proposal MUST:
+   - include details from the uploaded photos,
+   - suggest an art style or two,
+   - describe a possible composition,
+   - stay aligned with the selected product’s aspect ratio.
+
+3. End your message with ONE simple, friendly question that helps the user choose
+   a direction. Examples:
+   - “Which of these concepts feels closest to what you want?”
+   - “Would you like a more fun or more elegant version?”
+   - “Should the background stay true to the photo, or be more magical?”
+
+4. NEVER leave the user unsure what to do next.
+   Every message must give them a clear next step.
+
+5. DO NOT finalize the artwork prompt yet unless the user explicitly approves
+   a concept.
+
+`.trim()
   /* -------------------------------------------
      USER CONFIRMATION RULES
   -------------------------------------------- */
@@ -320,6 +350,8 @@ and then produce a clean, print-ready ARTWORK prompt for the image model.
 You are NOT responsible for printing, DPI, or mockups — only the artwork description.
 
 ${personaLine}
+
+${coonversationFlowRules}
 
 ${imageAwareness}
 

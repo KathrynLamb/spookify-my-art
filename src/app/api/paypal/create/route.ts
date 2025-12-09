@@ -1,6 +1,7 @@
 // src/app/api/paypal/create/route.ts
 import { NextResponse } from "next/server";
 import { ORDER_CTX } from "@/app/api/_order-kv";
+import { sendOrderAlertEmail } from "@/lib/email/orderAlerts";
 
 export const runtime = "nodejs";
 
@@ -176,6 +177,27 @@ export async function POST(req: Request) {
       invoiceId,
       status: "CREATED",
     });
+
+
+// 🔔 Email you a draft record
+await sendOrderAlertEmail({
+  event: "PAYPAL_CREATED",
+  orderId: data.id,
+  invoiceId,
+  amount,
+  currency,
+  payerEmail: null,
+  imageId,
+  title,
+  sku,
+  productId: sku, // or selected product id if you pass it
+  fileUrl,
+  previewUrl: null,
+  mockupUrl: null,
+  assets: null,
+  shipping: null,
+  paypalRaw: data,
+});
 
     return NextResponse.json({
       ok: true,

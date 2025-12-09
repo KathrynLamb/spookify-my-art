@@ -4,6 +4,7 @@ import { ORDER_CTX } from "@/app/api/_order-kv";
 import type { OrderCtx } from "@/app/api/_order-kv";
 import { rebuildAssets } from "@/app/api/_rebuild-assets";
 import type { Asset } from "@/app/api/_rebuild-assets";
+import { sendOrderAlertEmail } from "@/lib/email/orderAlerts";
 
 
 
@@ -373,6 +374,28 @@ if (!hasCompleteShipping(shipping)) {
     };
 
     ORDER_CTX.set(orderID, stored);
+
+    await sendOrderAlertEmail({
+      event: prodigi.ok ? "PAID_FULFILLED" : "PAID_UNFULFILLED",
+      orderId: orderID,
+      invoiceId: invoiceId ?? null,
+      amount: stored.amount ?? null,
+      currency: stored.currency ?? null,
+      payerEmail: payerEmail ?? null,
+      imageId: imageId ?? null,
+      title: null, // if you can recover project title, add it here
+      sku: sku ?? null,
+      productId: null, // if you store productId in Firestore project, pull it
+      packSize: null,
+      fileUrl: fileUrl ?? null,
+      previewUrl: previewUrl ?? null,
+      mockupUrl: null,
+      assets: (assets as any) ?? null,
+      shipping: shipping ?? null,
+      paypalRaw: paypal,
+      prodigiRaw: prodigi,
+    });
+    
 
     /* -------------------------------------------------------
      * 8) Optional Firestore order log

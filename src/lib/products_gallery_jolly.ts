@@ -282,14 +282,150 @@ export const PRODUCTS = [
   },
 
   {
-    title: "Framed prints",
-    jollySrc: "/jollyfy/framed.png",
-    src: "/jollyfy/framed.png",
-    href: "/jollyfy/products?cat=prints",
-    name: "Art",
-    type: "Christmas",
-    comingSoon: true
+    title: "Eco Canvas (20×20″)",
+    name: "Recycled Eco Canvas",
+    type: "Wall Art",
+    category: "canvas",
+    printProvider: "prodigi",
+  
+    jollySrc: "/jollyfy/eco-canvas.png",
+    src: "/prodigi/canvas/eco-20x20-blank.png",
+    href: "/jollyfy/products?cat=canvas",
+  
+    /* -------------------------------------------------------------
+     * IDENTIFIERS
+     * ------------------------------------------------------------- */
+    productUID: "eco_canvas_20x20_sq",
+    prodigiSku: "ECO-CAN-20X20",
+  
+    /* -------------------------------------------------------------
+     * PRINT GENERATION CONFIG
+     * Print file: 20×20″ @ 300dpi → 6000×6000px
+     * ------------------------------------------------------------- */
+    printSpec: {
+      provider: "prodigi",
+      surfaceName: "Eco Canvas — 20×20 inch (Square)",
+  
+      finalWidthPx: 6000,
+      finalHeightPx: 6000,
+      dpi: 300,
+      targetAspect: 1, // square
+  
+      widthMm: 508,
+      heightMm: 508,
+  
+      safeZonePx: {
+        top: 200,
+        bottom: 200,
+        left: 200,
+        right: 200,
+      },
+  
+      previewWidthPx: 2048,
+  
+      llmPrintRules: [
+        "Produce artwork exactly at 6000×6000 pixels.",
+        "This is a square canvas — maintain a 1:1 composition.",
+        "Full bleed artwork — absolutely no borders or transparency.",
+        "Do NOT include frames, edge instructions, templates, or guides.",
+        "Keep important elements at least 200px inside from all edges.",
+        "Avoid placing text near edges — wrap areas may crop slightly.",
+        "Create a clean, finished artwork only; no mockup elements.",
+        "Do not add extra decorations unless the user requests them."
+      ],
+    },
+  
+    /* -------------------------------------------------------------
+     * MOCKUP CONFIG
+     * ------------------------------------------------------------- */
+    mockup: {
+      template: "/mockups/eco_canvas_blank.png",
+      canvasWidthPx: 2400,
+      canvasHeightPx: 2400,
+  
+      placement: {
+        x: 0,
+        y: 0,
+        width: 2400,
+        height: 2400,
+      },
+  
+      prompt: `
+        Create a photorealistic mockup of a square 20×20 inch eco canvas.
+        Show a straight-on view with soft gallery lighting.
+        The canvas edges should be visible and wrapped naturally.
+        Use a clean studio background, no props or room styling.
+        Apply the provided artwork only to the front face.
+        Do not add any additional text, graphics, or logos.
+      `,
+    },
+  
+    /* -------------------------------------------------------------
+     * CHAT LLM GUIDANCE
+     * ------------------------------------------------------------- */
+    greetings: [
+      "Ready to create a beautiful eco canvas? 🌿✨",
+      "Let’s design a stunning piece of sustainable wall art together!",
+      "Your eco-friendly canvas design starts here — what would you love to create?",
+    ],
+  
+    creativeGuidance: [
+      "Ask about the intended room or vibe (e.g., calm, bold, festive).",
+      "Offer 3 style shortcuts: minimalist, painterly, photorealistic.",
+      "Confirm whether any uploaded photos should be used directly.",
+      "Always maintain square composition awareness (1:1)."
+    ],
+  
+    generationNotes: [
+      "Square 1:1 format.",
+      "Full bleed artwork.",
+      "Soft edges may wrap; avoid edge-critical elements.",
+      "Eco canvas uses 12-colour Giclée printing.",
+    ],
+  
+    /* -------------------------------------------------------------
+     * PHOTO REQUIREMENTS
+     * ------------------------------------------------------------- */
+    requirePhotos: {
+      min: 0,
+      labels: [],
+    },
+  
+    /* -------------------------------------------------------------
+     * STORE DATA
+     * ------------------------------------------------------------- */
+    description:
+      "A premium 20×20” eco canvas made entirely from recycled materials. Lightweight, beautifully printed with 12-colour Giclée inks, and delivered in sustainable packaging.",
+  
+    specs: [
+      "20×20 inch (square)",
+      "100% recycled satin canvas",
+      "330gsm substrate",
+      "Recycled board frame (38mm depth)",
+      "Giclée printing with latex inks",
+      "Choice of wrap styles (image wrap, white, black, mirror wrap)",
+      "Lightweight with built-in hanging hardware",
+    ],
+  
+    prices: { GBP: 19, USD: 29, EUR: 27 },
+  
+    shippingTime: {
+      uk: "72h production",
+      eu: "3–6 business days",
+      us: "4–7 business days",
+      international: "7–12 business days",
+    },
+  
+    shippingRegions: ["UK", "EU", "USA", "Canada", "Australia"],
+  
+    returnPolicy:
+      "14-day replacements for damaged/defective items. Printed-on-demand items are not returnable unless faulty.",
+  
+    care: ["Wipe clean with a dry cloth"],
+  
+    inStock: true,
   },
+  
     /* -------------------------------------------------------------
    * GREETING CARDS — 6×6" Gloss — Mail4Me Direct
    * We expose two app variants (Single + Pack of 10)

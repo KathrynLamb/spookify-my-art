@@ -390,7 +390,7 @@ if (!hasCompleteShipping(shipping)) {
       fileUrl: fileUrl ?? null,
       previewUrl: previewUrl ?? null,
       mockupUrl: null,
-      assets: (assets as any) ?? null,
+      assets: (assets as Asset[]) ?? [],
       shipping: shipping ?? null,
       paypalRaw: paypal,
       prodigiRaw: prodigi,

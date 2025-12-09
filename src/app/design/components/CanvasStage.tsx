@@ -1,11 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import {
-  Comparison,
-  ComparisonItem,
-  ComparisonHandle,
-} from "@/components/ui/shadcn-io/comparison";
+
 
 export function CanvasStage({
   original,
@@ -14,7 +10,7 @@ export function CanvasStage({
   original?: string | null;
   result?: string | null;
 }) {
-  const hasOriginal = !!original;
+  // const hasOriginal = !!original;
   const hasResult = !!result;
 
   return (

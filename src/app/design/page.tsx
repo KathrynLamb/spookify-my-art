@@ -549,6 +549,8 @@ export default function DesignPage() {
     selectedProduct,
     activePlan?.userConfirmed,
     activePlan?.finalizedPrompt,
+    activePlan?.insideMessage,
+    activePlan?.userInsideMessageDecision,
     previewUrl,
     _printUrl,
     generating,

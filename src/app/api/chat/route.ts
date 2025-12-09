@@ -38,41 +38,32 @@ function mergePlan(base: Partial<Plan>, delta: Partial<Plan>): Plan {
   return {
     ...base,
     ...delta,
-
-    // keep references stable
-    references: mergedRefs,
-
-    // ensure referencesNeeded behaves predictably
+    references: [...mergedRefs.values()],
     referencesNeeded:
-      delta.referencesNeeded !== undefined
+      Array.isArray(delta.referencesNeeded) || delta.referencesNeeded === null
         ? delta.referencesNeeded ?? undefined
         : base.referencesNeeded,
-
-    // finalizedPrompt always nullable
+  
     finalizedPrompt:
       delta.finalizedPrompt ?? base.finalizedPrompt ?? null,
-
-    // boolean defaults
+  
     userConfirmed:
       typeof delta.userConfirmed === "boolean"
         ? delta.userConfirmed
         : base.userConfirmed ?? false,
-
-    // greeting card extras — hard defaults
+  
     userInsideMessageDecision:
-      delta.userInsideMessageDecision ??
-      base.userInsideMessageDecision ??
-      false,
-
+      typeof delta.userInsideMessageDecision === "boolean"
+        ? delta.userInsideMessageDecision
+        : base.userInsideMessageDecision ?? false,
+  
     insideMessage:
       delta.insideMessage ?? base.insideMessage ?? null,
-
-    // projectName safety net (even if model forgets once)
+  
     projectName:
-      delta.projectName ??
-      base.projectName ??
-      "Untitled Project",
+      delta.projectName ?? base.projectName ?? "Untitled Project",
   };
+  
 }
 
 
@@ -189,6 +180,21 @@ export async function POST(req: NextRequest) {
     if (typeof planDelta.projectName === "string") {
       mergedPlan.projectName = planDelta.projectName;
     }
+
+    const isCardProduct =
+  raw.selectedProduct?.category === "cards";
+
+if (isCardProduct) {
+  const decided = mergedPlan.userInsideMessageDecision;
+  const hasPrompt = !!mergedPlan.finalizedPrompt;
+
+  // If we have a prompt but no decision, downgrade finalization.
+  if (hasPrompt && !decided) {
+    mergedPlan.finalizedPrompt = null;
+    mergedPlan.userConfirmed = false;
+  }
+}
+
 
     return NextResponse.json({
       content: assistantText,

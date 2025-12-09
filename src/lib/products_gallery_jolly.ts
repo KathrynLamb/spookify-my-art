@@ -352,7 +352,7 @@ export const PRODUCTS = [
         previewWidthPx: 2048,
     
         llmPrintRules: [
-          "Produce artwork exactly at 6732×1712 pixels.",
+          "Produce artwork exactly at 6732×1713 pixels.",
           "This is a 4-panel horizontal greetings card print sheet.",
           "Treat the artwork as FOUR equal panels across the width.",
           "Panel order LEFT → RIGHT:",
@@ -373,7 +373,7 @@ export const PRODUCTS = [
           "Only Panel 2 should contain the full illustrated scene unless the user requests otherwise.",
           "Keep Panels 1, 3, and 4 minimal or subtle unless otherwise instructed.",
           "Never place text across panel boundaries.",
-        
+          "never add anything except specifically what is asked for.",
           "Do NOT include templates, fold guides, labels, dashed lines, or watermarks.",
           "No borders or transparency.",
           "Fill each panel edge-to-edge with artwork or subtle clean color.",
